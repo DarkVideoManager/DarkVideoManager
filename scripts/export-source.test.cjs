@@ -39,7 +39,8 @@ function fixture(t) {
   fs.writeFileSync(path.join(root, 'README.md'), 'Reviewed fixture\n')
   fs.writeFileSync(path.join(root, 'LICENSE'), 'Fixture license\n')
   fs.writeFileSync(path.join(root, 'scripts', 'setup.cjs'), '// fixture setup\n')
-  fs.writeFileSync(path.join(root, '.gitignore'), 'release/\n.env*\nnode_modules/\nout/\n')
+  // Ignore the output path whether Git sees a directory, junction or POSIX symlink.
+  fs.writeFileSync(path.join(root, '.gitignore'), '/release\n.env*\nnode_modules/\nout/\n')
   return { root, outside }
 }
 
@@ -161,7 +162,7 @@ test('refuses a tracked source file reached through a directory junction', (t) =
   assert.ok(!fs.existsSync(path.join(root, 'release')))
 })
 
-test('refuses a release directory junction without writing or deleting external files', (t) => {
+test('refuses a linked release directory without writing or deleting external files', (t) => {
   const { root, outside } = fixture(t)
   const sentinel = path.join(outside, 'keep.txt')
   fs.writeFileSync(sentinel, 'preserve me')
@@ -170,6 +171,7 @@ test('refuses a release directory junction without writing or deleting external 
     path.join(root, 'release'),
     process.platform === 'win32' ? 'junction' : 'dir',
   )
+  assert.equal(run('git', ['check-ignore', 'release'], root).trim(), 'release')
   assert.throws(() => exportSource(root, { quiet: true }), /release directory/)
   assert.deepEqual(fs.readdirSync(outside), ['keep.txt'])
   assert.equal(fs.readFileSync(sentinel, 'utf8'), 'preserve me')
