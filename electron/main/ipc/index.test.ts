@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   handle: vi.fn(),
   showOpenDialog: vi.fn(),
   importCsvData: vi.fn(),
-  importDeepDarkDbData: vi.fn(),
   closeLibrary: vi.fn(),
   deleteLibrary: vi.fn(),
   updateVideoMeta: vi.fn(),
@@ -65,9 +64,7 @@ vi.mock('../db/repositories/VideoRepository', () => ({
 }))
 vi.mock('../services/DataImportService', () => ({
   previewCsvImport: vi.fn(),
-  previewDeepDarkDbImport: vi.fn(),
   importCsvData: mocks.importCsvData,
-  importDeepDarkDbData: mocks.importDeepDarkDbData,
 }))
 vi.mock('../services/LibraryService', () => ({
   listLibraries: vi.fn(),
@@ -427,12 +424,12 @@ describe('IPC dispatch', () => {
 
   it('treats file-picker cancellation as a successful empty selection', async () => {
     mocks.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
-    expect(await invoke(IPC.DATA_IMPORT.SELECT_DEEPDARK_DB)).toEqual({ ok: true, value: null })
+    expect(await invoke(IPC.DATA_IMPORT.SELECT_CSV)).toEqual({ ok: true, value: null })
     expect(mocks.showOpenDialog).toHaveBeenCalledWith(
       { webContents: sender },
       {
         properties: ['openFile'],
-        filters: [{ name: 'Database files', extensions: ['db', 'sqlite', 'sqlite3'] }],
+        filters: [{ name: 'CSV files', extensions: ['csv'] }],
       },
     )
   })

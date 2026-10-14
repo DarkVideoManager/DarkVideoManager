@@ -19,7 +19,6 @@ import ImportDialog, {
   WorkProgress,
 } from '../components/library/ImportDialog'
 import CsvImportDialog from '../components/library/CsvImportDialog'
-import DeepDarkDbImportDialog from '../components/library/DeepDarkDbImportDialog'
 function LibraryPage() {
   const {
     activeLibraryId,
@@ -66,7 +65,6 @@ function LibraryPage() {
   const [isComposingSearch, setIsComposingSearch] = React.useState(false)
   const [showImport, setShowImport] = React.useState(false)
   const [showCsvImport, setShowCsvImport] = React.useState(false)
-  const [showDeepDarkDbImport, setShowDeepDarkDbImport] = React.useState(false)
   const refreshWork = useLibraryWorkProgress(activeLibraryId)
   const [refreshMessage, setRefreshMessage] = React.useState(null)
   const [refreshError, setRefreshError] = React.useState(null)
@@ -506,13 +504,6 @@ ${error.message}`)
           >
             {'CSV 가져오기'}
           </button>
-          <button
-            onClick={() => setShowDeepDarkDbImport(true)}
-            disabled={refreshLibrary.isPending}
-            className={'rounded bg-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600'}
-          >
-            {'deepdark.db 가져오기'}
-          </button>
         </div>
         {refreshWork.progress && (
           <div className="px-4">
@@ -599,12 +590,6 @@ ${error.message}`)
       )}
       {showCsvImport && (
         <CsvImportDialog libraryId={activeLibraryId} onClose={() => setShowCsvImport(false)} />
-      )}
-      {showDeepDarkDbImport && (
-        <DeepDarkDbImportDialog
-          libraryId={activeLibraryId}
-          onClose={() => setShowDeepDarkDbImport(false)}
-        />
       )}
     </div>
   )

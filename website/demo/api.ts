@@ -1216,9 +1216,6 @@ export function createDemoAdapter(
       selectCsv: unsupported,
       preview: unsupported,
       importCsv: unsupported,
-      selectDeepDarkDb: unsupported,
-      previewDeepDarkDb: unsupported,
-      importDeepDarkDb: unsupported,
     },
     library: {
       list: async () => ok([copy(demoLibrary)]),

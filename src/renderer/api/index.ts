@@ -44,11 +44,6 @@ const dataImportApi: WindowApi['dataImport'] = {
   preview: (libraryId, csvPath) => getApi().dataImport.preview(libraryId, csvPath),
   importCsv: (libraryId, csvPath, options) =>
     getApi().dataImport.importCsv(libraryId, csvPath, options),
-  selectDeepDarkDb: () => getApi().dataImport.selectDeepDarkDb(),
-  previewDeepDarkDb: (libraryId, dbPath) =>
-    getApi().dataImport.previewDeepDarkDb(libraryId, dbPath),
-  importDeepDarkDb: (libraryId, dbPath, options) =>
-    getApi().dataImport.importDeepDarkDb(libraryId, dbPath, options),
 }
 
 const playbackApi: WindowApi['playback'] = {

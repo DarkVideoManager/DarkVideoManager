@@ -28,7 +28,6 @@ for (const dir of [media, additional, output]) fs.mkdirSync(dir, { recursive: tr
 const video = path.join(media, 'sample.mp4')
 const extraVideo = path.join(additional, 'extra.avi')
 const csv = path.join(temporary, 'import.csv')
-const externalDb = path.join(temporary, 'deepdark.db')
 const png =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII='
 
@@ -51,18 +50,6 @@ fs.writeFileSync(
   `_table,filepath,stars,start\nfiles,"${video}",4,\nfavorites,"${video}",,1500\n`,
   'utf8',
 )
-
-const seed = `
-const D=require('better-sqlite3');const db=new D(process.argv[1]);
-db.exec('CREATE TABLE Files(uid INTEGER,filepath TEXT,dvdId TEXT,stars INTEGER,fileDate TEXT,playDate TEXT,hashTag TEXT,count INTEGER,thumb BLOB);CREATE TABLE Favorites(uid INTEGER,filepath TEXT,start REAL,length REAL,thumb BLOB);CREATE TABLE Dvd(dvdId TEXT,dvdTitle TEXT,actors TEXT,genres TEXT,releaseDate TEXT)');
-db.prepare('INSERT INTO Files VALUES(?,?,?,?,?,?,?,?,?)').run(1,process.argv[2],'sample',5,'2026-01-01','2026-01-02','restored',7,Buffer.from(process.argv[3],'base64'));
-db.prepare('INSERT INTO Favorites VALUES(1,?,2500,1000,NULL)').run(process.argv[2]);
-db.exec("INSERT INTO Dvd VALUES('sample','Restored title','Demo actor','Demo genre','2026-01-01')");db.close();`
-execFileSync(require('electron'), ['-e', seed, externalDb, video, png], {
-  cwd: root,
-  env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-  windowsHide: true,
-})
 
 async function main() {
   const env = {
@@ -104,6 +91,11 @@ async function main() {
       throw new Error(`Timed out waiting for restored UI: ${JSON.stringify({ state, errors })}`)
     }
     await waitUntil(() => !!window.api?.dataImport && document.body.innerText.length > 0)
+    assert.deepEqual(
+      await page.evaluate(() => Object.keys(window.api.dataImport).sort()),
+      ['importCsv', 'preview', 'selectCsv'],
+      'Only CSV metadata import should be exposed to the renderer',
+    )
     const invoke = async (group, method, ...args) => {
       const result = await page.evaluate(
         async ({ group, method, args }) => window.api[group][method](...args),
@@ -124,6 +116,7 @@ async function main() {
     passed.push('folder import, probing, additional-folder refresh, search')
 
     await invoke('videos', 'updateMeta', library.id, item.id, {
+      title: 'Restored title',
       rating: 3,
       memo: 'Restored memo',
       tags: 'test-tag',
@@ -137,18 +130,8 @@ async function main() {
     })
     assert.equal(imported.ratingsUpdated, 1)
     assert.equal(imported.highlightsAdded, 1)
-    const deepPreview = await invoke('dataImport', 'previewDeepDarkDb', library.id, externalDb)
-    assert.equal(deepPreview.matchedFilesRows, 1)
-    const deep = await invoke('dataImport', 'importDeepDarkDb', library.id, externalDb, {
-      importRatings: true,
-      importFavoritesAsHighlights: true,
-      importThumbnails: true,
-      importMetadata: true,
-    })
-    assert.equal(deep.metadataUpdated, 1)
-    assert.equal(deep.thumbnailsImported, 1)
-    assert.equal((await invoke('videos', 'get', library.id, item.id)).rating, 5)
-    passed.push('metadata, tag search, CSV preview/import, DeepDark DB preview/import')
+    assert.equal((await invoke('videos', 'get', library.id, item.id)).rating, 4)
+    passed.push('metadata, tag search, CSV preview/import')
 
     const highlight = await invoke('highlights', 'create', library.id, {
       videoId: item.id,

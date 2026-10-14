@@ -14,9 +14,6 @@ export const IPC = {
     SELECT_CSV: 'dataImport:selectCsv',
     PREVIEW: 'dataImport:preview',
     IMPORT: 'dataImport:import',
-    SELECT_DEEPDARK_DB: 'dataImport:selectDeepDarkDb',
-    PREVIEW_DEEPDARK_DB: 'dataImport:previewDeepDarkDb',
-    IMPORT_DEEPDARK_DB: 'dataImport:importDeepDarkDb',
   },
   LIBRARY: {
     LIST: 'library:list',

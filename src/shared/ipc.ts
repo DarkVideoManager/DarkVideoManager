@@ -39,11 +39,6 @@ export const CsvImportOptionsZ = z
   })
   .strict()
 
-export const DeepDarkDbImportOptionsZ = CsvImportOptionsZ.extend({
-  importThumbnails: z.boolean(),
-  importMetadata: z.boolean(),
-}).strict()
-
 export const NativePlayerOptionsZ = z
   .object({
     startTimeSec: TimeZ.optional(),
@@ -158,9 +153,6 @@ export const IPC_SCHEMAS = {
   [IPC.DATA_IMPORT.SELECT_CSV]: EmptyArgsZ,
   [IPC.DATA_IMPORT.PREVIEW]: z.tuple([IdZ, FilePathZ]),
   [IPC.DATA_IMPORT.IMPORT]: z.tuple([IdZ, FilePathZ, CsvImportOptionsZ]),
-  [IPC.DATA_IMPORT.SELECT_DEEPDARK_DB]: EmptyArgsZ,
-  [IPC.DATA_IMPORT.PREVIEW_DEEPDARK_DB]: z.tuple([IdZ, FilePathZ]),
-  [IPC.DATA_IMPORT.IMPORT_DEEPDARK_DB]: z.tuple([IdZ, FilePathZ, DeepDarkDbImportOptionsZ]),
   [IPC.LIBRARY.LIST]: EmptyArgsZ,
   [IPC.LIBRARY.OPEN]: LibraryIdArgsZ,
   [IPC.LIBRARY.CREATE]: z.tuple([z.string().min(1), FilePathZ]),

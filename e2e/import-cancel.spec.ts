@@ -112,58 +112,51 @@ test('folder and library refresh cancellation wait for acknowledgement without r
   ).toEqual(['mock-library', 'mock-library'])
 })
 
-for (const source of [
-  { kind: 'csv', title: 'CSV 가져오기', select: 'CSV 선택' },
-  { kind: 'db', title: 'deepdark.db 가져오기', select: 'DB 선택' },
-]) {
-  test(`${source.kind} preview and apply can be cancelled and rejected IPC calls release busy controls`, async ({
-    page,
-  }) => {
-    await prepareWorkHarness(page)
-    await page.evaluate((kind) => {
-      const state = (window as unknown as WorkWindow).workHarness
-      const previewName = kind === 'csv' ? 'preview' : 'previewDeepDarkDb'
-      const importName = kind === 'csv' ? 'importCsv' : 'importDeepDarkDb'
-      const api = window.api.dataImport
-      const originalPreview = api[previewName].bind(api)
-      let previews = 0
-      let imports = 0
-      api[previewName] = ((libraryId: string, filePath: string) => {
-        if (previews++ > 0) return originalPreview(libraryId, filePath)
-        return new Promise((resolve) => {
+test('CSV preview and apply can be cancelled and rejected IPC calls release busy controls', async ({
+  page,
+}) => {
+  await prepareWorkHarness(page)
+  await page.evaluate(() => {
+    const state = (window as unknown as WorkWindow).workHarness
+    const api = window.api.dataImport
+    const originalPreview = api.preview.bind(api)
+    let previews = 0
+    let imports = 0
+    api.preview = (libraryId, filePath) => {
+      if (previews++ > 0) return originalPreview(libraryId, filePath)
+      return new Promise<Awaited<ReturnType<typeof api.preview>>>((resolve) => {
+        state.finishMetadata = () => resolve({ ok: false, error: '작업이 취소되었습니다.' })
+      })
+    }
+    api.importCsv = () =>
+      new Promise<Awaited<ReturnType<typeof api.importCsv>>>((resolve, reject) => {
+        if (imports++ === 0)
           state.finishMetadata = () => resolve({ ok: false, error: '작업이 취소되었습니다.' })
-        })
-      }) as typeof api.preview & typeof api.previewDeepDarkDb
-      api[importName] = (() =>
-        new Promise((resolve, reject) => {
-          if (imports++ === 0)
-            state.finishMetadata = () => resolve({ ok: false, error: '작업이 취소되었습니다.' })
-          else state.rejectMetadata = () => reject(new Error('IPC 연결 테스트 실패'))
-        })) as typeof api.importCsv & typeof api.importDeepDarkDb
-    }, source.kind)
-    await page.getByRole('button', { name: source.title, exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: source.title })
-    await dialog.getByRole('button', { name: source.select, exact: true }).click()
-    await dialog.getByRole('button', { name: '분석', exact: true }).click()
-    await emit(page, { phase: 'preparing', current: 1, total: 4 })
-    await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeDisabled()
-    await dialog.getByRole('button', { name: '작업 취소', exact: true }).click()
-    await page.evaluate(() => (window as unknown as WorkWindow).workHarness.finishMetadata())
-    await expect(dialog.getByRole('alert')).toHaveText('작업이 취소되었습니다.')
-    await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeEnabled()
-    await dialog.getByRole('button', { name: '분석', exact: true }).click()
-    await expect(dialog.getByText('미리보기', { exact: true })).toBeVisible()
-    await dialog.getByRole('button', { name: '가져오기 적용', exact: true }).click()
-    await emit(page, { phase: 'applying' })
-    await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeDisabled()
-    await dialog.getByRole('button', { name: '작업 취소', exact: true }).click()
-    await page.evaluate(() => (window as unknown as WorkWindow).workHarness.finishMetadata())
-    await expect(dialog.getByRole('alert')).toHaveText('작업이 취소되었습니다.')
-    await expect(dialog.getByText('가져오기 완료', { exact: true })).toHaveCount(0)
-    await dialog.getByRole('button', { name: '가져오기 적용', exact: true }).click()
-    await page.evaluate(() => (window as unknown as WorkWindow).workHarness.rejectMetadata())
-    await expect(dialog.getByRole('alert')).toHaveText('IPC 연결 테스트 실패')
-    await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeEnabled()
-    await expect(dialog.getByRole('button', { name: '가져오기 적용', exact: true })).toBeEnabled()
+        else state.rejectMetadata = () => reject(new Error('IPC 연결 테스트 실패'))
+      })
   })
-}
+  await page.getByRole('button', { name: 'CSV 가져오기', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'CSV 가져오기' })
+  await dialog.getByRole('button', { name: 'CSV 선택', exact: true }).click()
+  await dialog.getByRole('button', { name: '분석', exact: true }).click()
+  await emit(page, { phase: 'preparing', current: 1, total: 4 })
+  await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeDisabled()
+  await dialog.getByRole('button', { name: '작업 취소', exact: true }).click()
+  await page.evaluate(() => (window as unknown as WorkWindow).workHarness.finishMetadata())
+  await expect(dialog.getByRole('alert')).toHaveText('작업이 취소되었습니다.')
+  await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeEnabled()
+  await dialog.getByRole('button', { name: '분석', exact: true }).click()
+  await expect(dialog.getByText('미리보기', { exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: '가져오기 적용', exact: true }).click()
+  await emit(page, { phase: 'applying' })
+  await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeDisabled()
+  await dialog.getByRole('button', { name: '작업 취소', exact: true }).click()
+  await page.evaluate(() => (window as unknown as WorkWindow).workHarness.finishMetadata())
+  await expect(dialog.getByRole('alert')).toHaveText('작업이 취소되었습니다.')
+  await expect(dialog.getByText('가져오기 완료', { exact: true })).toHaveCount(0)
+  await dialog.getByRole('button', { name: '가져오기 적용', exact: true }).click()
+  await page.evaluate(() => (window as unknown as WorkWindow).workHarness.rejectMetadata())
+  await expect(dialog.getByRole('alert')).toHaveText('IPC 연결 테스트 실패')
+  await expect(dialog.getByRole('button', { name: '닫기', exact: true })).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: '가져오기 적용', exact: true })).toBeEnabled()
+})

@@ -13,7 +13,6 @@ import type {
   Video,
   Thumbnail,
   CsvImportPreview,
-  DeepDarkDbImportPreview,
   Subtitle,
   SubtitleGenerationJob,
   SubtitleGenerationOptions,
@@ -297,25 +296,6 @@ const csvPreview: CsvImportPreview = {
   ambiguousFavoriteRows: 0,
   unmatchedFavoriteRows: 0,
 }
-const dbPreview: DeepDarkDbImportPreview = {
-  dbPath: '/mock/deepdark.db',
-  filesRows: 1,
-  favoritesRows: 1,
-  dvdRows: 1,
-  filesWithThumb: 1,
-  favoritesWithThumb: 1,
-  matchedFilesRows: 1,
-  ambiguousFilesRows: 0,
-  unmatchedFilesRows: 0,
-  matchedFavoriteRows: 1,
-  ambiguousFavoriteRows: 0,
-  unmatchedFavoriteRows: 0,
-  ambiguousFilesSample: [],
-  unmatchedFilesSample: [],
-  ambiguousFavoriteSample: [],
-  unmatchedFavoriteSample: [],
-  matchingRules: ['정확한 파일 경로를 우선하여 매칭합니다.'],
-}
 
 async function captureMock(
   _libraryId: string,
@@ -532,16 +512,6 @@ export const mockApi: WindowApi = {
     selectCsv: async () => ok(csvPreview.csvPath),
     preview: async () => ok(csvPreview),
     importCsv: async () => ok({ preview: csvPreview, ratingsUpdated: 1, highlightsAdded: 1 }),
-    selectDeepDarkDb: async () => ok(dbPreview.dbPath),
-    previewDeepDarkDb: async () => ok(dbPreview),
-    importDeepDarkDb: async () =>
-      ok({
-        preview: dbPreview,
-        ratingsUpdated: 1,
-        highlightsAdded: 1,
-        thumbnailsImported: 2,
-        metadataUpdated: 1,
-      }),
   },
   library: {
     list: async () => ok(libraries),

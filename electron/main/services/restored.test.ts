@@ -1,15 +1,6 @@
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  rmSync,
-  readFileSync,
-  existsSync,
-  readdirSync,
-} from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
-import Database from 'better-sqlite3'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ userData: '' }))
@@ -35,13 +26,12 @@ import { createLibrary, importFolder, refreshLibrary } from './LibraryService'
 import { VideoRepository } from '../db/repositories/VideoRepository'
 import { HighlightRepository } from '../db/repositories/HighlightRepository'
 import { ThumbnailRepository } from '../db/repositories/ThumbnailRepository'
-import { previewCsvImport, importCsvData, importDeepDarkDbData } from './DataImportService.js'
+import { previewCsvImport, importCsvData } from './DataImportService.js'
 import { startPlayback, heartbeat, endPlayback, finishPlaybackSessions } from './PlaybackService'
 import { ensureThumbnailForVideo } from './ThumbnailService'
 import { convertSrtToVtt } from './SubtitleService'
 import { createMediaResponse, parseRange } from '../infra/localMedia'
 import { cancelLibraryWork, isLibraryBusy } from './LibraryWorkService'
-import { getThumbnailsDir } from '../infra/paths'
 
 const win = {
   isDestroyed: () => false,
@@ -116,33 +106,37 @@ describe('restored library and metadata features', () => {
     expect((await previewCsvImport(library.id, csv)).matchedRatingRows).toBe(10_000)
   })
 
-  it('rolls back database changes and newly written images if metadata commit fails', async () => {
+  it('rolls back CSV changes and releases the library when a later update fails', async () => {
     const { library, repo, video, dir, db } = await seeded()
     const secondPath = movie(dir, 'second')
     await importFolder(library.id, dir, win)
-    const sourcePath = join(root, 'invalid-import.db')
-    const source = new Database(sourcePath)
-    source.exec(
-      'CREATE TABLE Files(uid INTEGER, filepath TEXT, dvdId TEXT, stars INTEGER, fileDate TEXT, playDate TEXT, hashTag TEXT, count INTEGER, thumb BLOB); CREATE TABLE Favorites(uid INTEGER, filepath TEXT, start INTEGER, length INTEGER, thumb BLOB); CREATE TABLE Dvd(dvdId TEXT, dvdTitle TEXT, actors TEXT, genres TEXT, releaseDate TEXT)',
+    const second = repo.findByPath(secondPath)!
+    const csv = join(root, 'rollback.csv')
+    writeFileSync(
+      csv,
+      [
+        '_table,filepath,stars,start',
+        `files,"${video.filePath}",4,`,
+        `files,"${secondPath}",5,`,
+        `favorites,"${video.filePath}",,2500`,
+      ].join('\n'),
     )
-    const insert = source.prepare('INSERT INTO Files VALUES(?,?,NULL,?,NULL,NULL,NULL,0,?)')
-    insert.run(1, video.filePath, 4, Buffer.from([137, 80, 78, 71]))
-    insert.run(2, secondPath, 99, null)
-    source.close()
-    const thumbnails = getThumbnailsDir(library.id)
-    const before = readdirSync(thumbnails)
+    db.exec(
+      `CREATE TEMP TRIGGER reject_csv_rating BEFORE UPDATE OF rating ON videos
+       WHEN NEW.rating = 5
+       BEGIN SELECT RAISE(ABORT, 'synthetic CSV commit failure'); END`,
+    )
     await expect(
-      importDeepDarkDbData(library.id, sourcePath, {
+      importCsvData(library.id, csv, {
         importRatings: true,
         importFavoritesAsHighlights: true,
-        importMetadata: true,
-        importThumbnails: true,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow('synthetic CSV commit failure')
     expect(repo.findById(video.id)?.rating).toBe(0)
-    expect(new ThumbnailRepository(db).findByVideoId(video.id)).toEqual([])
-    expect(readdirSync(thumbnails)).toEqual(before)
+    expect(repo.findById(second.id)?.rating).toBe(0)
+    expect(new HighlightRepository(db).findByVideoId(video.id)).toEqual([])
     expect(isLibraryBusy(library.id)).toBe(false)
+    expect((await previewCsvImport(library.id, csv)).matchedRatingRows).toBe(2)
   })
 
   it('preserves added-folder metadata and aborts refresh on an unavailable root', async () => {
@@ -198,43 +192,49 @@ describe('restored library and metadata features', () => {
     })
   })
 
-  it('imports DeepDark metadata, rating, thumbnails and favorite timestamps', async () => {
-    const { library, repo, video, db } = await seeded()
-    const sourcePath = join(root, 'deepdark.db')
-    const source = new Database(sourcePath)
-    source.exec(
-      'CREATE TABLE Files(uid INTEGER, filepath TEXT, dvdId TEXT, stars INTEGER, fileDate TEXT, playDate TEXT, hashTag TEXT, count INTEGER, thumb BLOB); CREATE TABLE Favorites(uid INTEGER, filepath TEXT, start INTEGER, length INTEGER, thumb BLOB); CREATE TABLE Dvd(dvdId TEXT, dvdTitle TEXT, actors TEXT, genres TEXT, releaseDate TEXT)',
+  it('keeps CSV path matching and skips ambiguous or missing videos', async () => {
+    const { library, repo, video, db, dir } = await seeded()
+    const canonicalPath = movie(dir, 'Act One')
+    await importFolder(library.id, dir, win)
+    const other = folder('other')
+    const duplicatePath = movie(other)
+    await importFolder(library.id, other, win)
+    const csv = join(root, 'matching.csv')
+    writeFileSync(
+      csv,
+      [
+        '_table,filepath,stars,start',
+        `files,"${video.filePath}",4,`,
+        'files,movie.mp4,5,',
+        'files,act-one.mp4,3,',
+        'files,other/movie.mp4,2,',
+        'files,missing.mp4,1,',
+        'favorites,other/movie.mp4,,1250',
+      ].join('\n'),
     )
-    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
-    source
-      .prepare('INSERT INTO Files VALUES(1,?,?,5,NULL,?,?,7,?)')
-      .run(video.filePath, 'ABC-1', '2026-01-02 03:04:05', 'sample', png)
-    source.prepare('INSERT INTO Favorites VALUES(1,?,12000,0,?)').run(video.filePath, png)
-    source
-      .prepare('INSERT INTO Dvd VALUES(?,?,?,?,?)')
-      .run('ABC-1', 'Imported title', 'Actor', 'Genre', '2025-01-01')
-    source.close()
-    const result = await importDeepDarkDbData(library.id, sourcePath, {
+    expect(await previewCsvImport(library.id, csv)).toMatchObject({
+      matchedRatingRows: 3,
+      ambiguousRatingRows: 1,
+      unmatchedRatingRows: 1,
+      matchedFavoriteRows: 1,
+    })
+    const result = await importCsvData(library.id, csv, {
       importRatings: true,
       importFavoritesAsHighlights: true,
-      importMetadata: true,
-      importThumbnails: true,
     })
     expect(result).toMatchObject({
-      ratingsUpdated: 1,
-      metadataUpdated: 1,
-      thumbnailsImported: 2,
+      ratingsUpdated: 3,
       highlightsAdded: 1,
     })
-    expect(repo.findById(video.id)).toMatchObject({
-      title: 'Imported title',
-      playCount: 7,
-      rating: 5,
-    })
+    expect(repo.findById(video.id)?.rating).toBe(4)
+    expect(repo.findByPath(canonicalPath)?.rating).toBe(3)
+    const duplicate = repo.findByPath(duplicatePath)!
+    expect(duplicate.rating).toBe(2)
     expect(
-      new ThumbnailRepository(db).findByVideoId(video.id).filter((thumb) => thumb.isPrimary),
-    ).toHaveLength(1)
-    expect(new HighlightRepository(db).findByVideoId(video.id)[0].timeStart).toBe(12)
+      new HighlightRepository(db)
+        .findByVideoId(duplicate.id)
+        .map((highlight) => highlight.timeStart),
+    ).toEqual([1.25])
   })
 
   it('keeps existing captures when forced regeneration fails', async () => {

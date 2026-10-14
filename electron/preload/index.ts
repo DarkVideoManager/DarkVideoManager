@@ -22,9 +22,6 @@ import type {
   CsvImportOptions,
   CsvImportPreview,
   CsvImportResult,
-  DeepDarkDbImportOptions,
-  DeepDarkDbImportPreview,
-  DeepDarkDbImportResult,
   NativePlayerInfo,
   NativePlayerOptions,
   NativePlayerActionEvent,
@@ -68,19 +65,6 @@ const api = {
       options: CsvImportOptions,
     ): Promise<Result<CsvImportResult, string>> =>
       ipcRenderer.invoke(IPC.DATA_IMPORT.IMPORT, libraryId, csvPath, options),
-    selectDeepDarkDb: (): Promise<Result<string | null, string>> =>
-      ipcRenderer.invoke(IPC.DATA_IMPORT.SELECT_DEEPDARK_DB),
-    previewDeepDarkDb: (
-      libraryId: string,
-      dbPath: string,
-    ): Promise<Result<DeepDarkDbImportPreview, string>> =>
-      ipcRenderer.invoke(IPC.DATA_IMPORT.PREVIEW_DEEPDARK_DB, libraryId, dbPath),
-    importDeepDarkDb: (
-      libraryId: string,
-      dbPath: string,
-      options: DeepDarkDbImportOptions,
-    ): Promise<Result<DeepDarkDbImportResult, string>> =>
-      ipcRenderer.invoke(IPC.DATA_IMPORT.IMPORT_DEEPDARK_DB, libraryId, dbPath, options),
   },
   library: {
     list: (): Promise<Result<Library[], string>> => ipcRenderer.invoke(IPC.LIBRARY.LIST),

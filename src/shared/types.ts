@@ -301,44 +301,6 @@ export interface CsvImportResult {
   highlightsAdded: number
 }
 
-export interface ImportMatchSample {
-  importPath: string
-  candidates?: string[]
-}
-
-export interface DeepDarkDbImportOptions extends CsvImportOptions {
-  importThumbnails: boolean
-  importMetadata: boolean
-}
-
-export interface DeepDarkDbImportPreview {
-  dbPath: string
-  filesRows: number
-  favoritesRows: number
-  dvdRows: number
-  filesWithThumb: number
-  favoritesWithThumb: number
-  matchedFilesRows: number
-  ambiguousFilesRows: number
-  unmatchedFilesRows: number
-  matchedFavoriteRows: number
-  ambiguousFavoriteRows: number
-  unmatchedFavoriteRows: number
-  ambiguousFilesSample: ImportMatchSample[]
-  unmatchedFilesSample: ImportMatchSample[]
-  ambiguousFavoriteSample: ImportMatchSample[]
-  unmatchedFavoriteSample: ImportMatchSample[]
-  matchingRules: string[]
-}
-
-export interface DeepDarkDbImportResult {
-  preview: DeepDarkDbImportPreview
-  ratingsUpdated: number
-  highlightsAdded: number
-  thumbnailsImported: number
-  metadataUpdated: number
-}
-
 export interface NativePlayerInfo {
   name: 'mpv' | 'ffplay' | 'vlc'
   path: string

@@ -49,7 +49,6 @@ SQLite는 준비된 Electron ABI 125 모듈을 사용하므로 패키징 단계�
 | 상단 헤더, 라이브러리 선택·생성·삭제, 폴더 가져오기·새로고침 | `src/renderer/pages/LibraryPage.jsx`, `electron/main/services/LibraryService.ts`              |
 | 검색, 정렬, 가상화 목록, 검색·정렬·스크롤·볼륨 저장          | `src/renderer/api/useVideos.ts`, `components/library/VideoGrid.jsx`, `store/libraryStore.ts`  |
 | CSV 평점·즐겨찾기 가져오기 및 미리보기                       | `components/library/CsvImportDialog.jsx`, `electron/main/services/DataImportService.js`       |
-| DeepDark DB 메타데이터·평점·즐겨찾기·썸네일 이관             | `components/library/DeepDarkDbImportDialog.jsx`, `DataImportService.js`                       |
 | 태그, 평점, 메모, 상세 패널, 휴지통·목록 제거와 복구         | `components/library/DetailPanel.jsx`, `VideoService.ts`, `db/repositories/VideoRepository.ts` |
 | 썸네일 생성·재생성·대표 선택, 시간 지정 및 화면 캡처         | `ThumbnailCaptureService.js`, `electron/main/ffmpeg/thumbnail.ts`                             |
 | 인앱 플레이어, 이어보기, 볼륨, 탐색·단축키                   | `components/player/VideoPlayer.jsx`, `PlaybackService.ts`                                     |
@@ -91,10 +90,10 @@ mpv·ffplay·VLC는 별도 설치된 플레이어를 사용합니다. 모든 코
    설정과 백업이 모두 손상되면 빈 라이브러리로 덮어쓰지 않고 시작을 중단합니다. 중복 실행도 차단합니다.
 2. **안전한 제거**: 휴지통 이동 성공 후에만 제거 상태를 기록하고, 목록만 제거하는 선택지를 제공합니다.
    원본이 돌아오면 기존 메타데이터와 함께 복구할 수 있습니다.
-3. **대용량 작업**: 폴더 스캔·파일 검사·CSV/DeepDark 준비 작업에서 이벤트 루프에 제어를 돌려주고
+3. **대용량 작업**: 폴더 스캔·파일 검사·CSV 준비 작업에서 이벤트 루프에 제어를 돌려주고
    진행률과 취소를 제공합니다. 폴더 가져오기 취소 시 이미 추가된 영상은 남으며, 새로고침 취소·접근 실패는
    기존 기록을 정리하지 않습니다. 메타데이터 가져오기는 준비 완료 후 트랜잭션으로 적용하며 취소·실패 시
-   새로 만든 이미지도 정리합니다. 같은 라이브러리의 충돌하는 쓰기는 막고, 종료 시 작업 정리를 기다립니다.
+   적용 내용을 되돌립니다. 같은 라이브러리의 충돌하는 쓰기는 막고, 종료 시 작업 정리를 기다립니다.
    검색은 페이지 ID를 먼저 고른 뒤 썸네일 등을 조인하고 정렬별 부분 인덱스를 사용합니다.
 4. **재생 캐시**: 설정에서 사용량과 재생 중 보호 용량을 확인하고 상한(기본 10 GB)을 저장하거나
    미사용 캐시를 정리할 수 있습니다. 자동 정리는 오래 사용하지 않은 AVI 재생용 프록시부터 제거합니다.
@@ -127,7 +126,7 @@ npm run benchmark:search
 ```
 
 `npm test`는 Electron의 Node 런타임으로 실행하여 SQLite ABI를 일치시킵니다.
-실제 Electron 검증은 임시 영상·CSV·DeepDark DB와 별도 `DVM_USER_DATA_DIR`을 만들며 사용자 자료를 열지 않습니다.
+실제 Electron 검증은 임시 영상·CSV와 별도 `DVM_USER_DATA_DIR`을 만들며 사용자 자료를 열지 않습니다.
 성공 결과와 화면은 `test-results/restoration-electron.json`, `restoration-packaged.json`, `restoration-electron.png`에 저장됩니다.
 웹 E2E는 별도의 mock API로 화면·가져오기·목록 추가 로딩·이어보기 회귀를 검증합니다.
 Windows에서는 설치된 Chrome을 우선 사용합니다. 다른 브라우저 실행 파일은 `CHROMIUM_PATH`로 지정합니다.
@@ -142,7 +141,7 @@ GUI 출력이나 mpv·ffplay 실물 테스트를 대신하지는 않습니다.
 - 단위·서비스·계약 테스트 39개 통과 (9개 파일).
 - 화면 E2E 3개 통과: 주요 기능 흐름, 5,001개 목록, 지연 소스의 이어보기·최종 위치 저장.
 - 실제 FFmpeg 영상 분석·썸네일 생성·AVI→H.264 프록시 테스트 통과.
-- 개발 빌드 및 패키징한 EXE의 격리 테스트 통과: 폴더/CSV/DeepDark 가져오기,
+- 개발 빌드 및 패키징한 EXE의 격리 테스트 통과: 폴더/CSV 가져오기,
   메타데이터·하이라이트·캡처·자막·Range 스트리밍·통계·삭제.
 - 패키징한 EXE에서 실제 H.264 `<video>` 재생 진행과 renderer 오류 0건 확인.
 - Windows 실행 폴더 생성 성공: 133개 파일, 483,190,351 bytes (약 461 MiB).

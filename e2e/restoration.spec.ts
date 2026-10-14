@@ -12,6 +12,15 @@ test('restored library, metadata, imports, shortcuts and statistics work through
     .getByRole('button')
     .filter({ has: page.getByText('Sample video', { exact: true }) })
   await expect(card).toBeVisible()
+  await expect(page.getByRole('button', { name: /가져오기$/ })).toHaveText([
+    '폴더 가져오기',
+    'CSV 가져오기',
+  ])
+  expect(await page.evaluate(() => Object.keys(window.api.dataImport).sort())).toEqual([
+    'importCsv',
+    'preview',
+    'selectCsv',
+  ])
   await page.screenshot({ path: test.info().outputPath('restored-library.png') })
   await card.click()
   await page.getByPlaceholder('이 영상에 대한 메모를 적어보세요...').fill('복원된 메모 저장')
@@ -30,18 +39,13 @@ test('restored library, metadata, imports, shortcuts and statistics work through
   await expect(page.getByText(/가져오기 완료/)).toBeVisible()
   await page.getByRole('button', { name: '닫기', exact: true }).click()
 
-  for (const source of [
-    { name: 'CSV 가져오기', select: 'CSV 선택' },
-    { name: 'deepdark.db 가져오기', select: 'DB 선택' },
-  ]) {
-    await page.getByRole('button', { name: source.name, exact: true }).click()
-    await page.getByRole('button', { name: source.select, exact: true }).click()
-    await page.getByRole('button', { name: '분석', exact: true }).click()
-    await expect(page.getByText('미리보기', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '가져오기 적용', exact: true }).click()
-    await expect(page.getByText('가져오기 완료', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '닫기', exact: true }).click()
-  }
+  await page.getByRole('button', { name: 'CSV 가져오기', exact: true }).click()
+  await page.getByRole('button', { name: 'CSV 선택', exact: true }).click()
+  await page.getByRole('button', { name: '분석', exact: true }).click()
+  await expect(page.getByText('미리보기', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '가져오기 적용', exact: true }).click()
+  await expect(page.getByText('가져오기 완료', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '닫기', exact: true }).click()
 
   await card.dblclick()
   await expect(page.locator('video')).toBeVisible()

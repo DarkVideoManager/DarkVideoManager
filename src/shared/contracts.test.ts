@@ -147,20 +147,6 @@ describe('IPC contracts', () => {
     ).toBe(true)
     expect(csv.safeParse(['lib', 'history.csv', { importRatings: 'yes' }]).success).toBe(false)
     expect(csv.safeParse(['lib', 'history.csv']).success).toBe(false)
-    const deepDark = IPC_SCHEMAS[IPC.DATA_IMPORT.IMPORT_DEEPDARK_DB]
-    expect(
-      deepDark.safeParse([
-        'lib',
-        'history.db',
-        {
-          importRatings: true,
-          importFavoritesAsHighlights: true,
-          importMetadata: true,
-          importThumbnails: false,
-        },
-      ]).success,
-    ).toBe(true)
-    expect(deepDark.safeParse(['lib', 'history.db', { importRatings: true }]).success).toBe(false)
   })
 
   it('validates native player coordinates, timestamps and image captures', () => {
