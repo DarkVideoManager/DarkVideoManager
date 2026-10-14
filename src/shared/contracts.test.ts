@@ -1,0 +1,226 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  IPC,
+  IPC_SCHEMAS,
+  IPC_EVENT_SCHEMAS,
+  INVOKE_CHANNELS,
+  EVENT_CHANNELS,
+  SearchQueryZ,
+  VideoMetaZ,
+  NativePlayerActionEventZ,
+} from './ipc'
+import {
+  DOMAIN_ERROR_CODES,
+  domainError,
+  err,
+  isDomainError,
+  isErr,
+  isOk,
+  ok,
+  toDomainError,
+} from './result'
+
+describe('IPC contracts', () => {
+  it('bounds statistics to one through 365 days', () => {
+    const schema = IPC_SCHEMAS[IPC.STATS.GET]
+    expect(schema.safeParse(['library']).success).toBe(true)
+    for (const days of [1, 7, 30, 90, 365])
+      expect(schema.safeParse(['library', days]).success).toBe(true)
+    for (const days of [0, -1, 366, 1.5, Infinity, NaN, '30'])
+      expect(schema.safeParse(['library', days]).success).toBe(false)
+  })
+  it('only accepts queue job identifiers for conversion controls', () => {
+    expect(IPC_SCHEMAS[IPC.PLAYBACK.LIST_CONVERSION_QUEUE].safeParse([]).success).toBe(true)
+    for (const channel of [
+      IPC.PLAYBACK.PAUSE_CONVERSION,
+      IPC.PLAYBACK.RESUME_CONVERSION,
+      IPC.PLAYBACK.REMOVE_CONVERSION,
+    ]) {
+      const schema = IPC_SCHEMAS[channel]
+      expect(schema.safeParse(['dd270470-14f8-45ed-af6e-f3b2da7c86d3']).success).toBe(true)
+      for (const args of [[], [''], ['C:/videos/movie.mp4'], ['../library'], ['id', 'extra']])
+        expect(schema.safeParse(args).success).toBe(false)
+    }
+  })
+  it('restricts translation budgets and rejects usage-counter or credential readback fields', () => {
+    const schema = IPC_SCHEMAS[IPC.SUBTITLES.UPDATE_TRANSLATION_SETTINGS]
+    expect(
+      schema.safeParse([
+        { apiKey: 'test-key', enabled: true, monthlyLimit: 500_000, externalCharacters: 10 },
+      ]).success,
+    ).toBe(true)
+    for (const patch of [
+      { monthlyLimit: 500_001 },
+      { monthlyLimit: -1 },
+      { monthlyLimit: 1.1 },
+      { externalCharacters: -1 },
+      { usedCharacters: 0 },
+      { encryptedApiKey: 'x' },
+      { apiKey: 'x'.repeat(513) },
+    ])
+      expect(schema.safeParse([patch]).success).toBe(false)
+    expect(IPC_SCHEMAS[IPC.SUBTITLES.GET_TRANSLATION_SETTINGS].safeParse([]).success).toBe(true)
+  })
+  it('requires an explicit unique subtitle selection for regeneration', () => {
+    const schema = IPC_SCHEMAS[IPC.SUBTITLES.REGENERATE]
+    const options = { model: 'base', language: 'auto', translateToKorean: true }
+    expect(schema.safeParse(['lib', 'video', ['sub-1', 'sub-2'], options]).success).toBe(true)
+    for (const selection of [[], ['sub', 'sub'], [''], undefined, 'C:/videos/movie.srt']) {
+      expect(schema.safeParse(['lib', 'video', selection, options]).success).toBe(false)
+    }
+    expect(
+      schema.safeParse(['lib', 'video', ['sub'], { ...options, model: 'unknown' }]).success,
+    ).toBe(false)
+  })
+
+  it('accepts explicit seek positions and rejects invalid positional inputs', () => {
+    const seek = IPC_SCHEMAS[IPC.PLAYBACK.SEEK]
+    expect(seek.safeParse(['library', 'video', 0]).success).toBe(true)
+    expect(seek.safeParse(['library', 'video', 12.5]).success).toBe(true)
+    for (const invalid of [-1, NaN, Infinity, '1'])
+      expect(seek.safeParse(['library', 'video', invalid]).success).toBe(false)
+    expect(seek.safeParse(['library', 'video']).success).toBe(false)
+    expect(seek.safeParse(['library', 'video', 1, 'unexpected']).success).toBe(false)
+  })
+
+  it('registers every invoke channel with a positional schema', () => {
+    expect(INVOKE_CHANNELS.length).toBeGreaterThanOrEqual(39)
+    expect(EVENT_CHANNELS).toHaveLength(5)
+    const { EVENTS, ...invokeGroups } = IPC
+    expect(new Set(INVOKE_CHANNELS)).toEqual(
+      new Set(Object.values(invokeGroups).flatMap(Object.values)),
+    )
+    expect(new Set(EVENT_CHANNELS)).toEqual(new Set(Object.values(EVENTS)))
+    expect(IPC_SCHEMAS[IPC.LIBRARY.LIST].safeParse([]).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.LIBRARY.LIST].safeParse(['unexpected']).success).toBe(false)
+    expect(
+      IPC_SCHEMAS[IPC.PLAYBACK.HEARTBEAT].safeParse(['library-1', 'video-1', 12.5]).success,
+    ).toBe(true)
+  })
+
+  it('rejects unknown search fields and invalid ranges', () => {
+    expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ cacheLimitGb: 10 }]).success).toBe(
+      true,
+    )
+    expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ cacheLimitGb: 0 }]).success).toBe(
+      false,
+    )
+    expect(
+      IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ cacheLimitGb: Infinity }]).success,
+    ).toBe(false)
+    expect(SearchQueryZ.safeParse({ q: 'sample', page: 1, pageSize: 50 }).success).toBe(true)
+    expect(SearchQueryZ.safeParse({ rating: 6 }).success).toBe(false)
+    expect(SearchQueryZ.safeParse({ unknown: true }).success).toBe(false)
+    expect(SearchQueryZ.safeParse({ sortBy: 'playCount' }).success).toBe(true)
+    expect(SearchQueryZ.safeParse({ sortBy: 'playTimeSec' }).success).toBe(true)
+    expect(VideoMetaZ.safeParse({ tags: 'travel, family' }).success).toBe(true)
+  })
+
+  it('accepts optional boolean subtitle filters without coercing other values', () => {
+    expect(SearchQueryZ.parse({})).not.toHaveProperty('hasSubtitles')
+    for (const hasSubtitles of [true, false]) {
+      const query = { hasSubtitles, q: 'sample', rating: 4, page: 2, pageSize: 10 }
+      expect(IPC_SCHEMAS[IPC.VIDEOS.SEARCH].parse(['library-1', query])).toEqual([
+        'library-1',
+        query,
+      ])
+    }
+    for (const hasSubtitles of ['false', 0, 1, null]) {
+      expect(SearchQueryZ.safeParse({ hasSubtitles }).success).toBe(false)
+    }
+  })
+
+  it('requires explicit import options and rejects malformed mutations', () => {
+    expect(IPC_SCHEMAS[IPC.VIDEOS.DELETE].safeParse(['lib', 'video', 'trash']).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.DELETE].safeParse(['lib', 'video', 'remove']).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.DELETE].safeParse(['lib', 'video', 'permanent']).success).toBe(
+      false,
+    )
+    const csv = IPC_SCHEMAS[IPC.DATA_IMPORT.IMPORT]
+    expect(
+      csv.safeParse([
+        'lib',
+        'history.csv',
+        { importRatings: true, importFavoritesAsHighlights: false },
+      ]).success,
+    ).toBe(true)
+    expect(csv.safeParse(['lib', 'history.csv', { importRatings: 'yes' }]).success).toBe(false)
+    expect(csv.safeParse(['lib', 'history.csv']).success).toBe(false)
+    const deepDark = IPC_SCHEMAS[IPC.DATA_IMPORT.IMPORT_DEEPDARK_DB]
+    expect(
+      deepDark.safeParse([
+        'lib',
+        'history.db',
+        {
+          importRatings: true,
+          importFavoritesAsHighlights: true,
+          importMetadata: true,
+          importThumbnails: false,
+        },
+      ]).success,
+    ).toBe(true)
+    expect(deepDark.safeParse(['lib', 'history.db', { importRatings: true }]).success).toBe(false)
+  })
+
+  it('validates native player coordinates, timestamps and image captures', () => {
+    const open = IPC_SCHEMAS[IPC.VIDEOS.OPEN_IN_NATIVE_PLAYER]
+    expect(open.safeParse(['lib', 'video']).success).toBe(true)
+    expect(
+      open.safeParse(['lib', 'video', { x: -1920, y: 0, width: 1280, startTimeSec: 1.5 }]).success,
+    ).toBe(true)
+    expect(open.safeParse(['lib', 'video', { width: 0 }]).success).toBe(false)
+    expect(open.safeParse(['lib', 'video', { startTimeSec: Infinity }]).success).toBe(false)
+    expect(
+      IPC_SCHEMAS[IPC.VIDEOS.SEEK_ACTIVE_PLAYBACK].safeParse(['lib', 'video', -1]).success,
+    ).toBe(false)
+    const capture = IPC_SCHEMAS[IPC.THUMBNAILS.SAVE_IMAGE_CAPTURE]
+    expect(
+      capture.safeParse(['lib', 'video', 2.5, 'data:image/jpeg;base64,/9j/AA==', false]).success,
+    ).toBe(true)
+    expect(capture.safeParse(['lib', 'video', 2.5, 'file:///private.txt']).success).toBe(false)
+    expect(capture.safeParse(['lib', 'video', NaN, 'data:image/png;base64,AAAA']).success).toBe(
+      false,
+    )
+  })
+
+  it('validates every restored event payload', () => {
+    expect(
+      IPC_EVENT_SCHEMAS[IPC.EVENTS.HIGHLIGHT_CHANGED].safeParse({ videoId: 'video' }).success,
+    ).toBe(true)
+    expect(
+      IPC_EVENT_SCHEMAS[IPC.EVENTS.NATIVE_PLAYER_ESCAPE].safeParse({ videoId: '' }).success,
+    ).toBe(false)
+    expect(
+      NativePlayerActionEventZ.safeParse({ videoId: 'video', action: 'setThumbnail', timeSec: 1.2 })
+        .success,
+    ).toBe(true)
+    expect(
+      NativePlayerActionEventZ.safeParse({ videoId: 'video', action: 'runCommand', timeSec: 0 })
+        .success,
+    ).toBe(false)
+  })
+})
+
+describe('Result contracts', () => {
+  it('distinguishes successful and failed values', () => {
+    const success = ok({ id: 'video-1' })
+    const failure = err(domainError(DOMAIN_ERROR_CODES.NOT_FOUND, 'video not found'))
+
+    expect(isOk(success)).toBe(true)
+    expect(isErr(success)).toBe(false)
+    expect(isErr(failure)).toBe(true)
+    expect(isDomainError(failure.error)).toBe(true)
+  })
+
+  it('normalizes unknown errors without losing Error messages', () => {
+    expect(toDomainError(new Error('disk full'))).toEqual({
+      code: DOMAIN_ERROR_CODES.INTERNAL,
+      message: 'disk full',
+    })
+    expect(toDomainError('bad input', 'fallback')).toEqual({
+      code: DOMAIN_ERROR_CODES.INTERNAL,
+      message: 'fallback',
+    })
+  })
+})

@@ -1,0 +1,16 @@
+name: 비공개 보안 연락 경로 요청
+description: 비공개 취약점 신고 버튼이 없을 때 연락 방법만 요청합니다.
+title: '비공개 보안 연락 경로 요청'
+body:
+  - type: markdown
+    attributes:
+      value: |
+        이 이슈는 공개됩니다. 취약점 내용, 재현 절차, 실제 데이터나 비밀값을 적지 마세요.
+        Security → Report a vulnerability가 보이면 해당 비공개 기능을 이용하세요.
+  - type: checkboxes
+    id: request
+    attributes:
+      label: 연락 요청
+      options:
+        - label: 비공개로 보안 문제를 제보할 방법을 안내받고 싶습니다. 이 이슈에는 문제의 세부 정보를 포함하지 않습니다.
+          required: true

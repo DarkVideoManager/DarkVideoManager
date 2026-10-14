@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  media:
+    name: Build Windows media runtime and corresponding source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.18.0
+      - name: Audit source and reachable history
+        run: node scripts/audit-publication.cjs --history
+      - name: Test publication tools
+        run: node --test "scripts/*.test.cjs"
+      - name: Install host build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential perl python3 pkg-config curl tar xz-utils unzip
+      - name: Build pinned FFmpeg and FFprobe
+        run: bash scripts/build-media.sh "$PWD"
+      - name: Record runtime hashes and collect corresponding source
+        run: node scripts/finalize-media.cjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-media-and-source
+          path: |
+            resources/media/
+            resources/legal/media-source-receipts.json
+            release/sources/
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    name: Windows application checks
+    needs: media
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.18.0
+          cache: npm
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-media-and-source
+          path: .
+      - name: Verify downloaded media runtime
+        run: node scripts/finalize-media.cjs --verify
+      - name: Install locked application dependencies
+        run: npm run setup
+      - name: Check production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Type check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit and integration tests
+        run: npm test
+      - name: Test publication tools
+        run: npm run test:tooling
+      - name: Build application
+        run: npm run build
+      - name: Install test browser
+        run: |
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $browserPath = node -e "process.stdout.write(require('playwright').chromium.executablePath())"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "CHROMIUM_PATH=$browserPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Browser E2E tests
+        run: npm run test:e2e -- --workers=1
+      - name: Isolated Electron smoke test
+        run: npm run test:electron
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-test-diagnostics
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

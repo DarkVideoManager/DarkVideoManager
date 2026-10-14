@@ -1,0 +1,7 @@
+.vercel/
+node_modules/
+.env*
+!public/demo-media/*.mp4
+
+.vercel
+.env*

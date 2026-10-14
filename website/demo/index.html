@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#09090b" />
+    <meta name="robots" content="noindex" />
+    <title>DarkVideoManager 실제 화면 체험 — 공개 야구 영상</title>
+    <link rel="icon" href="/assets/app-icon.ico" />
+  </head>
+  <body>
+    <div id="demo-toolbar">
+      <div><strong>브라우저 체험판</strong><span>실제 앱 화면 · 공개 야구 영상</span></div>
+      <div class="demo-toolbar-actions">
+        <button id="demo-library" type="button">영상 목록</button
+        ><button id="demo-play" type="button">선택한 영상 재생</button
+        ><button id="demo-generation" type="button">자막 생성 체험</button
+        ><button id="demo-stats" type="button">통계 보기</button
+        ><button id="demo-highlight" class="player-action" type="button">하이라이트 추가</button
+        ><button id="demo-thumbnail" class="player-action" type="button">썸네일 저장</button
+        ><button id="demo-help" type="button">사용 안내</button
+        ><a href="/media-credits.html" target="_blank" rel="noopener">영상 출처 ↗</a
+        ><button id="demo-reset" type="button">체험 초기화</button>
+      </div>
+    </div>
+    <p id="demo-example-notice"></p>
+    <div id="demo-window">
+      <div id="demo-window-controls"></div>
+      <div id="demo-window-surface">
+        <p id="demo-storage-notice" role="status" hidden></p>
+        <div id="demo-keyboard-guide"></div>
+        <div id="root" tabindex="-1"></div>
+      </div>
+    </div>
+    <dialog id="demo-guide" aria-labelledby="guide-title">
+      <h1 id="guide-title">실제 앱의 화면으로 체험해 보세요.</h1>
+      <p>
+        영상 카드를 한 번 누르면 상세 정보, 두 번 누르면 플레이어를 엽니다. 위의 ‘선택한 영상 재생’
+        버튼으로도 열 수 있습니다.
+      </p>
+      <ul>
+        <li>검색과 ‘자막 없음’ 필터로 영상을 찾으세요.</li>
+        <li>
+          W로 재생·일시정지, A/D로 1초 뒤로·앞으로 이동하고 S로 하이라이트를 저장하세요. Shift+A/D는
+          5초 이동합니다. 한글 키보드에서도 사용할 수 있습니다.
+        </li>
+        <li>
+          Q/E로 이전·다음 하이라이트, Z/C로 이전·다음 자막을 이동하세요. 화면의 키 버튼으로도 사용할
+          수 있습니다.
+        </li>
+        <li>
+          Space로도 재생하고, H로 하이라이트를 추가하세요. F 또는 T로 현재 장면을 썸네일로
+          저장합니다.
+        </li>
+        <li>오른쪽 ‘자막 탐색’ 탭에서 문장을 누르면 해당 시점으로 이동합니다.</li>
+        <li>
+          ‘자막 생성 체험’에서 영상을 선택하고 진행률·일시정지·재개를 체험하세요. 완료하면 자막을
+          탐색할 수 있습니다.
+        </li>
+        <li>통계에는 미리 준비한 예시 시청 기록과 직접 재생한 기록이 함께 표시됩니다.</li>
+        <li>별점·메모·하이라이트·캡처한 썸네일·체험 자막은 이 브라우저에 저장됩니다.</li>
+      </ul>
+      <p>
+        샘플 자막은 수작업으로 작성한 장면 설명입니다. 브라우저의 자막 생성은 이 자막으로 진행
+        과정을 재현하는 시뮬레이션입니다. 실제 AI 음성 인식·환경 설치·PC 폴더 접근은 Windows 앱에서
+        제공합니다.
+      </p>
+      <p>‘체험 초기화’는 이 데모에 저장한 변경사항만 초기 상태로 되돌립니다.</p>
+      <button id="close-guide" type="button">체험하기</button>
+    </dialog>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

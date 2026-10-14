@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "recipeVersion": 1,
+  "platform": "win32-x64",
+  "ffmpegVersion": "9.0.2",
+  "x264Revision": "31e19f92f00c7003fa115047ce50978bc98c3a0d",
+  "sourceDateEpoch": 1791900000,
+  "assets": [
+    {
+      "id": "toolchain",
+      "filename": "llvm-mingw-20261006-ucrt-ubuntu-22.04-x86_64.tar.xz",
+      "directory": "llvm-mingw-20261006-ucrt-ubuntu-22.04-x86_64",
+      "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20261006/llvm-mingw-20261006-ucrt-ubuntu-22.04-x86_64.tar.xz",
+      "sha256": "5f9c6ed95b2d4bdb2869a488c5fd5857fbdabcf288a0aa3eb1da43f6a08d8ab4",
+      "role": "portable build toolchain; not shipped with the application"
+    },
+    {
+      "id": "ffmpeg",
+      "filename": "ffmpeg-9.0.2.tar.xz",
+      "directory": "ffmpeg-9.0.2",
+      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+      "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+      "role": "source of shipped FFmpeg and FFprobe"
+    },
+    {
+      "id": "x264",
+      "filename": "x264-31e19f92f00c7003fa115047ce50978bc98c3a0d.tar.gz",
+      "directory": "x264-31e19f92f00c7003fa115047ce50978bc98c3a0d",
+      "url": "https://code.videolan.org/videolan/x264/-/archive/31e19f92f00c7003fa115047ce50978bc98c3a0d/x264-31e19f92f00c7003fa115047ce50978bc98c3a0d.tar.gz",
+      "sha256": "d053c9d86988d6bc78237ca5205865c5ddf99c98ef4cd9927eec8f6d388f6dd9",
+      "role": "statically linked H.264 encoder source"
+    },
+    {
+      "id": "nasm",
+      "filename": "nasm-2.16.03.tar.xz",
+      "directory": "nasm-2.16.03",
+      "url": "https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/nasm-2.16.03.tar.xz",
+      "sha256": "1412a1c760bbd05db026b6c0d1657affd6631cd0a63cddb6f73cc6d4aa616148",
+      "role": "assembler build tool source"
+    }
+  ]
+}

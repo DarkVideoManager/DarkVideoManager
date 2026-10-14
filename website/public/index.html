@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101113" />
+    <title>DarkVideoManager — 다시 보고 싶은 순간을 찾다</title>
+    <meta
+      name="description"
+      content="흩어진 영상을 나만의 라이브러리로. 검색, 하이라이트, AI 자막까지 한곳에서 관리하는 Windows용 로컬 동영상 매니저 DarkVideoManager를 만나보세요."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:title" content="DarkVideoManager — 다시 보고 싶은 순간을 찾다" />
+    <meta
+      property="og:description"
+      content="검색부터 하이라이트, AI 자막까지. 내 PC에서 완성하는 나만의 영상 라이브러리."
+    />
+    <link rel="canonical" href="https://dark-video-manager.vercel.app/" />
+    <meta property="og:url" content="https://dark-video-manager.vercel.app/" />
+    <meta property="og:image" content="https://dark-video-manager.vercel.app/assets/social.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="DarkVideoManager — 다시 보고 싶은 순간을 찾다" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/assets/app-icon.ico" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">본문으로 이동</a>
+    <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7Z" /></symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10" cy="10" r="6" />
+          <path d="m15 15 5 5" />
+        </symbol>
+        <symbol id="i-star" viewBox="0 0 24 24">
+          <path d="m12 3 2.8 5.7 6.3.9-4.5 4.5 1 6.3-5.6-3-5.6 3 1-6.3-4.5-4.5 6.3-.9Z" />
+        </symbol>
+        <symbol id="i-caption" viewBox="0 0 24 24">
+          <rect x="2" y="4" width="20" height="16" rx="3" />
+          <path d="M10 9H7v6h3m7-6h-3v6h3" />
+        </symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5h6l2 3h10v12H3Z" /></symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24">
+          <path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6Z" />
+          <path d="m8 12 3 3 5-6" />
+        </symbol>
+        <symbol id="i-windows" viewBox="0 0 24 24">
+          <path d="m3 5 8-1v7H3Zm10-1 8-1v8h-8ZM3 13h8v7l-8-1Zm10 0h8v8l-8-1Z" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
+        <symbol id="i-camera" viewBox="0 0 24 24">
+          <path d="M3 7h5l2-3h4l2 3h5v14H3Z" />
+          <circle cx="12" cy="13" r="4" />
+        </symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      </defs>
+    </svg>
+    <header class="header">
+      <div class="nav-wrap container">
+        <a class="brand" href="#" aria-label="DarkVideoManager 홈"
+          ><img src="/assets/app-icon.ico" width="32" height="32" alt="" /><span
+            >DarkVideo<span class="brand-light">Manager</span></span
+          ></a
+        >
+        <nav class="desktop-nav" aria-label="주 메뉴">
+          <a href="#features">주요 기능</a><a href="#experience">미리 체험하기</a
+          ><a href="#privacy">로컬 우선</a>
+        </nav>
+        <a class="nav-cta" href="#start"
+          >시작 안내 <svg><use href="#i-arrow" /></svg
+        ></a>
+      </div>
+    </header>
+    <main id="main">
+      <section class="demo-intro container">
+        <div class="product-preview live-demo" id="experience">
+          <div class="live-demo-heading">
+            <div>
+              <h1>실제 프로그램, 그대로 체험하기</h1>
+              <span>공개 야구 영상으로 자막 생성 과정부터 장면 저장까지.</span>
+            </div>
+            <a href="/demo/" class="demo-expand" target="_blank" rel="noopener"
+              >큰 화면으로 열기 ↗</a
+            >
+          </div>
+          <div class="demo-quick-actions" aria-label="체험 바로가기">
+            <button type="button" data-open-mode="library">라이브러리</button>
+            <button type="button" data-open-mode="subtitles">야구 영상 재생 · 자막 탐색</button>
+            <button type="button" data-open-mode="generation">자막 생성 체험</button>
+            <button type="button" data-open-mode="highlights">하이라이트 저장 체험</button>
+            <button type="button" data-open-mode="stats">통계 둘러보기</button>
+            <button type="button" data-open-mode="long-video">3분 야구 영상 보기</button>
+            <a href="/media-credits.html">영상 출처 ↗</a>
+          </div>
+          <div class="demo-keyboard-invite">
+            <div>
+              <strong>키보드로 재생하고, 원하는 장면으로 바로.</strong>
+              <span
+                ><kbd>W</kbd> 재생·정지 <kbd>A</kbd><kbd>D</kbd> 앞뒤 이동 <kbd>S</kbd> 하이라이트
+                저장</span
+              >
+              <span
+                ><kbd>Q</kbd><kbd>E</kbd> 이전·다음 하이라이트 <kbd>Z</kbd><kbd>C</kbd> 이전·다음
+                자막</span
+              >
+            </div>
+            <button type="button" data-open-mode="long-video">
+              WASD로 직접 조작하기 <span aria-hidden="true">→</span>
+            </button>
+          </div>
+          <iframe
+            id="program-demo"
+            tabindex="0"
+            src="/demo/"
+            title="실제 DarkVideoManager 화면으로 체험하는 공개 야구 영상 라이브러리"
+            allowfullscreen
+            loading="lazy"
+          ></iframe>
+          <noscript
+            ><p class="demo-no-script">
+              인터랙티브 데모에는 JavaScript가 필요합니다.
+              <a href="/media-credits.html">샘플 영상 출처 보기</a>
+            </p></noscript
+          >
+          <div class="demo-caption">
+            <span>실제 앱 화면 코드 사용</span>
+            <p>
+              변경사항은 이 브라우저에 저장됩니다. 예시 통계와 하이라이트가 준비되어 있으며, 자막
+              생성은 수작업 장면 설명으로 과정을 재현하는 시뮬레이션입니다.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section
+        class="features container section-space spec-section feature-briefs"
+        id="features"
+        aria-labelledby="features-title"
+      >
+        <div class="spec-heading">
+          <span class="spec-index">01 / 주요 기능</span>
+          <h2 id="features-title">영상 관리·재생·자막</h2>
+          <p>Windows 앱에서 사용할 수 있는 주요 기능입니다.</p>
+        </div>
+        <div class="spec-grid">
+          <article class="spec-card">
+            <h3>라이브러리 주요 기능</h3>
+            <p>파일 탐색기에서 쓰는 검색·정렬·삭제 같은 기본 기능을 제공합니다.</p>
+            <ul class="feature-points">
+              <li>영상마다 몇 번 봤는지, 얼마나 오래 봤는지 기록하고 보여줍니다.</li>
+              <li>영상에 내 평점을 매기고, 나중에 평점 순으로 모아 볼 수 있습니다.</li>
+              <li>
+                자막이 있는지 표시합니다. 자막이 없는 영상을 골라 바로 생성을 요청할 수 있습니다.
+              </li>
+              <li>많이 본 순서나 적게 본 순서로 정렬해, 아직 안 본 영상부터 볼 수 있습니다.</li>
+              <li>보고 싶지 않은 영상은 목록에서 빼거나 휴지통으로 옮길 수 있습니다.</li>
+            </ul>
+          </article>
+          <article class="spec-card">
+            <h3>동영상 플레이어 기본 기능</h3>
+            <p>재생·일시정지·이어보기 등 동영상 플레이어의 기본 기능을 제공합니다.</p>
+            <ul class="feature-points">
+              <li>
+                <strong>누를수록 빨라지는 이동</strong>
+                <kbd>A</kbd>·<kbd>D</kbd>로 1초씩 이동합니다. 길게 누를수록 더 빨라져 불필요한
+                장면을 빠르게 넘길 수 있습니다.
+              </li>
+              <li>
+                <strong>하이라이트</strong>
+                중요한 장면에서 <kbd>S</kbd>를 누르면 그 순간을 저장합니다. 하이라이트 탭이나
+                <kbd>Q</kbd>·<kbd>E</kbd>로 다시 이동할 수 있습니다.
+              </li>
+              <li>
+                <strong>자막 이동</strong>
+                <kbd>Z</kbd>·<kbd>C</kbd>로 이전·다음 자막으로 이동합니다. 자막 탐색기에서 내용을
+                훑어보고, 문장을 누르면 해당 장면으로 이동합니다.
+              </li>
+            </ul>
+          </article>
+          <article class="spec-card">
+            <h3>통계 기능</h3>
+            <p>
+              영상을 얼마나 오래 봤는지, 어떤 영상을 가장 많이 봤는지, 보유 영상에 어떤 태그를 많이
+              붙였는지 보여줍니다.
+            </p>
+            <button type="button" class="text-button" data-open-mode="stats">
+              데모에서 통계 보기 <svg aria-hidden="true"><use href="#i-arrow" /></svg>
+            </button>
+          </article>
+          <article class="spec-card">
+            <h3>ESC와 백그라운드 작업</h3>
+            <p>
+              재생 중 <kbd>ESC</kbd>를 누르면 이전 화면으로 돌아갑니다. 라이브러리와 자막 작업
+              화면에서는 창을 닫습니다. 입력 중이거나 대화상자가 열려 있을 때는 예외입니다.
+            </p>
+            <p>자막 작업이 남아 있으면 창을 닫아도 백그라운드에서 계속 진행합니다.</p>
+          </article>
+          <article class="spec-card">
+            <h3>자막 생성 기능</h3>
+            <p>
+              영상 속 말소리를 AI가 자막으로 만듭니다. 한국어 번역은 내 PC에서 처리하거나, Google
+              Cloud API 키를 등록하고 사용을 켜서 이용할 수 있습니다.
+            </p>
+            <p>설정 방법이 어렵다면 GPT에 자막 생성과 번역 설정 방법을 물어볼 수 있습니다.</p>
+            <button type="button" class="text-button" data-open-mode="generation">
+              데모에서 생성 과정 보기 <svg aria-hidden="true"><use href="#i-arrow" /></svg>
+            </button>
+          </article>
+          <article class="spec-card">
+            <h3>기타</h3>
+            <p>
+              영상 관리와 재생은 인터넷 없이 사용할 수 있습니다. 자막 도구·모델 설치와 Google
+              번역에는 인터넷이 필요합니다.
+            </p>
+            <p>
+              소스는
+              <a href="https://github.com/DarkVideoManager/DarkVideoManager"
+                >GitHub에 공개되어 있습니다</a
+              >. 코드를 내려받아 GPT에 분석이나 기능 수정을 요청하고, GitHub에 기능을 제안할 수
+              있습니다.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section
+        class="privacy section-space spec-section"
+        id="privacy"
+        aria-labelledby="privacy-title"
+      >
+        <div class="container">
+          <div class="spec-heading">
+            <span class="spec-index">02 / 저장과 인터넷 사용</span>
+            <h2 id="privacy-title">파일 저장과 인터넷 사용</h2>
+            <p>
+              회원가입 없이 사용할 수 있습니다. 영상과 시청 기록을 운영자에게 보내지 않으며, 사용
+              내역이나 오류 보고도 자동으로 보내지 않습니다. 필요한 도구를 내려받거나 Google 번역을
+              사용할 때는 인터넷을 사용합니다.
+            </p>
+          </div>
+          <div class="data-flow-list">
+            <article class="data-flow-row">
+              <h3>영상 관리·재생</h3>
+              <dl>
+                <div>
+                  <dt>처리 위치</dt>
+                  <dd>사용자 PC</dd>
+                </div>
+                <div>
+                  <dt>처리 내용</dt>
+                  <dd>
+                    영상 목록, 별점, 메모, 시청 기록, 하이라이트와 썸네일은 내 PC에 저장합니다. 앱
+                    운영자에게 보내지 않습니다.
+                  </dd>
+                </div>
+              </dl>
+            </article>
+            <article class="data-flow-row">
+              <h3>AI 음성 인식</h3>
+              <dl>
+                <div>
+                  <dt>처리 위치</dt>
+                  <dd>내 PC의 그래픽카드 · Whisper</dd>
+                </div>
+                <div>
+                  <dt>처리 내용</dt>
+                  <dd>
+                    영상 속 말소리를 내 PC에서 분석해 자막을 만듭니다. 영상이나 음성을 외부 음성
+                    인식 서비스로 보내지 않습니다. 필요한 모델을 내려받은 뒤에는 인터넷 없이 자막을
+                    만들 수 있습니다.
+                  </dd>
+                </div>
+              </dl>
+            </article>
+            <article class="data-flow-row">
+              <h3>내 PC에서 한국어 번역</h3>
+              <dl>
+                <div>
+                  <dt>처리 위치</dt>
+                  <dd>내 PC · WSL의 Ollama</dd>
+                </div>
+                <div>
+                  <dt>처리 내용</dt>
+                  <dd>
+                    내 PC에 설치한 Ollama와 qwen3:8b 모델로 자막을 번역합니다. 설치를 마친 뒤에는
+                    인터넷 없이 사용할 수 있습니다.
+                  </dd>
+                </div>
+              </dl>
+            </article>
+            <article class="data-flow-row">
+              <h3>Google Cloud 번역</h3>
+              <dl>
+                <div>
+                  <dt>사용 조건</dt>
+                  <dd>API 키를 등록하고 사용 설정을 켰을 때만 사용</dd>
+                </div>
+                <div>
+                  <dt>전송 내용</dt>
+                  <dd>
+                    번역할 자막 문장, 언어와 번역 설정, API 키를 Google에 보냅니다. 영상·음성 파일과
+                    파일 경로는 보내지 않습니다. Google의 사용 요금이 발생할 수 있습니다.
+                  </dd>
+                </div>
+              </dl>
+            </article>
+            <article class="data-flow-row">
+              <h3>자막에 필요한 도구 설치</h3>
+              <dl>
+                <div>
+                  <dt>사용 시점</dt>
+                  <dd>자동 설치를 누르거나, 아직 없는 음성 인식 모델을 처음 사용할 때</dd>
+                </div>
+                <div>
+                  <dt>다운로드</dt>
+                  <dd>
+                    Microsoft, Ubuntu, Python, Hugging Face, Ollama의 배포처에서 필요한 프로그램과
+                    모델을 내려받습니다. 이때 영상이나 자막 내용은 보내지 않습니다.
+                  </dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+          <div class="storage-grid">
+            <article>
+              <h3>파일이 저장되는 곳</h3>
+              <p>
+                영상 목록과 설정, 썸네일, 재생용 임시 파일, 진행 중인 자막 작업은
+                <code>%APPDATA%\dark-video-manager</code>에 저장합니다. 완성된 SRT 자막은 영상과
+                같은 폴더에 저장합니다.
+              </p>
+            </article>
+            <article>
+              <h3>저장한 자료의 보호</h3>
+              <p>
+                Google API 키는 Windows의 보안 기능으로 암호화해 저장합니다. 영상 정보, 일반 설정,
+                영상, 자막과 임시 파일은 앱에서 암호화하지 않습니다. OneDrive 같은 동기화 폴더에 둔
+                자료는 해당 서비스 설정에 따라 온라인이나 다른 기기에도 저장될 수 있습니다.
+              </p>
+            </article>
+            <article>
+              <h3>데모에서 바꾼 내용</h3>
+              <p>
+                데모에서 바꾼 별점과 메모, 저장한 하이라이트와 캡처, 자막 체험 기록은 현재
+                브라우저에 저장됩니다. Windows 앱과 연결되지 않습니다. 브라우저에서 이 사이트의
+                데이터를 지우면 체험 기록도 삭제됩니다.
+              </p>
+            </article>
+          </div>
+          <p class="spec-footnote">
+            Google 번역을 끄거나 키, 사용 한도, 연결 문제로 사용할 수 없으면 내 PC에 준비된 Ollama로
+            번역합니다. 이 번역도 실패하면 원래 언어의 자막은 남겨 두고 오류를 표시합니다. 앱에
+            설정한 문자 한도만으로 Google 계정 전체의 요금을 막을 수는 없습니다.
+          </p>
+          <a href="#privacy-details" class="text-button"
+            >외부로 보내는 정보 더 보기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
+          ></a>
+        </div>
+      </section>
+      <section
+        class="getting-started container section-space spec-section"
+        id="start"
+        aria-labelledby="start-title"
+      >
+        <div class="spec-heading">
+          <span class="spec-index">03 / 설치 방법</span>
+          <h2 id="start-title">설치 방법과 필요한 PC 환경</h2>
+          <p>
+            영상 관리와 재생은 AI 도구나 API 키 없이 사용할 수 있습니다. AI로 자막을 만들고 한국어로
+            번역하려면 필요한 도구를 추가로 설치합니다.
+          </p>
+        </div>
+        <div class="spec-install-grid">
+          <div>
+            <h3 class="spec-subheading">설치 순서</h3>
+            <ol class="install-steps">
+              <li>
+                <h4>앱 실행</h4>
+                <p>
+                  압축 파일로 받았다면 폴더 전체를 풀고 <code>DarkVideoManager.exe</code>를
+                  실행합니다. 설치 파일로 받았다면 설치 프로그램을 실행합니다. 업데이트 전에는 작업
+                  표시줄의 작은 아이콘(트레이) 메뉴에서 앱을 완전히 종료합니다.
+                </p>
+              </li>
+              <li>
+                <h4>라이브러리 등록</h4>
+                <p>
+                  동영상이 있는 폴더를 등록합니다. 목록에서 영상을 재생하고 제목, 태그, 별점과
+                  메모를 입력할 수 있습니다. 자막을 만들려면 영상 폴더에 새 파일을 저장할 수 있어야
+                  합니다.
+                </p>
+              </li>
+              <li>
+                <h4>자막 환경 자동 설치</h4>
+                <p>
+                  <strong>자막 생성 → 자막 환경 자동 설치</strong>에서 설치를 시작합니다. 기본 음성
+                  인식 모델(base)과 번역에 필요한 도구를 준비합니다. 이미 사용할 수 있는 도구와
+                  모델은 다시 설치하지 않습니다.
+                </p>
+              </li>
+              <li>
+                <h4>설치를 마친 뒤 자막 만들기</h4>
+                <p>
+                  Windows에서 관리자 승인이나 재시작을 요청할 수 있습니다. 재시작했다면 앱을 다시
+                  열고 설치 버튼을 눌러 이어서 진행합니다. 준비가 끝나면 영상의 AI 자막 생성에서
+                  모델, 영상 언어, 한국어 번역 여부를 고릅니다.
+                </p>
+              </li>
+            </ol>
+          </div>
+          <aside class="spec-environment" aria-labelledby="environment-title">
+            <h3 id="environment-title">필요한 PC 환경</h3>
+            <dl class="spec-list">
+              <div>
+                <dt>운영체제</dt>
+                <dd>Windows 10 또는 11 · 64비트(x64)</dd>
+              </div>
+              <div>
+                <dt>음성 인식</dt>
+                <dd>
+                  Vulkan을 지원하는 그래픽카드가 필요합니다. 그래픽 드라이버는 별도로 설치해야
+                  합니다. 그래픽카드를 사용할 수 없으면 CPU로 바꾸어 진행하지 않고 오류를
+                  표시합니다.
+                </dd>
+              </div>
+              <div>
+                <dt>내 PC에서 번역</dt>
+                <dd>
+                  Windows에서 Linux 도구를 실행하는 WSL Ubuntu와 Python, Ollama, qwen3:8b가
+                  필요합니다. 자막 환경 자동 설치에서 준비하며, 기본 Ubuntu 버전은 24.04입니다.
+                </dd>
+              </div>
+              <div>
+                <dt>설치 공간</dt>
+                <dd>
+                  처음 AI 도구를 설치할 때 15 GB 이상의 여유 공간을 권장합니다. 큰 모델을 선택하거나
+                  재생용 임시 파일이 늘어나면 공간이 더 필요합니다.
+                </dd>
+              </div>
+              <div>
+                <dt>인터넷</dt>
+                <dd>
+                  도구와 모델을 내려받거나 Google 번역을 사용할 때 필요합니다. 설치를 마친 음성
+                  인식과 내 PC에서 하는 번역은 인터넷 없이 사용할 수 있습니다.
+                </dd>
+              </div>
+              <div>
+                <dt>도구가 없을 때</dt>
+                <dd>
+                  일반 자막 생성 화면에서는 Ollama와 번역 모델을 새로 설치하지 않습니다. 필요한
+                  도구가 없다는 안내가 나오면 자막 환경 자동 설치를 실행합니다.
+                </dd>
+              </div>
+            </dl>
+          </aside>
+        </div>
+        <div class="spec-status-grid">
+          <article>
+            <h3>테스트한 환경</h3>
+            <p>
+              WSL이 없는 새 Windows 11 가상 PC에서 설치와 재시작 후 준비 상태를 확인했습니다.
+              그래픽카드를 이용한 자막 생성과 한국어 번역은 별도 PC에서 확인했습니다. Windows 10과
+              모든 그래픽카드·드라이버 조합을 시험한 것은 아닙니다.
+            </p>
+          </article>
+          <article>
+            <h3>다운로드 안내</h3>
+            <p>
+              설치 파일은 준비 중입니다.
+              <a href="https://github.com/DarkVideoManager/DarkVideoManager"
+                >GitHub에서 소스를 내려받아 실행</a
+              >하거나 브라우저 데모를 사용할 수 있습니다.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="faq container section-space">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">GOOD TO KNOW</span>
+            <h2>궁금한 점, 먼저 확인하세요.</h2>
+          </div>
+        </div>
+        <div class="faq-list">
+          <details>
+            <summary>인터넷 없이도 사용할 수 있나요?<span>+</span></summary>
+            <p>
+              일반 영상 관리·재생·하이라이트는 로컬에서 사용합니다. AI 도구와 모델을 처음 준비할
+              때는 인터넷이 필요합니다. 모델 준비 후 원어 자막 생성과 준비된 Ollama를 이용한 로컬
+              번역은 로컬에서 처리하며, Google Cloud 번역은 인터넷이 필요합니다.
+            </p>
+          </details>
+          <details>
+            <summary>AI 자막을 생성하는 동안 다른 작업도 할 수 있나요?<span>+</span></summary>
+            <p>
+              네. 자막 생성 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 자막 작업은 대기열에서
+              관리하며 일시정지와 재개를 지원합니다.
+            </p>
+          </details>
+          <details id="privacy-details">
+            <summary>영상이나 자막을 외부로 전송하나요?<span>+</span></summary>
+            <p>
+              앱은 운영자 서버에 영상을 업로드하지 않습니다. 음성 인식과 로컬 번역은 PC에서
+              처리합니다. Google Cloud Translation을 직접 켠 경우에는 번역할 자막 텍스트가 Google에
+              전송되며 비용이 발생할 수 있습니다. 앱 데이터는 암호화 보관함이 아니며, OneDrive 등
+              동기화 폴더는 해당 서비스 설정을 따릅니다.
+            </p>
+          </details>
+          <details>
+            <summary>오픈소스로 공개되나요?<span>+</span></summary>
+            <p>
+              자체 코드와 아이콘은
+              <a href="https://github.com/DarkVideoManager/DarkVideoManager"
+                >GitHub에서 MIT 라이선스로 공개합니다</a
+              >. 설치 파일은 별도로 준비 중입니다. 포함된 외부 구성 요소는 각각의 라이선스를 따르며,
+              FFmpeg·x264 등에는 별도의 GPL 조건이 적용됩니다.
+            </p>
+          </details>
+          <details>
+            <summary>Mac이나 Linux에서도 사용할 수 있나요?<span>+</span></summary>
+            <p>
+              현재 지원 대상은 Windows 10/11 x64입니다. AI 음성 인식에는 Vulkan을 지원하는 GPU가
+              필요하며, 로컬 번역 환경은 WSL Ubuntu를 사용합니다.
+            </p>
+          </details>
+        </div>
+      </section>
+      <section class="closing container">
+        <div class="closing-symbol" aria-hidden="true">
+          <svg><use href="#i-play" /></svg>
+        </div>
+        <span class="eyebrow">LESS SEARCHING. MORE WATCHING.</span>
+        <h2>다음 재생은,<br />조금 더 나답게.</h2>
+        <a class="button primary" href="#experience"
+          >라이브러리 체험하기 <svg><use href="#i-arrow" /></svg
+        ></a>
+      </section>
+    </main>
+    <footer class="footer container">
+      <a class="brand" href="#"
+        ><img src="/assets/app-icon.ico" width="26" height="26" alt="" /><span
+          >DarkVideo<span class="brand-light">Manager</span></span
+        ></a
+      >
+      <p>내 PC에서 시작하는 영상 라이브러리.</p>
+      <span>© 2026 DarkVideoManager</span>
+    </footer>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

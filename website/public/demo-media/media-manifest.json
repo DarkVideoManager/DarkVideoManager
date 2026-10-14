@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-14T04:53:37.207Z",
+  "description": "Locally hosted CC0 and public-domain baseball demo media. Three direct recordings by D. Benjamin Miller and a continuous 3-minute Universal Newsreel excerpt published by the U.S. National Archives.",
+  "totalVideoBytes": 10539077,
+  "totalPosterBytes": 232814,
+  "items": [
+    {
+      "id": "tim-peterson-delivery",
+      "filename": "tim-peterson-delivery.mp4",
+      "title": "Tim Peterson's delivery",
+      "author": "D. Benjamin Miller",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Tim_Peterson%27s_delivery.webm",
+      "sourceRevision": 1214097478,
+      "originalURL": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Tim_Peterson%27s_delivery.webm",
+      "license": "CC0 1.0 Universal",
+      "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "recordedDate": "2018-06-26",
+      "duration": 7.007,
+      "size": 363478,
+      "sha256": "7bd77465c9b92aaf35a23027c2a76dc621ea88a15c7d56dfc06529f9134ad36e",
+      "width": 600,
+      "height": 450,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": false,
+      "audioTracks": [],
+      "poster": "tim-peterson-delivery.jpg",
+      "posterAtSeconds": 2,
+      "posterSize": 37775,
+      "posterSha256": "574ecf1fe6f9cf6618649628e272331ee1f166db60494abefa0111dd3b8d57ab",
+      "original": {
+        "filename": "Tim Peterson's delivery.webm",
+        "size": 579214,
+        "sha256": "5e1ce62973e049400e1e511fe97b6fe603c2941ab0a4ba6e3ee9e1a5da00cc59",
+        "sha1": "354c8ea6b31a4f2d562926b774c4d69a702029e1",
+        "duration": 7.007,
+        "width": 600,
+        "height": 450
+      },
+      "modifications": [
+        "Transcoded the complete original to H.264 MP4 (yuv420p, CRF 25, faststart).",
+        "Scaled down to fit 1280×720 where required; retained the original aspect ratio.",
+        "The original has no audio stream; no audio added.",
+        "Extracted the JPEG poster from the converted video at 2 seconds.",
+        "No subtitles, logos, speech, or other creative content added."
+      ],
+      "rightsVerification": {
+        "checkedAt": "2026-10-14T04:53:14.872Z",
+        "sourceStatement": "Own work",
+        "authorStatement": "D. Benjamin Miller",
+        "licenseStatement": "CC0 1.0 Universal Public Domain Dedication",
+        "verifiedOn": "Wikimedia Commons original file description page"
+      }
+    },
+    {
+      "id": "gant-windup",
+      "filename": "gant-windup.mp4",
+      "title": "Gant Windup",
+      "author": "D. Benjamin Miller",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Gant_Windup.webm",
+      "sourceRevision": 1262844728,
+      "originalURL": "https://upload.wikimedia.org/wikipedia/commons/5/52/Gant_Windup.webm",
+      "license": "CC0 1.0 Universal",
+      "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "recordedDate": "2016-06-17",
+      "duration": 14.222542,
+      "size": 1451895,
+      "sha256": "953243737b7f9bfb7aef9c749dc32fe09e6276abad02cbe3d1610013b83c254a",
+      "width": 1280,
+      "height": 720,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": false,
+      "audioTracks": [],
+      "poster": "gant-windup.jpg",
+      "posterAtSeconds": 7,
+      "posterSize": 84037,
+      "posterSha256": "8e41b6aa334a76b4c31568428f3f0ea4060f630f930398ea10290fe819d1063b",
+      "original": {
+        "filename": "Gant Windup.webm",
+        "size": 5964023,
+        "sha256": "1bb8c10c4eeacd02ee81f74d579bb0787406aa9d8a28f40e9355d5bc91b37611",
+        "sha1": "1792381942573113918077402abf8a3182ba3ebd",
+        "duration": 14.223,
+        "width": 1920,
+        "height": 1080
+      },
+      "modifications": [
+        "Transcoded the complete original to H.264 MP4 (yuv420p, CRF 25, faststart).",
+        "Scaled down to fit 1280×720 where required; retained the original aspect ratio.",
+        "The original has no audio stream; no audio added.",
+        "Extracted the JPEG poster from the converted video at 7 seconds.",
+        "No subtitles, logos, speech, or other creative content added."
+      ],
+      "rightsVerification": {
+        "checkedAt": "2026-10-14T04:53:14.872Z",
+        "sourceStatement": "Own work",
+        "authorStatement": "D. Benjamin Miller",
+        "licenseStatement": "CC0 1.0 Universal Public Domain Dedication",
+        "verifiedOn": "Wikimedia Commons original file description page"
+      }
+    },
+    {
+      "id": "tim-peterson-out",
+      "filename": "tim-peterson-out.mp4",
+      "title": "Tim Peterson makes the out",
+      "author": "D. Benjamin Miller",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Tim_Peterson_makes_the_out.webm",
+      "sourceRevision": 903825287,
+      "originalURL": "https://upload.wikimedia.org/wikipedia/commons/2/20/Tim_Peterson_makes_the_out.webm",
+      "license": "CC0 1.0 Universal",
+      "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "recordedDate": "2018-06-26",
+      "duration": 3.461792,
+      "size": 634922,
+      "sha256": "4864ac1b4ca2f0b6ec101fb7bbd4326873d074b0cb9f839c77d728d5c3a9632a",
+      "width": 1280,
+      "height": 720,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": false,
+      "audioTracks": [],
+      "poster": "tim-peterson-out.jpg",
+      "posterAtSeconds": 1,
+      "posterSize": 103993,
+      "posterSha256": "a49732c686ebc6047cac35220261ab6d647b5ea0266686aedb41835d20169a89",
+      "original": {
+        "filename": "Tim Peterson makes the out.webm",
+        "size": 1753258,
+        "sha256": "20c3f5d44897cc6990ff76f16d5f33a0bb497d41b404d8e97aac50f6d3c48e5d",
+        "sha1": "37e8d5263c0fd0b7182748e3b70b36ee9ba48372",
+        "duration": 3.462,
+        "width": 1920,
+        "height": 1080
+      },
+      "modifications": [
+        "Transcoded the complete original to H.264 MP4 (yuv420p, CRF 25, faststart).",
+        "Scaled down to fit 1280×720 where required; retained the original aspect ratio.",
+        "The original has no audio stream; no audio added.",
+        "Extracted the JPEG poster from the converted video at 1 seconds.",
+        "No subtitles, logos, speech, or other creative content added."
+      ],
+      "rightsVerification": {
+        "checkedAt": "2026-10-14T04:53:14.872Z",
+        "sourceStatement": "Own work",
+        "authorStatement": "D. Benjamin Miller",
+        "licenseStatement": "CC0 1.0 Universal Public Domain Dedication",
+        "verifiedOn": "Wikimedia Commons original file description page"
+      }
+    },
+    {
+      "id": "world-series-1955",
+      "filename": "world-series-1955.mp4",
+      "title": "1955 World Series: Dodgers and Yankees — first 3 minutes",
+      "author": "Universal Newsreel / Universal Pictures; preserved and published by the U.S. National Archives",
+      "sourcePage": "https://unwritten-record.blogs.archives.gov/2024/10/25/spotlight-1955-world-series-dodgers-and-yankees/",
+      "originalURL": "https://unwritten-record.blogs.archives.gov/wp-content/uploads/sites/6/2024/10/un-un-v28-r713-s1-2ac_3_story-3.mp4",
+      "license": "Public domain — dedicated by Universal Pictures",
+      "licenseURL": "https://www.archives.gov/publications/prologue/2013/summer/fads-and-fashions-in-universal-newsreels",
+      "duration": 180.002979,
+      "size": 8088782,
+      "sha256": "f30d819ad7d5f09b4555eecc688410b64e89ed6a0478b619b5be9e05881e21f2",
+      "width": 640,
+      "height": 360,
+      "videoCodec": "h264",
+      "pixelFormat": "yuv420p",
+      "hasAudio": true,
+      "audioTracks": [
+        {
+          "codec": "aac",
+          "channels": 2,
+          "sampleRate": 48000
+        }
+      ],
+      "poster": "world-series-1955.jpg",
+      "posterAtSeconds": 60,
+      "posterSize": 7009,
+      "posterSha256": "9ed4b648a6bd615e8aa3e770c63f360f9e43242c506ac5b32e05a5de73bfbee0",
+      "original": {
+        "filename": "nara-1955-world-series-original.mp4",
+        "size": 65324887,
+        "sha256": "c51e9cccc8e19a8f66da89774edaa789835ef4706e2dad63ea30233be0dcae7a",
+        "duration": 218.208322,
+        "width": 1920,
+        "height": 1080
+      },
+      "modifications": [
+        "Selected one continuous excerpt from 00:00 to 03:00 of the official NARA video; no looping or rearrangement.",
+        "Transcoded to H.264 MP4, yuv420p, 24 fps, faststart; scaled proportionally to fit 640×480.",
+        "Original audio transcoded to AAC at 64 kbps.",
+        "Extracted the JPEG poster from the converted video at 60 seconds.",
+        "Manual scene descriptions are separate browser demo fixtures, not AI output or speech transcription."
+      ],
+      "rightsVerification": {
+        "checkedAt": "2026-10-14T05:41:22.073Z",
+        "sourceStatement": "Official National Archives Special Media Division blog provides the Universal Newsreel baseball story as a downloadable MP4.",
+        "licenseStatement": "The National Archives states that Universal Pictures donated the collection and placed it in the public domain.",
+        "sourcePage": "https://unwritten-record.blogs.archives.gov/2024/10/25/spotlight-1955-world-series-dodgers-and-yankees/",
+        "licenseURL": "https://www.archives.gov/publications/prologue/2013/summer/fads-and-fashions-in-universal-newsreels",
+        "catalogURL": "https://catalog.archives.gov/id/234273918",
+        "catalogNote": "The NARA blog refers to both Release 714 and Release 713; the download URL is retained verbatim rather than resolving that catalog inconsistency."
+      },
+      "releaseDate": "1955-09-29",
+      "audioReview": {
+        "method": "ffmpeg volumedetect over the complete converted 180-second excerpt",
+        "meanVolumeDb": -23.2,
+        "maxVolumeDb": -9.1,
+        "conclusion": "Audio track contains a non-silent signal; the original audio was retained."
+      }
+    }
+  ],
+  "updatedAt": "2026-10-14T05:44:45.913Z"
+}

@@ -1,0 +1,213 @@
+/* The desktop UI comes directly from src/renderer. These rules only fit the browser shell. */
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #09090b;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  color: #f4f4f5;
+}
+#demo-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 8px 14px;
+  background: #1c1927;
+  border-bottom: 1px solid #46395e;
+  font:
+    11px/1.5 system-ui,
+    sans-serif;
+  flex-shrink: 0;
+}
+#demo-toolbar > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#demo-toolbar strong {
+  color: #d7c7ff;
+  font-weight: 650;
+}
+#demo-toolbar span {
+  color: #afa5c3;
+}
+.demo-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  white-space: nowrap;
+}
+body:not([data-page='player']) .player-action {
+  display: none;
+}
+body[data-page='player'] #demo-play {
+  display: none;
+}
+.demo-toolbar-actions button,
+.demo-toolbar-actions a {
+  border: 0;
+  background: none;
+  color: #d0c5e5;
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+  text-decoration: none;
+}
+.demo-toolbar-actions button:hover,
+.demo-toolbar-actions a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+#root {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
+#demo-storage-notice {
+  padding: 8px 14px;
+  background: #422d16;
+  color: #ffe0aa;
+  font:
+    12px/1.5 system-ui,
+    sans-serif;
+  flex-shrink: 0;
+}
+#demo-example-notice {
+  margin: 0;
+  padding: 5px 14px;
+  background: #17151d;
+  border-bottom: 1px solid #2c2638;
+  color: #bcb0d0;
+  font:
+    11px/1.5 system-ui,
+    sans-serif;
+  flex-shrink: 0;
+}
+#root .h-screen {
+  height: 100%;
+}
+#root .w-screen {
+  width: 100%;
+}
+#demo-guide {
+  margin: auto;
+  max-width: min(540px, calc(100vw - 30px));
+  max-height: calc(100vh - 35px);
+  overflow: auto;
+  border: 1px solid #5c4b79;
+  border-radius: 12px;
+  padding: 28px;
+  background: #18151f;
+  color: #dfd8ec;
+  font:
+    13px/1.9 system-ui,
+    sans-serif;
+}
+#demo-guide::backdrop {
+  background: #000a;
+}
+#demo-guide h1 {
+  font-size: 21px;
+  font-weight: 600;
+  margin: 0 0 18px;
+  color: #fff;
+}
+#demo-guide p {
+  margin: 14px 0;
+}
+#demo-guide ul {
+  padding-left: 18px;
+  list-style: disc;
+}
+#close-guide,
+.demo-fatal button {
+  background: #8371be;
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 22px;
+  font: inherit;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.demo-fatal {
+  padding: 35px;
+  color: #ded8eb;
+}
+.demo-fatal h1 {
+  font-size: 20px;
+}
+.demo-fatal p {
+  margin: 20px 0;
+}
+@media (max-width: 720px) {
+  #demo-toolbar {
+    padding: 8px 10px;
+    flex-wrap: wrap;
+    gap: 5px;
+    font-size: 10px;
+  }
+  #demo-toolbar > div:first-child {
+    gap: 8px;
+  }
+  .demo-toolbar-actions {
+    margin-left: auto;
+    gap: 3px 14px;
+  }
+  .demo-toolbar-actions button,
+  .demo-toolbar-actions a {
+    padding: 6px 0;
+  }
+  body[data-page='library'] #root main {
+    position: relative;
+  }
+  body[data-page='library'][data-selected='false'] #root main > div > aside {
+    display: none;
+  }
+  body[data-page='library'][data-selected='true'] #root main > div > aside {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(320px, 92vw);
+    z-index: 40;
+    box-shadow: -20px 0 70px #000b;
+  }
+  body[data-page='player'] #root > div.flex {
+    flex-direction: column;
+  }
+  body[data-page='player'] #root > div.flex > div:first-child {
+    flex: none;
+    height: 48%;
+    min-height: 310px;
+  }
+  .demo-player-highlights {
+    max-height: 72px;
+  }
+  .demo-player-caption {
+    padding-inline: 12px;
+  }
+  .demo-player-caption > div {
+    padding: 6px 10px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  body[data-page='player'] #root > div.flex > aside {
+    width: 100%;
+    min-height: 0;
+    flex: 1;
+    border-left: 0;
+    border-top: 1px solid #3f3f46;
+  }
+}

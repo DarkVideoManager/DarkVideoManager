@@ -1,0 +1,93 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+out/
+release/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Private application data and credentials (never publish real libraries)
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+# Real video/subtitle inputs are supplied externally; tests create their fixtures.
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wmv
+*.srt
+*.vtt
+*.smi
+user-data/
+userData/
+.cache/
+__pycache__/
+*.py[cod]
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor
+.vscode/
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.vs/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+test-results/
+playwright-report/
+
+# Electron build cache
+.electron-vite/
+
+# Downloaded/built subtitle runtime (recreated by setup:subtitles:gpu)
+resources/subtitles/native/
+
+# Locally recovered native binaries; rebuild dependencies from source packages
+resources/native/
+
+# Reproducible media executables and generated third-party inventory
+resources/media/
+resources/legal/generated/
+resources/legal/media-source-receipts.json
+
+# Browser demo output is rebuilt from website/demo source.
+website/public/demo/

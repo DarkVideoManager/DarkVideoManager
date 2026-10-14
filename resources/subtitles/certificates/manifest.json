@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "filename": "mozilla-ca.crt",
+  "sha256": "9cc2a774b5198dcff14d9be1e66091f538975d867ce029a96bce15a55dfd730f",
+  "source": {
+    "name": "certifi",
+    "version": "2026.7.22",
+    "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl",
+    "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+    "file": "certifi/cacert.pem"
+  },
+  "license": "MPL-2.0",
+  "notice": "Unmodified Mozilla public CA bundle extracted from the SHA256-verified certifi wheel. Used only for process-local TLS trust; no Windows certificate-store modifications.",
+  "licenseFiles": ["LICENSE.txt", "MPL-2.0.txt"],
+  "licenseUrl": "https://www.mozilla.org/media/MPL/2.0/index.txt"
+}

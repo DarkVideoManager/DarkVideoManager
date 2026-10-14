@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://dark-video-manager.vercel.app/sitemap.xml

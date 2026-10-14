@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 개인정보와 네트워크 사용 안내
+    url: https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/PRIVACY.md
+    about: 저장 데이터, 모델 다운로드, 선택적 Google Cloud 번역을 확인하세요.
+  - name: 보안 제보 안내
+    url: https://github.com/DarkVideoManager/DarkVideoManager/security/policy
+    about: 취약점 세부 내용은 공개 이슈에 올리지 마세요.

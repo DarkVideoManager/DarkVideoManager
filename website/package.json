@@ -1,0 +1,11 @@
+{
+  "name": "dark-video-manager-website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "check": "node --check public/app.js",
+    "build:demo": "node ../node_modules/vite/bin/vite.js build --config vite.demo.config.ts"
+  }
+}

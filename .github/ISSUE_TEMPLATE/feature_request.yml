@@ -1,0 +1,22 @@
+name: 기능 제안
+description: 사용하면서 필요한 기능이나 개선을 알려 주세요.
+title: '[Feature] '
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 해결하고 싶은 문제
+      description: 어떤 작업에서 불편한지 설명해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 원하는 동작
+      description: 사용자가 어떤 순서로 이용하게 되면 좋을지 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 현재 사용하는 방법 또는 다른 대안

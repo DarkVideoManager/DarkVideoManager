@@ -1,0 +1,233 @@
+.demo-keyboard-guide {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto minmax(220px, 1.4fr);
+  align-items: center;
+  gap: 10px 22px;
+  flex-shrink: 0;
+  padding: 9px 16px;
+  border-bottom: 1px solid #594476;
+  background: linear-gradient(115deg, #2a2040, #1c1828 70%);
+  color: #e7def9;
+  font:
+    12px/1.4 system-ui,
+    sans-serif;
+}
+
+body:not([data-page='player']) .demo-keyboard-guide {
+  display: none;
+}
+
+.demo-keyboard-intro,
+.demo-keyboard-details {
+  min-width: 0;
+}
+
+.demo-keyboard-intro strong {
+  display: block;
+  color: #f6efff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.demo-keyboard-intro p {
+  margin: 4px 0 0;
+  color: #c3b4da;
+  font-size: 11px;
+}
+
+.demo-keyboard-cluster {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  grid-template-rows: repeat(3, 29px);
+  gap: 4px;
+}
+
+.demo-keycap {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 29px;
+  padding: 0;
+  border: 1px solid #a089c5;
+  border-radius: 6px;
+  background: #413153;
+  box-shadow: 0 2px 0 #130e1e;
+  color: #fff;
+  font:
+    750 14px/1 system-ui,
+    sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.demo-keycap-w {
+  grid-column: 2;
+  grid-row: 1;
+  background: #75569b;
+  border-color: #c4a3ed;
+}
+
+.demo-keycap-a {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.demo-keycap-s {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.demo-keycap-d {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.demo-keycap-q {
+  grid-column: 1;
+  grid-row: 1;
+}
+.demo-keycap-e {
+  grid-column: 3;
+  grid-row: 1;
+}
+.demo-keycap-z {
+  grid-column: 1;
+  grid-row: 3;
+}
+.demo-keycap-c {
+  grid-column: 3;
+  grid-row: 3;
+}
+.demo-keycap-q,
+.demo-keycap-e {
+  border-color: #a6986e;
+  background: #48412c;
+}
+.demo-keycap-z,
+.demo-keycap-c {
+  border-color: #779eaf;
+  background: #2a424d;
+}
+
+.demo-keycap:hover {
+  background: #8162a7;
+}
+
+.demo-keycap:focus-visible {
+  outline: 2px solid #e1c8ff;
+  outline-offset: 3px;
+}
+
+.demo-keycap[data-used='true'] {
+  border-color: #c9b3ed;
+}
+
+.demo-keycap:active,
+.demo-keycap[data-active='true'] {
+  background: #d5b6ff;
+  color: #291b3a;
+  box-shadow: 0 0 14px #ad7be74d;
+  transform: translateY(2px);
+}
+
+.demo-keyboard-details dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 12px;
+  margin: 0;
+}
+
+.demo-keyboard-details dl > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.demo-keyboard-details dt {
+  color: #ddc4ff;
+  font-weight: 750;
+}
+
+.demo-keyboard-details dd {
+  margin: 0;
+  color: #e1d6ef;
+}
+
+.demo-keyboard-feedback {
+  min-height: 15px;
+  margin: 5px 0 0;
+  color: #bda9d5;
+  font-size: 10px;
+}
+
+@media (max-width: 720px) {
+  .demo-keyboard-guide {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    padding: 8px 10px;
+  }
+
+  .demo-keyboard-intro {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .demo-keyboard-intro strong {
+    font-size: 12px;
+  }
+
+  .demo-keyboard-intro p {
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  .demo-keyboard-cluster {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    grid-template-columns: repeat(3, 44px);
+    grid-template-rows: repeat(3, 44px);
+    gap: 3px;
+  }
+
+  .demo-keycap {
+    width: 44px;
+    height: 44px;
+    font-size: 13px;
+  }
+
+  .demo-keyboard-details {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .demo-keyboard-details dl {
+    gap: 2px 6px;
+    font-size: 10px;
+  }
+
+  .demo-keyboard-details dl > div {
+    gap: 4px;
+  }
+
+  .demo-keyboard-feedback {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-keycap {
+    transition: none;
+  }
+}

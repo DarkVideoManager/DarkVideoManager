@@ -1,0 +1,56 @@
+name: Release candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    needs: checks
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      CI: 'true'
+      HUSKY: '0'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.18.0
+          cache: npm
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-media-and-source
+          path: .
+      - run: npm run setup
+      - name: Build subtitle runtime without model downloads
+        run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/setup-subtitles-gpu.ps1 -SkipModelDownload
+      - run: npm run build:win
+      - run: node scripts/smoke-electron.cjs dist-electron/win-unpacked/DarkVideoManager.exe
+      - run: node scripts/smoke-subtitle-navigation.cjs dist-electron/win-unpacked/DarkVideoManager.exe
+      - run: npm run export:source
+      - name: Collect candidate assets and checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release/candidate | Out-Null
+          Copy-Item -Path dist-electron/*.exe -Destination release/candidate
+          Copy-Item -Path release/*-source.tar.gz -Destination release/candidate
+          Copy-Item -Path release/sources/* -Destination release/candidate
+          $hashes = Get-ChildItem -LiteralPath release/candidate -File | Sort-Object Name | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          $hashes | Set-Content -LiteralPath release/candidate/SHA256SUMS.txt -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-release-candidate
+          path: release/candidate/
+          if-no-files-found: error
+          retention-days: 14

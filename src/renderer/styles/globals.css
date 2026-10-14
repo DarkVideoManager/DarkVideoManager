@@ -1,0 +1,51 @@
+@import 'tailwindcss' source('../');
+@config '../../../tailwind.config.cjs';
+
+/* Preserve the existing controls while adopting Tailwind's current build pipeline. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-zinc-700, currentColor);
+  }
+}
+
+:root {
+  color-scheme: dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+body {
+  margin: 0;
+  background: #09090b;
+  color: #f4f4f5;
+}
+button {
+  touch-action: manipulation;
+}
+:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

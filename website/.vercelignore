@@ -1,0 +1,9 @@
+.git
+.vercel
+node_modules
+.env*
+server.mjs
+README.md
+qa.mjs
+/demo/
+vite.demo.config.ts

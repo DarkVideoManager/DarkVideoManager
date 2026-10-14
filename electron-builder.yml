@@ -1,0 +1,68 @@
+appId: com.darkvm.app
+productName: DarkVideoManager
+copyright: Copyright © 2026 DarkVideoManager Contributors
+
+directories:
+  buildResources: resources
+  output: dist-electron
+
+files:
+  - out/**/*
+  - "!out/**/*.map"
+  - "!out/**/*.tsbuildinfo"
+
+extraResources:
+  - from: resources/icon.ico
+    to: icon.ico
+  - from: resources/subtitles
+    to: subtitles
+    filter:
+      - "generate.py"
+      - "whisper_vulkan.py"
+      - "setup_environment.py"
+      - "setup_models.py"
+      - "download_tls.py"
+      - "certificates/**/*"
+      - "gpu-models.json"
+      - "native/**/*"
+  - from: resources/media/win32-x64
+    to: media/win32-x64
+    filter:
+      - "*.exe"
+      - "*.json"
+      - "*.txt"
+  - from: resources/legal/generated
+    to: legal
+  - from: LICENSE
+    to: legal/DarkVideoManager-LICENSE.txt
+  - from: THIRD_PARTY_NOTICES.md
+    to: legal/THIRD_PARTY_NOTICES.md
+  - from: electron/main/db/migrations
+    to: migrations
+    filter:
+      - "*.sql"
+
+asar: true
+# better-sqlite3 ships the Windows x64 Node-API binary in its pinned npm package.
+npmRebuild: false
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DarkVideoManager
