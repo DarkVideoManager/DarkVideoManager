@@ -87,8 +87,8 @@
         <div class="product-preview live-demo" id="experience">
           <div class="live-demo-heading">
             <div>
-              <h1>실제 프로그램, 그대로 체험하기</h1>
-              <span>공개 야구 영상으로 자막 생성 과정부터 장면 저장까지.</span>
+              <h1>브라우저 데모</h1>
+              <span>샘플 영상으로 재생, 하이라이트 저장, 자막 탐색 기능 테스트</span>
             </div>
             <a href="/demo/" class="demo-expand" target="_blank" rel="noopener"
               >큰 화면으로 열기 ↗</a
@@ -105,7 +105,7 @@
           </div>
           <div class="demo-keyboard-invite">
             <div>
-              <strong>키보드로 재생하고, 원하는 장면으로 바로.</strong>
+              <strong>키보드 단축키</strong>
               <span
                 ><kbd>W</kbd> 재생·정지 <kbd>A</kbd><kbd>D</kbd> 앞뒤 이동 <kbd>S</kbd> 하이라이트
                 저장</span
@@ -155,53 +155,57 @@
         <div class="spec-grid">
           <article class="spec-card">
             <h3>라이브러리 주요 기능</h3>
-            <p>파일 탐색기에서 쓰는 검색·정렬·삭제 같은 기본 기능을 제공합니다.</p>
+            <p>기본적으로 파일 탐색기가 제공하는 기능은 대부분 제공합니다.</p>
             <ul class="feature-points">
               <li>영상마다 몇 번 봤는지, 얼마나 오래 봤는지 기록하고 보여줍니다.</li>
-              <li>영상에 내 평점을 매기고, 나중에 평점 순으로 모아 볼 수 있습니다.</li>
+              <li>영상에 대한 나의 평점을 매겨 나중에 평점별로 정렬해서 볼 수도 있습니다.</li>
               <li>
-                자막이 있는지 표시합니다. 자막이 없는 영상을 골라 바로 생성을 요청할 수 있습니다.
+                자막이 있는 영상인지 없는 영상인지 화면에 표시하고, 자막이 없으면 바로 생성
+                가능합니다.
               </li>
-              <li>많이 본 순서나 적게 본 순서로 정렬해, 아직 안 본 영상부터 볼 수 있습니다.</li>
-              <li>보고 싶지 않은 영상은 목록에서 빼거나 휴지통으로 옮길 수 있습니다.</li>
+              <li>내가 많이 본 순서로 정렬하거나, 안본 순서로 정렬할 수도 있습니다.</li>
+              <li>도저히 못보겠는 영상은 삭제할수도 있습니다.</li>
             </ul>
           </article>
           <article class="spec-card">
             <h3>동영상 플레이어 기본 기능</h3>
-            <p>재생·일시정지·이어보기 등 동영상 플레이어의 기본 기능을 제공합니다.</p>
+            <p>기본적으로 동영상 플레이어가 제공하는 기능은 대부분 제공합니다.</p>
             <ul class="feature-points">
               <li>
-                <strong>누를수록 빨라지는 이동</strong>
+                <strong>가속도 센서가 달린 재생 이동기능</strong>
                 <kbd>A</kbd>·<kbd>D</kbd>로 1초씩 이동합니다. 길게 누를수록 더 빨라져 불필요한
                 장면을 빠르게 넘길 수 있습니다.
               </li>
               <li>
-                <strong>하이라이트</strong>
-                중요한 장면에서 <kbd>S</kbd>를 누르면 그 순간을 저장합니다. 하이라이트 탭이나
-                <kbd>Q</kbd>·<kbd>E</kbd>로 다시 이동할 수 있습니다.
+                <strong>하이라이트 기능</strong>
+                중요한 장면, 스토리상 분기점, 특정 동작을 시작하는 장면 등으로 빠르게 이동할 수
+                있도록 <kbd>S</kbd>를 누르면 언제든지 해당 순간을 저장하고 나중에 하이라이트 탭이나
+                단축키 <kbd>Q</kbd>·<kbd>E</kbd>로 다시 이동할 수 있습니다.
               </li>
               <li>
                 <strong>자막 이동</strong>
-                <kbd>Z</kbd>·<kbd>C</kbd>로 이전·다음 자막으로 이동합니다. 자막 탐색기에서 내용을
-                훑어보고, 문장을 누르면 해당 장면으로 이동합니다.
+                보통 자막이 있는 부분은 불필요하므로 빠르게 자막만 보면서 넘길 수 있습니다.
+                <kbd>Z</kbd>·<kbd>C</kbd>로 이전·다음 자막으로 이동합니다. 한번에 자막을 훑어볼 수
+                있게 자막 탐색기도 제공합니다.
               </li>
             </ul>
           </article>
           <article class="spec-card">
             <h3>통계 기능</h3>
             <p>
-              영상을 얼마나 오래 봤는지, 어떤 영상을 가장 많이 봤는지, 보유 영상에 어떤 태그를 많이
-              붙였는지 보여줍니다.
+              내가 이 프로그램에 얼마나 시간을 썼는지, 뭘 가장 많이 봤는지, 주요 사용 태그 등 다양한
+              데이터를 보여줍니다.
             </p>
             <button type="button" class="text-button" data-open-mode="stats">
               데모에서 통계 보기 <svg aria-hidden="true"><use href="#i-arrow" /></svg>
             </button>
           </article>
           <article class="spec-card">
-            <h3>ESC와 백그라운드 작업</h3>
+            <h3>긴급 탈출 기능</h3>
             <p>
-              재생 중 <kbd>ESC</kbd>를 누르면 이전 화면으로 돌아갑니다. 라이브러리와 자막 작업
-              화면에서는 창을 닫습니다. 입력 중이거나 대화상자가 열려 있을 때는 예외입니다.
+              모든 상황에서 <kbd>ESC</kbd>를 누르면 즉시 이전 화면으로 돌아갑니다. (ESC를 따닥
+              누르면 바로 꺼짐) 라이브러리와 자막 작업 화면에서는 창을 닫습니다. 자막 생성중이라면
+              프로그램은 백그라운드에 그대로 둡니다.
             </p>
             <p>자막 작업이 남아 있으면 창을 닫아도 백그라운드에서 계속 진행합니다.</p>
           </article>
@@ -211,23 +215,22 @@
               영상 속 말소리를 AI가 자막으로 만듭니다. 한국어 번역은 내 PC에서 처리하거나, Google
               Cloud API 키를 등록하고 사용을 켜서 이용할 수 있습니다.
             </p>
-            <p>설정 방법이 어렵다면 GPT에 자막 생성과 번역 설정 방법을 물어볼 수 있습니다.</p>
+            <p>
+              설정 방법이 어렵다면 GPT나 클로드한테 자막 생성과 번역 설정 방법을 물어보시면 될 것
+              같습니다.
+            </p>
             <button type="button" class="text-button" data-open-mode="generation">
               데모에서 생성 과정 보기 <svg aria-hidden="true"><use href="#i-arrow" /></svg>
             </button>
           </article>
           <article class="spec-card">
             <h3>기타</h3>
-            <p>
-              영상 관리와 재생은 인터넷 없이 사용할 수 있습니다. 자막 도구·모델 설치와 Google
-              번역에는 인터넷이 필요합니다.
-            </p>
+            <p>이 프로그램은 자막 도구·모델 설치와 Google 번역 외에 인터넷을 사용하지 않습니다.</p>
             <p>
               소스는
               <a href="https://github.com/DarkVideoManager/DarkVideoManager"
                 >GitHub에 공개되어 있습니다</a
-              >. 코드를 내려받아 GPT에 분석이나 기능 수정을 요청하고, GitHub에 기능을 제안할 수
-              있습니다.
+              >. 오픈소스이므로 직접 코드를 다운받아서 GPT한테 분석해달라고 하셔도 됩니다.
             </p>
           </article>
         </div>
@@ -242,9 +245,9 @@
             <span class="spec-index">02 / 저장과 인터넷 사용</span>
             <h2 id="privacy-title">파일 저장과 인터넷 사용</h2>
             <p>
-              회원가입 없이 사용할 수 있습니다. 영상과 시청 기록을 운영자에게 보내지 않으며, 사용
-              내역이나 오류 보고도 자동으로 보내지 않습니다. 필요한 도구를 내려받거나 Google 번역을
-              사용할 때는 인터넷을 사용합니다.
+              당연히 회원가입 없이 사용할 수 있습니다. 영상과 시청 기록을 운영자에게 보내지 않으며,
+              사용 내역이나 오류 보고도 자동으로 보내지 않습니다. 필요한 도구를 내려받거나 Google
+              번역을 사용할 때는 인터넷을 사용합니다.
             </p>
           </div>
           <div class="data-flow-list">
@@ -386,9 +389,9 @@
               <li>
                 <h4>앱 실행</h4>
                 <p>
-                  아래에서 설치 파일을 내려받아 실행하고 설치 안내를 따릅니다. 설치 없이
-                  사용하려면 포터블 파일을 실행합니다. 업데이트 전에는 작업 표시줄의 작은
-                  아이콘(트레이) 메뉴에서 앱을 완전히 종료합니다.
+                  아래에서 설치 파일을 내려받아 실행하고 설치 안내를 따릅니다. 설치 없이 사용하려면
+                  포터블 파일을 실행합니다. 업데이트 전에는 작업 표시줄의 작은 아이콘(트레이)
+                  메뉴에서 앱을 완전히 종료합니다.
                 </p>
               </li>
               <li>
@@ -476,16 +479,19 @@
             <h3>다운로드 안내</h3>
             <p>
               Windows 10/11 x64용
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.2/DarkVideoManager-Setup-0.2.2-x64.exe"
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.3/DarkVideoManager-Setup-0.2.3-x64.exe"
                 >설치 파일 다운로드</a
-              > ·
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.2/DarkVideoManager-Portable-0.2.2-x64.exe"
+              >
+              ·
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.3/DarkVideoManager-Portable-0.2.3-x64.exe"
                 >포터블 다운로드</a
               >
             </p>
             <p>
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.2"
-                >v0.2.2 릴리스 안내</a
+              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.3"
+                >v0.2.3 릴리스 안내</a
               >에서 파일 목록과 검증 내용을 확인할 수 있습니다. 소스 압축 파일은 개발용 코드이며
               설치 파일이 아닙니다.
             </p>
@@ -531,10 +537,10 @@
               <a href="https://github.com/DarkVideoManager/DarkVideoManager"
                 >GitHub에서 MIT 라이선스로 공개합니다</a
               >. 설치 파일과 대응 소스는
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.2"
+              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.3"
                 >GitHub Releases</a
-              >에서 받을 수 있습니다. 포함된 외부 구성 요소는 각각의 라이선스를 따르며,
-              FFmpeg·x264 등에는 별도의 GPL 조건이 적용됩니다.
+              >에서 받을 수 있습니다. 포함된 외부 구성 요소는 각각의 라이선스를 따르며, FFmpeg·x264
+              등에는 별도의 GPL 조건이 적용됩니다.
             </p>
           </details>
           <details>
@@ -550,10 +556,9 @@
         <div class="closing-symbol" aria-hidden="true">
           <svg><use href="#i-play" /></svg>
         </div>
-        <span class="eyebrow">LESS SEARCHING. MORE WATCHING.</span>
-        <h2>다음 재생은,<br />조금 더 나답게.</h2>
-        <a class="button primary" href="#experience"
-          >라이브러리 체험하기 <svg><use href="#i-arrow" /></svg
+        <h2>다운로드 및 설치</h2>
+        <a class="button primary" href="#start"
+          >설치 안내 보기 <svg><use href="#i-arrow" /></svg
         ></a>
       </section>
     </main>
@@ -563,7 +568,7 @@
           >DarkVideo<span class="brand-light">Manager</span></span
         ></a
       >
-      <p>내 PC에서 시작하는 영상 라이브러리.</p>
+      <p>Windows용 동영상 관리 프로그램</p>
       <span>© 2026 DarkVideoManager</span>
     </footer>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

@@ -22,7 +22,7 @@ Q/E는 이전·다음 하이라이트, Z/C는 선택한 자막의 이전·다음
 
 소스 저장소: https://github.com/DarkVideoManager/DarkVideoManager
 
-Windows 설치 파일과 포터블 파일은 [v0.2.2 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.2)에서 배포합니다. 소개 페이지의 다운로드 링크는 해당 릴리스의 `DarkVideoManager-Setup-0.2.2-x64.exe`와 `DarkVideoManager-Portable-0.2.2-x64.exe`를 가리킵니다. 설치 파일은 안내에 따라 설치하고, 포터블 파일은 설치 없이 실행합니다. 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다.
+Windows 설치 파일과 포터블 파일은 [v0.2.3 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.3)에서 배포합니다. 소개 페이지의 다운로드 링크는 해당 릴리스의 `DarkVideoManager-Setup-0.2.3-x64.exe`와 `DarkVideoManager-Portable-0.2.3-x64.exe`를 가리킵니다. 설치 파일은 안내에 따라 설치하고, 포터블 파일은 설치 없이 실행합니다. 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다.
 
 생성된 `public/demo` 번들은 Git에 포함하지 않으므로 배포 전 `npm run build:demo`를 실행하세요. 자동 설치 검증 상태 문구는 실제 결과가 확인된 후 갱신하세요.
 

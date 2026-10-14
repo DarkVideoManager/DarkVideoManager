@@ -20,10 +20,10 @@ AI 작업 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 
 
 ## 사용자 설치
 
-지원 환경은 **Windows 10/11 x64**입니다. [v0.2.2 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.2)에서 다음 파일 중 하나를 내려받습니다.
+지원 환경은 **Windows 10/11 x64**입니다. [v0.2.3 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.3)에서 다음 파일 중 하나를 내려받습니다.
 
-- [설치 파일 — DarkVideoManager-Setup-0.2.2-x64.exe](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.2/DarkVideoManager-Setup-0.2.2-x64.exe): 실행 후 설치 안내를 따릅니다.
-- [포터블 — DarkVideoManager-Portable-0.2.2-x64.exe](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.2/DarkVideoManager-Portable-0.2.2-x64.exe): 설치 없이 실행합니다.
+- [설치 파일 — DarkVideoManager-Setup-0.2.3-x64.exe](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.3/DarkVideoManager-Setup-0.2.3-x64.exe): 실행 후 설치 안내를 따릅니다.
+- [포터블 — DarkVideoManager-Portable-0.2.3-x64.exe](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.3/DarkVideoManager-Portable-0.2.3-x64.exe): 설치 없이 실행합니다.
 
 업데이트 전에는 트레이에서도 앱을 완전히 종료하세요. 릴리스의 **Source code** 및 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다. 코드에서 직접 실행하려면 아래 소스 빌드 방법을 따릅니다.
 
