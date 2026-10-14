@@ -120,7 +120,15 @@ try {
     Invoke-Checked $cmake @('--install', $spirvBuild)
     $build = Join-Path $buildTools 'whisper-vulkan-build'
     Write-Host 'Building pinned whisper.cpp with the Vulkan GPU backend...'
-    Invoke-Checked $cmake @('-S', $source, '-B', $build, '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', "-DCMAKE_C_COMPILER=$env:CC", "-DCMAKE_CXX_COMPILER=$env:CXX", '-DCMAKE_EXE_LINKER_FLAGS=-static', '-DBUILD_SHARED_LIBS=OFF', '-DGGML_VULKAN=ON', '-DGGML_NATIVE=OFF', '-DGGML_OPENMP=OFF', '-DWHISPER_BUILD_TESTS=OFF', '-DWHISPER_BUILD_SERVER=OFF', "-DVulkan_INCLUDE_DIR=$sdkInclude", "-DVulkan_LIBRARY=$vulkanLibrary", "-DVulkan_GLSLC_EXECUTABLE=$glslc", "-DCMAKE_PREFIX_PATH=$sdk")
+    # Keep local usernames and checkout paths out of assertion strings and debug data.
+    $pathMaps = @(
+        "$(($buildTools -replace '\\', '/'))=/dvm-build",
+        "$(($repository -replace '\\', '/'))=/dvm-source"
+    )
+    $portableCompilerFlags = ($pathMaps | ForEach-Object {
+        '-ffile-prefix-map="' + $_ + '" -fdebug-prefix-map="' + $_ + '"'
+    }) -join ' '
+    Invoke-Checked $cmake @('-S', $source, '-B', $build, '-G', 'Ninja', "-DCMAKE_C_FLAGS=$portableCompilerFlags", "-DCMAKE_CXX_FLAGS=$portableCompilerFlags", '-DCMAKE_BUILD_TYPE=Release', "-DCMAKE_C_COMPILER=$env:CC", "-DCMAKE_CXX_COMPILER=$env:CXX", '-DCMAKE_EXE_LINKER_FLAGS=-static', '-DBUILD_SHARED_LIBS=OFF', '-DGGML_VULKAN=ON', '-DGGML_NATIVE=OFF', '-DGGML_OPENMP=OFF', '-DWHISPER_BUILD_TESTS=OFF', '-DWHISPER_BUILD_SERVER=OFF', "-DVulkan_INCLUDE_DIR=$sdkInclude", "-DVulkan_LIBRARY=$vulkanLibrary", "-DVulkan_GLSLC_EXECUTABLE=$glslc", "-DCMAKE_PREFIX_PATH=$sdk")
     Invoke-Checked $cmake @('--build', $build, '--target', 'whisper-cli', '--parallel', '4')
     $whisperDir = Join-Path $native 'whisper'
     New-Item -ItemType Directory -Force $whisperDir | Out-Null

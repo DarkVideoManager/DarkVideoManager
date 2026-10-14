@@ -25,6 +25,9 @@ extraResources:
       - "certificates/**/*"
       - "gpu-models.json"
       - "native/**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+      - "!**/*.pyo"
   - from: resources/media/win32-x64
     to: media/win32-x64
     filter:

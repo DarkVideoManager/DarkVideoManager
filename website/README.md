@@ -22,6 +22,8 @@ Q/E는 이전·다음 하이라이트, Z/C는 선택한 자막의 이전·다음
 
 소스 저장소: https://github.com/DarkVideoManager/DarkVideoManager
 
-설치 파일은 별도 릴리스 준비 중입니다. 생성된 `public/demo` 번들은 Git에 포함하지 않으므로 배포 전 `npm run build:demo`를 실행하세요. 자동 설치 검증 상태 문구는 실제 결과가 확인된 후 갱신하세요.
+Windows 설치 파일과 포터블 파일은 [v0.2.2 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.2)에서 배포합니다. 소개 페이지의 다운로드 링크는 해당 릴리스의 `DarkVideoManager-Setup-0.2.2-x64.exe`와 `DarkVideoManager-Portable-0.2.2-x64.exe`를 가리킵니다. 설치 파일은 안내에 따라 설치하고, 포터블 파일은 설치 없이 실행합니다. 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다.
+
+생성된 `public/demo` 번들은 Git에 포함하지 않으므로 배포 전 `npm run build:demo`를 실행하세요. 자동 설치 검증 상태 문구는 실제 결과가 확인된 후 갱신하세요.
 
 외부 글꼴, 분석 도구, 쿠키, 외부 이미지 요청은 사용하지 않습니다. 영상과 썸네일도 직접 호스팅합니다. D. Benjamin Miller의 CC0 영상과 NARA가 제공하는 퍼블릭 도메인 기록 영상을 사용합니다. 개별 출처와 변환 기록은 `public/media-credits.html` 및 `public/demo-media/media-manifest.json`에 있습니다. 원본 아이콘은 프로젝트의 권한 확인된 아이콘입니다. 로컬 처리 안내는 README.md와 docs/PRIVACY.md, 설치 요구사항은 docs/subtitles.md를 기준으로 작성했습니다.
