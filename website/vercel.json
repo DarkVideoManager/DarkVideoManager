@@ -4,6 +4,9 @@
   "buildCommand": "",
   "installCommand": "",
   "outputDirectory": "public",
+  "functions": {
+    "api/releases.js": { "maxDuration": 30 }
+  },
   "headers": [
     {
       "source": "/(.*)",

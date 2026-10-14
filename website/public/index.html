@@ -26,6 +26,7 @@
     <link rel="icon" href="/assets/app-icon.ico" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
+    <script src="/downloads.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">본문으로 이동</a>
@@ -475,26 +476,58 @@
               모든 그래픽카드·드라이버 조합을 시험한 것은 아닙니다.
             </p>
           </article>
-          <article>
-            <h3>다운로드 안내</h3>
-            <p>
-              Windows 10/11 x64용
-              <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.3/DarkVideoManager-Setup-0.2.3-x64.exe"
-                >설치 파일 다운로드</a
-              >
-              ·
-              <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.3/DarkVideoManager-Portable-0.2.3-x64.exe"
-                >포터블 다운로드</a
-              >
+          <article class="download-panel" id="downloads" aria-labelledby="download-heading">
+            <div class="download-heading">
+              <h3 id="download-heading">다운로드</h3>
+              <span>Windows 10/11 · x64</span>
+            </div>
+            <p class="download-status" data-download-status role="status">
+              최신 파일은 아래 GitHub 링크에서 받을 수 있습니다.
             </p>
-            <p>
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.3"
-                >v0.2.3 릴리스 안내</a
-              >에서 파일 목록과 검증 내용을 확인할 수 있습니다. 소스 압축 파일은 개발용 코드이며
-              설치 파일이 아닙니다.
+            <div data-download-details hidden>
+              <p class="download-version">최신 정식 버전 <strong data-release-version></strong></p>
+              <div class="download-total">
+                <span>누적 다운로드</span>
+                <strong><span data-download-total></span><small>회</small></strong>
+              </div>
+            </div>
+            <div class="download-options">
+              <div data-download-option="setup">
+                <a
+                  class="button primary"
+                  data-download="setup"
+                  href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                  >설치 파일 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
+                ></a>
+                <span class="download-count" data-download-count="setup"></span>
+              </div>
+              <div data-download-option="portable">
+                <a
+                  class="button secondary"
+                  data-download="portable"
+                  href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                  >포터블 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
+                ></a>
+                <span class="download-count" data-download-count="portable"></span>
+              </div>
+            </div>
+            <p class="download-caption">
+              누적 횟수는 전체 정식 버전의 설치형·포터블 합계입니다. 반복 다운로드와 테스트 요청이
+              포함되며, 사용자 수와는 다릅니다.
             </p>
+            <p class="download-updated" data-download-updated></p>
+            <p>
+              <a
+                data-release-link
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                >릴리스 안내 및 소스</a
+              >에서 파일 목록과 검증 내용을 확인할 수 있습니다.
+            </p>
+            <noscript
+              ><p>
+                자동 집계에는 JavaScript가 필요합니다. 위 링크에서 최신 파일을 받을 수 있습니다.
+              </p></noscript
+            >
           </article>
         </div>
       </section>
@@ -537,7 +570,9 @@
               <a href="https://github.com/DarkVideoManager/DarkVideoManager"
                 >GitHub에서 MIT 라이선스로 공개합니다</a
               >. 설치 파일과 대응 소스는
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.3"
+              <a
+                data-release-link
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
                 >GitHub Releases</a
               >에서 받을 수 있습니다. 포함된 외부 구성 요소는 각각의 라이선스를 따르며, FFmpeg·x264
               등에는 별도의 GPL 조건이 적용됩니다.
@@ -557,8 +592,8 @@
           <svg><use href="#i-play" /></svg>
         </div>
         <h2>다운로드 및 설치</h2>
-        <a class="button primary" href="#start"
-          >설치 안내 보기 <svg><use href="#i-arrow" /></svg
+        <a class="button primary" href="#downloads"
+          >다운로드 보기 <svg><use href="#i-arrow" /></svg
         ></a>
       </section>
     </main>

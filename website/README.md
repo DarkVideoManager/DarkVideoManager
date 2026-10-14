@@ -18,11 +18,15 @@ Q/E는 이전·다음 하이라이트, Z/C는 선택한 자막의 이전·다음
 
 ## 배포
 
-먼저 `npm run build:demo`를 실행하고 Vercel에 **website 폴더만** 배포합니다. `vercel.json`은 프레임워크 없이 `public`을 정적 배포합니다. 저장소 전체나 Electron 빌드/검증 폴더는 업로드하지 않습니다. `.env*`는 배포 및 Git에서 제외합니다.
+먼저 `npm run build:demo`를 실행하고 Vercel에 **website 폴더만** 배포합니다. `public`은 정적 파일이며, `api/releases.js`와 `lib/releases.js`는 다운로드 정보를 읽는 Vercel Node.js 함수입니다. 배포에는 `package.json`, `vercel.json`도 포함합니다. 저장소 전체나 Electron 빌드/검증 폴더는 업로드하지 않습니다. `.env*`는 배포 및 Git에서 제외합니다.
 
 소스 저장소: https://github.com/DarkVideoManager/DarkVideoManager
 
-Windows 설치 파일과 포터블 파일은 [v0.2.3 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.2.3)에서 배포합니다. 소개 페이지의 다운로드 링크는 해당 릴리스의 `DarkVideoManager-Setup-0.2.3-x64.exe`와 `DarkVideoManager-Portable-0.2.3-x64.exe`를 가리킵니다. 설치 파일은 안내에 따라 설치하고, 포터블 파일은 설치 없이 실행합니다. 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다.
+Windows 설치 파일과 포터블 파일은 [최신 정식 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 배포합니다. 소개 페이지는 `/api/releases`를 통해 최신 버전의 설치형·포터블 링크와 각각의 다운로드 횟수를 자동으로 표시합니다. 누적 횟수는 모든 공개 정식 릴리스에 첨부된 `DarkVideoManager-Setup-{version}-x64.exe`와 `DarkVideoManager-Portable-{version}-x64.exe`만 합산합니다. 미리 보기 릴리스와 소스·문서 다운로드는 제외합니다.
+
+GitHub의 `download_count`는 사용자 수나 설치 완료 수가 아닙니다. 반복 다운로드와 배포 검증 요청이 포함될 수 있습니다. 서버와 CDN은 정상 응답을 10분 캐시하며, 화면은 열려 있는 동안 10분 간격으로 다시 조회합니다. CDN은 갱신 중 만료된 응답을 최대 1시간 더 제공할 수 있으며, 화면에 실제 집계 시각을 표시합니다. 조회 실패 시 기존 수치를 0으로 바꾸지 않으며, JavaScript를 사용할 수 없거나 최초 조회가 실패해도 GitHub 최신 릴리스 링크를 제공합니다. API 토큰, 방문자 추적 또는 추가 데이터베이스는 사용하지 않습니다.
+
+설치 파일은 안내에 따라 설치하고, 포터블 파일은 설치 없이 실행합니다. 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다.
 
 생성된 `public/demo` 번들은 Git에 포함하지 않으므로 배포 전 `npm run build:demo`를 실행하세요. 자동 설치 검증 상태 문구는 실제 결과가 확인된 후 갱신하세요.
 

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
-    "check": "node --check public/app.js",
+    "check": "node --check public/app.js && node --check public/downloads.js && node --check api/releases.js && node --check lib/releases.js && node --check server.mjs",
+    "test": "node --test tests/releases.test.mjs",
     "build:demo": "node ../node_modules/vite/bin/vite.js build --config vite.demo.config.ts"
   }
 }
