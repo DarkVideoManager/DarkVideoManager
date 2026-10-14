@@ -69,6 +69,34 @@ test('rejects private data and generated publication files', () => {
   assert.deepEqual(inspectPath('resources/icon.ico'), [])
 })
 
+test('accepts Windows short and differently cased paths to the same repository', { skip: process.platform !== 'win32' }, t => {
+  const root = temporaryRepository(t)
+  fs.writeFileSync(path.join(root, 'source.txt'), 'safe source\n')
+  const command = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("%DVM_PATH_FIXTURE%") do @echo %~sI'], {
+    encoding: 'utf8',
+    env: { ...process.env, DVM_PATH_FIXTURE: root },
+    windowsVerbatimArguments: true,
+    windowsHide: true,
+  })
+  assert.equal(command.status, 0, 'Unable to inspect the fixture short path')
+  const shortPath = command.stdout.trim()
+  assert.equal(fs.realpathSync.native(shortPath), fs.realpathSync.native(root))
+  const expected = auditRepository(root)
+  assert.equal(expected.counts.workingFiles, 1)
+  assert.deepEqual(auditRepository(root.toUpperCase()), expected)
+  if (fs.realpathSync(shortPath).toLowerCase() === fs.realpathSync.native(root).toLowerCase()) {
+    t.diagnostic('8.3 aliases are unavailable on this volume; case normalization was checked')
+  }
+  assert.deepEqual(auditRepository(shortPath), expected)
+})
+
+test('still refuses a subdirectory instead of the repository root', t => {
+  const root = temporaryRepository(t)
+  const child = path.join(root, 'nested')
+  fs.mkdirSync(child)
+  assert.throws(() => auditRepository(child), /Run from the repository root/)
+})
+
 test('scans untracked source, honors ignores, and fails CLI without leaking values', t => {
   const root = temporaryRepository(t)
   const value = fakeToken()

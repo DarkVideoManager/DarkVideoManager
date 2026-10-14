@@ -78,9 +78,16 @@ function git(root, args, options = {}) {
 }
 
 function auditRepository(root, { history = false } = {}) {
-  root = fs.realpathSync(root)
-  const repositoryRoot = git(root, ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
-  if (fs.realpathSync(repositoryRoot).toLowerCase() !== root.toLowerCase()) {
+  // Native resolution expands Windows 8.3 aliases as well as junctions. Git may
+  // return the long path even when the caller uses a short TEMP directory name.
+  root = fs.realpathSync.native(root)
+  const repositoryRoot = fs.realpathSync.native(
+    git(root, ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(),
+  )
+  const sameRoot = process.platform === 'win32'
+    ? repositoryRoot.toLowerCase() === root.toLowerCase()
+    : repositoryRoot === root
+  if (!sameRoot) {
     throw new Error('Run from the repository root or pass --root <repository>.')
   }
   const result = {
