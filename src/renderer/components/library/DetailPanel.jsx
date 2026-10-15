@@ -4,8 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { thumbnailsApi } from '../../api'
 import { toLocalMediaUrl } from '../../utils/media'
 import SubtitleGenerationPanel from './SubtitleGenerationPanel'
+import VideoMetadataEditor from './VideoMetadataEditor'
 const STAR_COUNT = 5
-function StarRating({ value, onChange }) {
+function StarRating({ value, onChange, disabled = false }) {
   const [hovered, setHovered] = React.useState(0)
   const displayValue = hovered || value
   return (
@@ -13,7 +14,7 @@ function StarRating({ value, onChange }) {
       className={'relative inline-flex'}
       onMouseLeave={() => setHovered(0)}
       role={'slider'}
-      aria-label={'??'}
+      aria-label={'별점'}
       aria-valuemin={0}
       aria-valuemax={5}
       aria-valuenow={displayValue}
@@ -56,7 +57,8 @@ function StarRating({ value, onChange }) {
             return (
               <button
                 type={'button'}
-                aria-label={`${nextValue}?`}
+                aria-label={`${nextValue}점`}
+                disabled={disabled}
                 className={'h-full w-full'}
                 onClick={() => onChange(nextValue)}
                 onMouseEnter={() => setHovered(nextValue)}
@@ -90,6 +92,15 @@ function DetailPanel({
   const [actionError, setActionError] = React.useState(null)
   const isRemoved = Boolean(video.removalMode)
   const memoTimerRef = React.useRef(null)
+  const pendingMemoRef = React.useRef(null)
+  const memoDraftRef = React.useRef({
+    libraryId,
+    videoId: video.id,
+    value: video.memo ?? '',
+    saved: video.memo ?? '',
+  })
+  const currentVideoRef = React.useRef({ libraryId, videoId: video.id })
+  currentVideoRef.current = { libraryId, videoId: video.id }
   const qc2 = useQueryClient()
   const { data: highlights = [] } = useQuery({
     queryKey: ['highlights', libraryId, video.id],
@@ -155,25 +166,36 @@ function DetailPanel({
   }, [highlights, isRemoved, libraryId, qc2, tab, thumbnails, video.id])
   const updateMeta = useMutation({
     onMutate: () => setActionError(null),
-    mutationFn: async (patch) => {
-      const res = await window.api.videos.updateMeta(libraryId, video.id, {
-        rating: patch.rating ?? video.rating,
-        memo: patch.memo ?? video.memo ?? '',
-      })
+    mutationFn: async ({ targetLibraryId, videoId, patch }) => {
+      const res = await window.api.videos.updateMeta(targetLibraryId, videoId, patch)
       if (!res.ok) throw new Error(res.error)
     },
-    onSuccess: () => {
+    onSuccess: (_result, { targetLibraryId, videoId, patch }) => {
+      if (
+        memoDraftRef.current.libraryId === targetLibraryId &&
+        memoDraftRef.current.videoId === videoId &&
+        patch.memo !== undefined
+      ) {
+        memoDraftRef.current.saved = patch.memo
+      }
       qc2.invalidateQueries({
-        queryKey: ['video', libraryId, video.id],
+        queryKey: ['video', targetLibraryId, videoId],
       })
       qc2.invalidateQueries({
-        queryKey: ['videos', libraryId],
+        queryKey: ['videos', targetLibraryId],
       })
+      qc2.invalidateQueries({ queryKey: ['stats', targetLibraryId] })
     },
-    onError: (error) =>
+    onError: (error, { targetLibraryId, videoId }) => {
+      if (
+        currentVideoRef.current.libraryId !== targetLibraryId ||
+        currentVideoRef.current.videoId !== videoId
+      )
+        return
       setActionError(
         `메타데이터를 저장하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
-      ),
+      )
+    },
   })
   const deleteHighlight = useMutation({
     onMutate: () => setActionError(null),
@@ -212,6 +234,7 @@ function DetailPanel({
         queryKey: ['subtitles', libraryId, video.id],
       })
       qc2.invalidateQueries({ queryKey: ['stats', libraryId] })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
       setShowDeleteConfirm(false)
       onVideoDeleted?.()
     },
@@ -228,6 +251,7 @@ function DetailPanel({
       qc2.invalidateQueries({ queryKey: ['video', libraryId, video.id] })
       qc2.invalidateQueries({ queryKey: ['videos', libraryId] })
       qc2.invalidateQueries({ queryKey: ['stats', libraryId] })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
       setRestoreError(null)
       onVideoRestored?.()
     },
@@ -259,8 +283,23 @@ function DetailPanel({
       ),
   })
   React.useEffect(() => {
-    setMemo(video.memo ?? '')
-  }, [video.memo])
+    const current = memoDraftRef.current
+    const sameVideo = current.libraryId === libraryId && current.videoId === video.id
+    const saved = video.memo ?? ''
+    const value = sameVideo && current.value !== current.saved ? current.value : saved
+    memoDraftRef.current = { libraryId, videoId: video.id, value, saved }
+    setMemo(value)
+  }, [libraryId, video.id, video.memo])
+  const mutateMeta = updateMeta.mutate
+  React.useEffect(
+    () => () => {
+      if (memoTimerRef.current) clearTimeout(memoTimerRef.current)
+      const pending = pendingMemoRef.current
+      pendingMemoRef.current = null
+      if (pending) mutateMeta(pending)
+    },
+    [libraryId, video.id, mutateMeta],
+  )
   React.useEffect(() => {
     setTab(initialTab)
   }, [initialTab, video.id])
@@ -288,11 +327,13 @@ function DetailPanel({
   }
   function handleMemoChange(value) {
     setMemo(value)
+    memoDraftRef.current.value = value
     if (memoTimerRef.current) clearTimeout(memoTimerRef.current)
+    const pending = { targetLibraryId: libraryId, videoId: video.id, patch: { memo: value } }
+    pendingMemoRef.current = pending
     memoTimerRef.current = setTimeout(() => {
-      updateMeta.mutate({
-        memo: value,
-      })
+      pendingMemoRef.current = null
+      updateMeta.mutate(pending)
     }, 500)
   }
   const durationStr =
@@ -466,17 +507,18 @@ function DetailPanel({
                 <span className={'text-zinc-500'}>{'마지막 재생:'}</span>{' '}
                 {formatDateTime$1(video.lastPlayedAt)}
               </p>
-              <p>
-                <span className={'text-zinc-500'}>{'태그:'}</span> {video.tags || '없음'}
-              </p>
             </div>
+            <VideoMetadataEditor video={video} libraryId={libraryId} disabled={isRemoved} />
             <div>
               <p className={'mb-1 text-xs text-zinc-500'}>{'별점'}</p>
               <StarRating
                 value={video.rating ?? 0}
+                disabled={isRemoved}
                 onChange={(value) =>
                   updateMeta.mutate({
-                    rating: value,
+                    targetLibraryId: libraryId,
+                    videoId: video.id,
+                    patch: { rating: value },
                   })
                 }
               />
@@ -485,6 +527,7 @@ function DetailPanel({
               <p className={'mb-1 text-xs text-zinc-500'}>{'메모'}</p>
               <textarea
                 value={memo2}
+                disabled={isRemoved}
                 onChange={(event) => handleMemoChange(event.target.value)}
                 rows={5}
                 className={

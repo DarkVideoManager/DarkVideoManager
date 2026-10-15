@@ -26,6 +26,7 @@ export interface Video {
   rating: number
   memo: string
   tags: string
+  category?: string
   createdAt: string
   updatedAt: string
   lastPlayedAt?: string
@@ -242,6 +243,8 @@ export interface ImportResult {
 export interface SearchQuery {
   removed?: boolean
   q?: string
+  category?: string
+  tag?: string
   rating?: number
   hasSubtitles?: boolean
   sortBy?:
@@ -270,9 +273,15 @@ export interface VideoMeta {
   rating?: number
   memo?: string
   tags?: string
+  category?: string
   lastPlayedAt?: string
   playCount?: number
   playTimeSec?: number
+}
+
+export interface VideoMetadataOptions {
+  categories: string[]
+  tags: string[]
 }
 
 export interface CsvImportOptions {

@@ -34,6 +34,7 @@ function useOpenLibrary() {
     onSuccess: (lib) => {
       qc2.invalidateQueries({ queryKey: ['libraries'] })
       qc2.invalidateQueries({ queryKey: ['videos', lib.id] })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', lib.id] })
     },
   })
 }

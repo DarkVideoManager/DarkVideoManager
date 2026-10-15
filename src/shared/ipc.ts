@@ -90,6 +90,8 @@ export const SearchQueryZ = z
   .object({
     removed: z.boolean().optional(),
     q: z.string().optional(),
+    category: z.string().optional(),
+    tag: z.string().optional(),
     rating: z.number().int().min(1).max(5).optional(),
     hasSubtitles: z.boolean().optional(),
     sortBy: z
@@ -116,6 +118,7 @@ export const VideoMetaZ = z
     rating: z.number().int().min(0).max(5).optional(),
     memo: z.string().optional(),
     tags: z.string().optional(),
+    category: z.string().optional(),
     lastPlayedAt: z.string().min(1).optional(),
     playCount: z.number().int().nonnegative().optional(),
     playTimeSec: TimeZ.optional(),
@@ -165,6 +168,7 @@ export const IPC_SCHEMAS = {
   [IPC.LIBRARY.SELECT_FOLDER]: EmptyArgsZ,
   [IPC.LIBRARY.DELETE]: LibraryIdArgsZ,
   [IPC.VIDEOS.SEARCH]: z.tuple([IdZ, SearchQueryZ]),
+  [IPC.VIDEOS.METADATA_OPTIONS]: z.tuple([IdZ, z.boolean().optional()]),
   [IPC.VIDEOS.GET]: VideoArgsZ,
   [IPC.VIDEOS.GET_PLAYBACK_SOURCE]: VideoArgsZ,
   [IPC.VIDEOS.GET_NATIVE_PLAYER_INFO]: EmptyArgsZ,
