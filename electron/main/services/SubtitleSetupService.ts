@@ -7,7 +7,7 @@ import { listSubtitleQueue } from './SubtitleGenerationService'
 import { setSubtitleEnvironmentInstalling } from './SubtitleEnvironmentLock'
 import {
   ensureSubtitleWslUser,
-  hasSubtitleWslInstall,
+  checkSubtitleWslReady,
   installSubtitleWsl,
   subtitleWslArgs,
 } from './SubtitleWslEnvironment'
@@ -74,6 +74,8 @@ export class SubtitleSetupController {
     operation.done = this.run(install, controller.signal).finally(() => {
       this.active = undefined
       this.status.canCancel = false
+      this.status.currentComponent = undefined
+      this.status.stepStartedAt = undefined
       this.publish()
     })
     return this.snapshot()
@@ -105,6 +107,7 @@ export class SubtitleSetupController {
     state: SubtitleSetupComponent['state'],
     message?: string,
   ): void {
+    this.trackComponent(id, state)
     Object.assign(this.status.components.find((item) => item.id === id)!, {
       state,
       message,
@@ -112,6 +115,19 @@ export class SubtitleSetupController {
     })
     if (message) this.status.message = message
     this.publish()
+  }
+
+  private trackComponent(id: ComponentId, state: SubtitleSetupComponent['state']): void {
+    if (!['checking', 'installing'].includes(state)) return
+    const previous = this.status.components.find((item) => item.id === id)!
+    if (
+      this.status.currentComponent !== id ||
+      previous.state !== state ||
+      !this.status.stepStartedAt
+    ) {
+      this.status.currentComponent = id
+      this.status.stepStartedAt = new Date().toISOString()
+    }
   }
 
   private receive = (event: unknown): void => {
@@ -125,6 +141,7 @@ export class SubtitleSetupController {
       !['checking', 'missing', 'installing', 'ready', 'failed'].includes(String(data.state))
     )
       throw new Error('설치 도구의 상태 정보가 올바르지 않습니다.')
+    this.trackComponent(item.id, data.state as SubtitleSetupComponent['state'])
     item.state = data.state as SubtitleSetupComponent['state']
     item.message = typeof data.message === 'string' ? data.message.slice(0, 1200) : undefined
     item.percent =
@@ -137,8 +154,14 @@ export class SubtitleSetupController {
 
   private async run(install: boolean, signal: AbortSignal): Promise<void> {
     try {
+      this.component(
+        'whisper',
+        'checking',
+        'Whisper 음성 인식 엔진과 기본 모델을 확인하고 있습니다.',
+      )
       await this.dependencies.native(install, signal, this.receive)
       signal.throwIfAborted()
+      this.component('wsl', 'checking', 'Windows 자막 실행 환경을 확인하고 있습니다.')
       let wslReady = await this.dependencies.wslReady(signal)
       signal.throwIfAborted()
       if (!wslReady && install) {
@@ -154,17 +177,21 @@ export class SubtitleSetupController {
         )
         this.status.canCancel = true
         signal.throwIfAborted()
-        wslReady = !needsRestart && (await this.dependencies.wslReady(signal))
-        signal.throwIfAborted()
-        if (!wslReady) {
+        if (needsRestart) {
           this.component(
             'wsl',
             'missing',
-            'Windows를 다시 시작한 뒤 자동 설치를 다시 눌러 주세요. 계속 준비되지 않으면 시작 메뉴의 Ubuntu에서 최초 사용자 설정을 마쳐 주세요.',
+            'Windows 설치 도구가 재시작이 필요하다고 보고했습니다. PC를 다시 시작한 뒤 환경 확인 또는 자동 설치를 다시 눌러 주세요.',
           )
           this.status.phase = 'restart-required'
           return
         }
+        wslReady = await this.dependencies.wslReady(signal)
+        signal.throwIfAborted()
+        if (!wslReady)
+          throw new Error(
+            'Windows 설치는 끝났지만 자막 실행 환경을 시작하지 못했습니다. Ubuntu를 실행해 표시되는 오류와 Windows의 가상 머신 플랫폼·가상화 설정을 확인해 주세요.',
+          )
       }
       signal.throwIfAborted()
       this.component(
@@ -182,6 +209,7 @@ export class SubtitleSetupController {
           this.status.canCancel = true
           signal.throwIfAborted()
         }
+        this.component('python', 'checking', '설치된 자막 처리 도구를 확인하고 있습니다.')
         await this.dependencies.environment(install, signal, this.receive)
       } else {
         for (const id of ['python', 'ollama', 'translationModel'] as const)
@@ -207,11 +235,11 @@ export class SubtitleSetupController {
         : error instanceof Error
           ? error.message
           : String(error)
-      for (const item of this.status.components) {
-        if (item.state === 'checking' || item.state === 'installing') {
-          item.state = signal.aborted ? 'missing' : 'failed'
-          item.percent = undefined
-        }
+      const item = this.status.components.find((entry) => entry.id === this.status.currentComponent)
+      if (item && (item.state === 'checking' || item.state === 'installing')) {
+        item.state = signal.aborted ? 'missing' : 'failed'
+        item.message = this.status.message
+        item.percent = undefined
       }
     }
   }
@@ -273,19 +301,7 @@ const setup = new SubtitleSetupController({
     )
   },
   async wslReady(signal) {
-    try {
-      // An installer may still own Windows servicing even if Linux starts already.
-      if (hasSubtitleWslInstall()) return false
-      const result = await capture(
-        'wsl.exe',
-        [...subtitleWslArgs('default'), 'python3', '-c', 'print("DVM_WSL_READY")'],
-        signal,
-      )
-      return result.code === 0 && result.output.includes('DVM_WSL_READY')
-    } catch (error) {
-      if (signal.aborted) throw error
-      return false
-    }
+    return checkSubtitleWslReady(capture, signal)
   },
   async installWsl(progress, signal) {
     return installSubtitleWsl(capture, progress, signal)

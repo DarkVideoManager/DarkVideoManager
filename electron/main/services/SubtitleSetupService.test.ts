@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SubtitleSetupStatus } from '@shared/types'
 
 vi.mock('electron', () => ({ app: { isPackaged: false, getAppPath: () => process.cwd() } }))
@@ -11,6 +11,8 @@ vi.mock('./SubtitleGenerationService', () => ({ listSubtitleQueue: () => [] }))
 vi.mock('./SubtitleEnvironmentLock', () => ({ setSubtitleEnvironmentInstalling: vi.fn() }))
 
 import { SubtitleSetupController } from './SubtitleSetupService'
+
+afterEach(() => vi.useRealTimers())
 
 type Dependencies = ConstructorParameters<typeof SubtitleSetupController>[0]
 type Emit = Parameters<Dependencies['native']>[2]
@@ -166,6 +168,59 @@ describe('subtitle environment setup lifecycle', () => {
     expect(dependencies.installWsl).toHaveBeenCalledOnce()
     expect(dependencies.wslReady).toHaveBeenCalledTimes(2)
     expect(dependencies.preparePython).toHaveBeenCalledOnce()
+  })
+
+  it('reports failed startup without repeatedly asking for reboot after a successful installer', async () => {
+    const { controller, dependencies } = create({
+      wslReady: vi.fn().mockResolvedValue(false),
+      installWsl: vi.fn().mockResolvedValue(false),
+    })
+    controller.start(true)
+    const status = await finished(controller)
+    expect(status.phase).toBe('failed')
+    expect(status.message).toContain('시작하지 못했습니다')
+    expect(status.components.find((item) => item.id === 'wsl')?.state).toBe('failed')
+    expect(status.components.find((item) => item.id === 'python')?.state).toBe('checking')
+    expect(dependencies.preparePython).not.toHaveBeenCalled()
+    expect(dependencies.environment).not.toHaveBeenCalled()
+  })
+
+  it('preserves an existing distro startup failure without starting another installer', async () => {
+    const { controller, dependencies } = create({
+      wslReady: vi.fn().mockRejectedValue(new Error('BIOS/UEFI 가상화 확인 (0x80370102)')),
+    })
+    controller.start(true)
+    const status = await finished(controller)
+    expect(status).toMatchObject({ phase: 'failed', message: 'BIOS/UEFI 가상화 확인 (0x80370102)' })
+    expect(status.components.find((item) => item.id === 'wsl')).toMatchObject({
+      state: 'failed',
+      message: status.message,
+    })
+    expect(status.components.filter((item) => item.state === 'failed')).toHaveLength(1)
+    expect(dependencies.installWsl).not.toHaveBeenCalled()
+    expect(dependencies.environment).not.toHaveBeenCalled()
+  })
+
+  it('keeps the step start time across progress updates and clears it when finished', async () => {
+    vi.useFakeTimers()
+    const windows = deferred<boolean>()
+    const { controller, dependencies } = create({
+      wslReady: vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true),
+      installWsl: vi.fn(() => windows.promise),
+    })
+    controller.start(true)
+    await vi.waitFor(() => expect(dependencies.installWsl).toHaveBeenCalledOnce())
+    const started = controller.snapshot().stepStartedAt
+    expect(controller.snapshot().currentComponent).toBe('wsl')
+    expect(started).toBeDefined()
+    await vi.advanceTimersByTimeAsync(2 * 60_000)
+    dependencies.installWsl.mock.calls[0][0]('Windows 설치 도구가 실행 중입니다.')
+    expect(controller.snapshot().stepStartedAt).toBe(started)
+    windows.resolve(false)
+    const status = await finished(controller)
+    expect(status.phase).toBe('ready')
+    expect(status.currentComponent).toBeUndefined()
+    expect(status.stepStartedAt).toBeUndefined()
   })
 
   it('reports declined or failed Windows installation without starting the environment worker', async () => {
