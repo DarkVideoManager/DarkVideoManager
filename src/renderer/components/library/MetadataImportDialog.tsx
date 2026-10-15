@@ -138,6 +138,7 @@ export default function MetadataImportDialog({
   function refresh() {
     void qc.invalidateQueries({ queryKey: ['video', libraryId, video.id] })
     void qc.invalidateQueries({ queryKey: ['videos', libraryId] })
+    void qc.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
     void qc.invalidateQueries({ queryKey: ['stats', libraryId] })
   }
   async function apply(reverse = false) {

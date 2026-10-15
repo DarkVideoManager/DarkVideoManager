@@ -68,12 +68,19 @@ test('edits selected metadata, explicitly adds people to tags, preserves unselec
   const dialog = await openImport(page)
   await enableStash(page)
   await chooseCandidate(page)
+  // The library stays mounted behind the modal. Check its actual filter options so
+  // an import cannot leave the active metadata cache stale until its 30s timeout.
+  const tagFilter = page.locator('select[aria-label="태그 필터"]')
+  await expect(tagFilter.locator('option[value="sample"]')).toHaveText('#sample')
+  await expect(tagFilter.locator('option[value="예시 인물"]')).toHaveCount(0)
   await dialog.getByLabel('가져올 제목').fill('수정한 제목')
   await dialog.getByLabel('제목 적용', { exact: true }).check()
   await dialog.getByRole('button', { name: '인물 이름을 태그에 추가' }).click()
   await dialog.getByLabel('태그 적용', { exact: true }).check()
   await dialog.getByRole('button', { name: '선택한 항목 적용' }).click()
   await expect(dialog.getByRole('button', { name: '방금 적용 되돌리기' })).toBeVisible()
+  await expect(tagFilter.locator('option[value="예시 인물"]')).toHaveText('#예시 인물')
+  await expect(tagFilter.locator('option[value="인터뷰"]')).toHaveText('#인터뷰')
   expect(await currentVideo(page)).toMatchObject({
     title: '수정한 제목',
     memo: 'Browser mock IPC sample',
@@ -82,6 +89,9 @@ test('edits selected metadata, explicitly adds people to tags, preserves unselec
   })
   await dialog.getByRole('button', { name: '방금 적용 되돌리기' }).click()
   await expect(dialog.getByText('방금 적용한 항목을 이전 값으로 되돌렸습니다.')).toBeVisible()
+  await expect(tagFilter.locator('option[value="예시 인물"]')).toHaveCount(0)
+  await expect(tagFilter.locator('option[value="인터뷰"]')).toHaveCount(0)
+  await expect(tagFilter.locator('option[value="sample"]')).toHaveText('#sample')
   expect(await currentVideo(page)).toMatchObject({
     title: 'Sample video',
     memo: 'Browser mock IPC sample',
