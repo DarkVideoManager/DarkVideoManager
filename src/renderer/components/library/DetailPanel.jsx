@@ -2,10 +2,14 @@
 import * as React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { thumbnailsApi } from '../../api'
+import { useThumbnailJobs } from '../../api/useThumbnailJobs'
 import { toLocalMediaUrl } from '../../utils/media'
 import SubtitleGenerationPanel from './SubtitleGenerationPanel'
+import ThumbnailJobStatus, { isThumbnailJobActive } from './ThumbnailJobStatus'
+import VideoMetadataEditor from './VideoMetadataEditor'
+import MetadataImportDialog from './MetadataImportDialog'
 const STAR_COUNT = 5
-function StarRating({ value, onChange }) {
+function StarRating({ value, onChange, disabled = false }) {
   const [hovered, setHovered] = React.useState(0)
   const displayValue = hovered || value
   return (
@@ -13,7 +17,7 @@ function StarRating({ value, onChange }) {
       className={'relative inline-flex'}
       onMouseLeave={() => setHovered(0)}
       role={'slider'}
-      aria-label={'??'}
+      aria-label={'별점'}
       aria-valuemin={0}
       aria-valuemax={5}
       aria-valuenow={displayValue}
@@ -56,7 +60,8 @@ function StarRating({ value, onChange }) {
             return (
               <button
                 type={'button'}
-                aria-label={`${nextValue}?`}
+                aria-label={`${nextValue}점`}
+                disabled={disabled}
                 className={'h-full w-full'}
                 onClick={() => onChange(nextValue)}
                 onMouseEnter={() => setHovered(nextValue)}
@@ -80,8 +85,10 @@ function DetailPanel({
   initialTab = 'info',
   showPlaybackShortcuts = false,
   subtitleNavigationRef,
+  thumbnailJobs: sharedThumbnailJobs,
 }) {
   const [tab, setTab] = React.useState(initialTab)
+  const [showMetadataImport, setShowMetadataImport] = React.useState(false)
   const [memo2, setMemo] = React.useState(video.memo ?? '')
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
   const [deleteMode, setDeleteMode] = React.useState('trash')
@@ -90,7 +97,20 @@ function DetailPanel({
   const [actionError, setActionError] = React.useState(null)
   const isRemoved = Boolean(video.removalMode)
   const memoTimerRef = React.useRef(null)
+  const pendingMemoRef = React.useRef(null)
+  const memoDraftRef = React.useRef({
+    libraryId,
+    videoId: video.id,
+    value: video.memo ?? '',
+    saved: video.memo ?? '',
+  })
+  const currentVideoRef = React.useRef({ libraryId, videoId: video.id })
+  currentVideoRef.current = { libraryId, videoId: video.id }
   const qc2 = useQueryClient()
+  const localThumbnailJobs = useThumbnailJobs(libraryId, !sharedThumbnailJobs)
+  const thumbnailJobs = sharedThumbnailJobs ?? localThumbnailJobs
+  const thumbnailJob = thumbnailJobs.jobsByVideo.get(video.id)
+  const isThumbnailActive = isThumbnailJobActive(thumbnailJob)
   const { data: highlights = [] } = useQuery({
     queryKey: ['highlights', libraryId, video.id],
     queryFn: async () => {
@@ -155,25 +175,36 @@ function DetailPanel({
   }, [highlights, isRemoved, libraryId, qc2, tab, thumbnails, video.id])
   const updateMeta = useMutation({
     onMutate: () => setActionError(null),
-    mutationFn: async (patch) => {
-      const res = await window.api.videos.updateMeta(libraryId, video.id, {
-        rating: patch.rating ?? video.rating,
-        memo: patch.memo ?? video.memo ?? '',
-      })
+    mutationFn: async ({ targetLibraryId, videoId, patch }) => {
+      const res = await window.api.videos.updateMeta(targetLibraryId, videoId, patch)
       if (!res.ok) throw new Error(res.error)
     },
-    onSuccess: () => {
+    onSuccess: (_result, { targetLibraryId, videoId, patch }) => {
+      if (
+        memoDraftRef.current.libraryId === targetLibraryId &&
+        memoDraftRef.current.videoId === videoId &&
+        patch.memo !== undefined
+      ) {
+        memoDraftRef.current.saved = patch.memo
+      }
       qc2.invalidateQueries({
-        queryKey: ['video', libraryId, video.id],
+        queryKey: ['video', targetLibraryId, videoId],
       })
       qc2.invalidateQueries({
-        queryKey: ['videos', libraryId],
+        queryKey: ['videos', targetLibraryId],
       })
+      qc2.invalidateQueries({ queryKey: ['stats', targetLibraryId] })
     },
-    onError: (error) =>
+    onError: (error, { targetLibraryId, videoId }) => {
+      if (
+        currentVideoRef.current.libraryId !== targetLibraryId ||
+        currentVideoRef.current.videoId !== videoId
+      )
+        return
       setActionError(
         `메타데이터를 저장하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
-      ),
+      )
+    },
   })
   const deleteHighlight = useMutation({
     onMutate: () => setActionError(null),
@@ -212,6 +243,7 @@ function DetailPanel({
         queryKey: ['subtitles', libraryId, video.id],
       })
       qc2.invalidateQueries({ queryKey: ['stats', libraryId] })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
       setShowDeleteConfirm(false)
       onVideoDeleted?.()
     },
@@ -228,6 +260,7 @@ function DetailPanel({
       qc2.invalidateQueries({ queryKey: ['video', libraryId, video.id] })
       qc2.invalidateQueries({ queryKey: ['videos', libraryId] })
       qc2.invalidateQueries({ queryKey: ['stats', libraryId] })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
       setRestoreError(null)
       onVideoRestored?.()
     },
@@ -253,19 +286,39 @@ function DetailPanel({
         queryKey: ['videos', libraryId],
       })
     },
-    onError: (error) =>
-      setActionError(
-        `썸네일을 생성하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
-      ),
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      // A cancelled long-running ensure request rejects while its job becomes
+      // cancelled. Keep that state visible without also presenting it as failure.
+      if (message === '작업이 취소되었습니다.') return
+      setActionError(`썸네일을 생성하지 못했습니다: ${message}`)
+    },
+    onSettled: () => qc2.invalidateQueries({ queryKey: ['thumbnail-jobs', libraryId] }),
   })
   React.useEffect(() => {
-    setMemo(video.memo ?? '')
-  }, [video.memo])
+    const current = memoDraftRef.current
+    const sameVideo = current.libraryId === libraryId && current.videoId === video.id
+    const saved = video.memo ?? ''
+    const value = sameVideo && current.value !== current.saved ? current.value : saved
+    memoDraftRef.current = { libraryId, videoId: video.id, value, saved }
+    setMemo(value)
+  }, [libraryId, video.id, video.memo])
+  const mutateMeta = updateMeta.mutate
+  React.useEffect(
+    () => () => {
+      if (memoTimerRef.current) clearTimeout(memoTimerRef.current)
+      const pending = pendingMemoRef.current
+      pendingMemoRef.current = null
+      if (pending) mutateMeta(pending)
+    },
+    [libraryId, video.id, mutateMeta],
+  )
   React.useEffect(() => {
     setTab(initialTab)
   }, [initialTab, video.id])
   React.useEffect(() => {
     setShowDeleteConfirm(false)
+    setShowMetadataImport(false)
     setDeleteError(null)
     setRestoreError(null)
     setActionError(null)
@@ -288,11 +341,14 @@ function DetailPanel({
   }
   function handleMemoChange(value) {
     setMemo(value)
+    memoDraftRef.current.value = value
     if (memoTimerRef.current) clearTimeout(memoTimerRef.current)
+    const pending = { targetLibraryId: libraryId, videoId: video.id, patch: { memo: value } }
+    pendingMemoRef.current = pending
     memoTimerRef.current = setTimeout(() => {
-      updateMeta.mutate({
-        memo: value,
-      })
+      memoTimerRef.current = null
+      pendingMemoRef.current = null
+      updateMeta.mutate(pending)
     }, 500)
   }
   const durationStr =
@@ -386,6 +442,37 @@ function DetailPanel({
           <div ref={subtitleNavigationRef} className="h-full min-h-0" />
         ) : tab === 'info' ? (
           <div className={'space-y-4'}>
+            {!isRemoved && (
+              <button
+                type="button"
+                disabled={updateMeta.isPending}
+                className="w-full rounded bg-indigo-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+                onClick={async () => {
+                  try {
+                    const draft = { ...memoDraftRef.current }
+                    if (memoTimerRef.current) clearTimeout(memoTimerRef.current)
+                    memoTimerRef.current = null
+                    pendingMemoRef.current = null
+                    if (draft.value !== draft.saved) {
+                      await updateMeta.mutateAsync({
+                        targetLibraryId: draft.libraryId,
+                        videoId: draft.videoId,
+                        patch: { memo: draft.value },
+                      })
+                    }
+                    if (
+                      currentVideoRef.current.libraryId === draft.libraryId &&
+                      currentVideoRef.current.videoId === draft.videoId
+                    )
+                      setShowMetadataImport(true)
+                  } catch {
+                    /* mutation displays its save error */
+                  }
+                }}
+              >
+                Stash에서 정보 가져오기
+              </button>
+            )}
             {primaryThumbnail ? (
               <img
                 src={toLocalMediaUrl(primaryThumbnail.filePath, primaryThumbnail.id)}
@@ -416,14 +503,26 @@ function DetailPanel({
               </div>
               <button
                 onClick={() => ensureThumbnail.mutate()}
-                disabled={isRemoved || ensureThumbnail.isPending}
+                disabled={isRemoved || ensureThumbnail.isPending || isThumbnailActive}
                 className={
                   'rounded bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-40'
                 }
               >
-                {ensureThumbnail.isPending ? '작업 중...' : '다시 생성'}
+                {ensureThumbnail.isPending || isThumbnailActive ? '작업 중...' : '다시 생성'}
               </button>
             </div>
+            <ThumbnailJobStatus
+              job={thumbnailJob}
+              label="선택한 영상 썸네일 작업"
+              onCancel={() => thumbnailJobs.cancelVideo(video.id)}
+              isCancelling={thumbnailJobs.cancellingVideos.has(video.id)}
+              cancelError={thumbnailJobs.cancelErrors.get(video.id)}
+            />
+            {!sharedThumbnailJobs && thumbnailJobs.error && (
+              <p role="alert" className="text-xs text-amber-200">
+                썸네일 진행 상태를 갱신하지 못했습니다.
+              </p>
+            )}
             <SubtitleGenerationPanel
               key={`${libraryId}:${video.id}`}
               libraryId={libraryId}
@@ -466,17 +565,18 @@ function DetailPanel({
                 <span className={'text-zinc-500'}>{'마지막 재생:'}</span>{' '}
                 {formatDateTime$1(video.lastPlayedAt)}
               </p>
-              <p>
-                <span className={'text-zinc-500'}>{'태그:'}</span> {video.tags || '없음'}
-              </p>
             </div>
+            <VideoMetadataEditor video={video} libraryId={libraryId} disabled={isRemoved} />
             <div>
               <p className={'mb-1 text-xs text-zinc-500'}>{'별점'}</p>
               <StarRating
                 value={video.rating ?? 0}
+                disabled={isRemoved}
                 onChange={(value) =>
                   updateMeta.mutate({
-                    rating: value,
+                    targetLibraryId: libraryId,
+                    videoId: video.id,
+                    patch: { rating: value },
                   })
                 }
               />
@@ -485,6 +585,7 @@ function DetailPanel({
               <p className={'mb-1 text-xs text-zinc-500'}>{'메모'}</p>
               <textarea
                 value={memo2}
+                disabled={isRemoved}
                 onChange={(event) => handleMemoChange(event.target.value)}
                 rows={5}
                 className={
@@ -499,6 +600,11 @@ function DetailPanel({
                 <div className={'space-y-1 text-xs text-zinc-300'}>
                   <p>{'Space/P: 일시정지'}</p>
                   <p>{'A/D 또는 좌우: 이동'}</p>
+                  <p>{'이동 간격: 설정 → 재생 탐색 · Shift 5초 / Ctrl 30초'}</p>
+                  <p>{'0–9 / 숫자 키패드: 시작~90% 이동'}</p>
+                  <p>{'Alt+Enter: 전체화면 · Esc: 해제 (인앱)'}</p>
+                  <p>{'+/−: 확대·축소 · 확대 후 드래그 (인앱)'}</p>
+                  <p>{'I: 재생 정보 (인앱)'}</p>
                   <p>{'Z/C: 이전/다음 자막'}</p>
                   <p>{'Q/E: 이전/다음 하이라이트'}</p>
                   <p>{'S: 현재 하이라이트 저장'}</p>
@@ -612,6 +718,14 @@ function DetailPanel({
             </div>
           </div>
         </div>
+      )}
+      {showMetadataImport && (
+        <MetadataImportDialog
+          key={video.id}
+          video={video}
+          libraryId={libraryId}
+          onClose={() => setShowMetadataImport(false)}
+        />
       )}
     </div>
   )

@@ -20,7 +20,8 @@ export interface TranscriptionResult {
   translated: boolean
   translationError?: string
 }
-type Progress = Pick<SubtitleGenerationJob, 'phase' | 'percent' | 'message'>
+type Progress = Pick<SubtitleGenerationJob, 'phase' | 'percent' | 'message'> &
+  Pick<Partial<SubtitleGenerationJob>, 'processing'>
 export type SubtitleProgressHandler = (progress: Progress) => void
 
 export function toWslPath(filePath: string): Promise<string> {
@@ -63,6 +64,7 @@ function nativePythonPath(): string {
 export function subtitleCheckpointEngine(outputDir: string): {
   backend: 'cpu' | 'vulkan'
   transcriptionComplete: boolean
+  device?: string
 } {
   const checkpoint = join(outputDir, 'checkpoint.json')
   if (!existsSync(checkpoint)) return { backend: 'vulkan', transcriptionComplete: false }
@@ -78,6 +80,9 @@ export function subtitleCheckpointEngine(outputDir: string): {
     return {
       backend: state.identity.backend === 'vulkan' ? 'vulkan' : 'cpu',
       transcriptionComplete: state.transcription_complete,
+      ...(typeof state.gpu_backend === 'string' && /^Vulkan\d*$/i.test(state.gpu_backend)
+        ? { device: state.gpu_backend }
+        : {}),
     }
   } catch (error) {
     throw new Error('저장된 자막 진행 내용을 읽을 수 없습니다. 작업을 확인하세요.', {
@@ -213,7 +218,8 @@ export async function getSubtitleEngineInfo(): Promise<SubtitleEngineInfo> {
     getFfmpegPath()
     return {
       available,
-      message: 'GPU 음성 인식 · Vulkan 엔진 준비 완료. 새 작업은 GPU로 처리합니다.',
+      message:
+        'Vulkan 음성 인식·번역 환경 준비 완료. 작업 시작 후 실제 음성 인식 장치를 확인합니다.',
     }
   } catch (error) {
     return {
@@ -248,7 +254,9 @@ export async function extractSubtitleAudio(
       '-ar',
       '16000',
       '-af',
-      'highpass=f=80,lowpass=f=8000',
+      // Resampling already removes frequencies above 8 kHz. A low-pass at
+      // Nyquist is numerically unstable for 16 kHz floating-point AAC input.
+      'highpass=f=80',
       '-c:a',
       'pcm_s16le',
       '-progress',
@@ -286,6 +294,18 @@ export async function transcribeSubtitleAudio(
   ])
   throwIfWorkCancelled(signal)
   let result: TranscriptionResult | undefined
+  let processing: NonNullable<SubtitleGenerationJob['processing']> = checkpoint.device
+    ? { asr: 'vulkan', device: checkpoint.device, evidence: 'checkpoint' }
+    : checkpoint.backend === 'cpu'
+      ? { asr: 'cpu-legacy', evidence: 'checkpoint' }
+      : { asr: 'unconfirmed' }
+  let currentPhase: Progress['phase'] = 'loading'
+  let currentPercent = 0
+  let currentMessage =
+    checkpoint.backend === 'cpu'
+      ? '기존 CPU 작업을 재개합니다. 새 음성 인식 작업은 Vulkan을 사용하며 CPU로 자동 전환하지 않습니다.'
+      : 'Vulkan 음성 인식 엔진의 실제 처리 장치를 확인하고 있습니다.'
+  onProgress({ phase: currentPhase, percent: 0, message: currentMessage, processing })
   let cloudPending = false
   let lastCloudRequestId = 0
   const commonArgs = [
@@ -301,7 +321,26 @@ export async function transcribeSubtitleAudio(
     cooperative: true,
     onLine: (line, reply, workerSignal) => {
       const data = JSON.parse(line)
-      if (data.type === 'cloud_translation_request') {
+      if (data.type === 'processing_device') {
+        if (
+          data.asr_backend === 'vulkan' &&
+          checkpoint.backend === 'vulkan' &&
+          typeof data.asr_device === 'string' &&
+          /^Vulkan\d*$/i.test(data.asr_device)
+        ) {
+          processing = { ...processing, asr: 'vulkan', device: data.asr_device, evidence: 'engine' }
+        } else if (data.asr_backend === 'cpu-legacy' && checkpoint.backend === 'cpu') {
+          processing = { ...processing, asr: 'cpu-legacy', evidence: 'engine' }
+        } else if (['cloud', 'ollama', 'original-ko'].includes(data.translation)) {
+          processing = { ...processing, translation: data.translation }
+        } else throw new Error('자막 엔진의 처리 장치 응답이 올바르지 않습니다.')
+        onProgress({
+          phase: currentPhase,
+          percent: currentPercent,
+          message: currentMessage,
+          processing,
+        })
+      } else if (data.type === 'cloud_translation_request') {
         if (
           !options.translateToKorean ||
           cloudPending ||
@@ -346,17 +385,17 @@ export async function transcribeSubtitleAudio(
             : {}),
         }
       } else if (['loading', 'transcribing', 'translating'].includes(data.phase)) {
+        currentPhase = data.phase
+        currentPercent = Number.isFinite(data.percent)
+          ? Math.max(0, Math.min(100, data.percent))
+          : 0
+        currentMessage =
+          typeof data.message === 'string' ? data.message : '자막을 처리하고 있습니다.'
         onProgress({
-          phase: data.phase,
-          percent: Number.isFinite(data.percent) ? Math.max(0, Math.min(100, data.percent)) : 0,
-          message:
-            data.phase === 'transcribing' && checkpoint.backend === 'cpu'
-              ? '기존 CPU 작업의 음성 인식을 이어서 처리하고 있습니다.'
-              : typeof data.message === 'string'
-                ? data.message
-                : data.phase === 'transcribing' && checkpoint.backend === 'vulkan'
-                  ? 'GPU · Vulkan으로 음성을 인식하고 있습니다.'
-                  : '자막을 처리하고 있습니다.',
+          phase: currentPhase,
+          percent: currentPercent,
+          message: currentMessage,
+          processing,
         })
       }
     },

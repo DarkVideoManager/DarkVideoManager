@@ -9,15 +9,36 @@ import {
   closeLibrary,
   deleteLibrary,
   importFolder,
+  importFiles,
   refreshLibrary,
 } from '../services/LibraryService'
 import { createLogger } from '../infra/logger'
 import { cancelLibraryWork } from '../services/LibraryWorkService'
+import { VIDEO_EXTENSIONS } from '../infra/fs'
 
 const log = createLogger('ipc:library')
 
 export function registerLibraryHandlers(): void {
-  registerIpcHandler(IPC.LIBRARY.CANCEL_WORK, (_event, libraryId) => ok(cancelLibraryWork(libraryId)))
+  registerIpcHandler(IPC.LIBRARY.SELECT_FILES, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return err('윈도우를 찾을 수 없습니다')
+    const result = await dialog.showOpenDialog(win, {
+      title: '추가할 영상 파일 선택',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: '영상 파일', extensions: [...VIDEO_EXTENSIONS].map((value) => value.slice(1)) },
+      ],
+    })
+    return ok(result.canceled || !result.filePaths.length ? null : result.filePaths)
+  })
+  registerIpcHandler(IPC.LIBRARY.IMPORT_FILES, async (event, libraryId, filePaths) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return err('윈도우를 찾을 수 없습니다')
+    return ok(await importFiles(libraryId, filePaths, win))
+  })
+  registerIpcHandler(IPC.LIBRARY.CANCEL_WORK, (_event, libraryId) =>
+    ok(cancelLibraryWork(libraryId)),
+  )
   registerIpcHandler(IPC.LIBRARY.REFRESH, async (event, libraryId) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return err('윈도우를 찾을 수 없습니다')
@@ -84,15 +105,18 @@ export function registerLibraryHandlers(): void {
     }
   })
 
-  registerIpcHandler(IPC.LIBRARY.IMPORT_FOLDER, async (e, libraryId: string, folderPath: string) => {
-    try {
-      const win = BrowserWindow.fromWebContents(e.sender)
-      if (!win) return err('윈도우를 찾을 수 없습니다')
-      const result = await importFolder(libraryId, folderPath, win)
-      return ok(result)
-    } catch (e) {
-      log.error({ err: e }, 'library:importFolder 오류')
-      return err((e as Error).message)
-    }
-  })
+  registerIpcHandler(
+    IPC.LIBRARY.IMPORT_FOLDER,
+    async (e, libraryId: string, folderPath: string) => {
+      try {
+        const win = BrowserWindow.fromWebContents(e.sender)
+        if (!win) return err('윈도우를 찾을 수 없습니다')
+        const result = await importFolder(libraryId, folderPath, win)
+        return ok(result)
+      } catch (e) {
+        log.error({ err: e }, 'library:importFolder 오류')
+        return err((e as Error).message)
+      }
+    },
+  )
 }

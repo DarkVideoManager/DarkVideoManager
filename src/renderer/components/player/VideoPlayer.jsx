@@ -10,12 +10,18 @@ import { needsCompatiblePlayback } from '../../../shared/playback'
 import { usePlaybackConversionQueue } from '../../api/usePlaybackConversionQueue'
 import { ConversionQueueItem } from './PlaybackConversionQueue'
 import SubtitleNavigator from './SubtitleNavigator'
+import { usePlayerView } from './usePlayerView'
+import { PlaybackInfo, PlayerViewControls } from './PlayerViewControls'
+import { DEFAULT_SEEK_STEP_SEC } from '@shared/playerSettings'
 function VideoPlayer({
   video,
   libraryId,
   seekRequest,
   onNativeLaunchPendingChange,
   subtitleNavigationTarget,
+  isMaximized,
+  onToggleMaximized,
+  onFullscreenChange,
 }) {
   const playbackInstanceId = React.useId()
   const [playbackSourceEpoch, setPlaybackSourceEpoch] = React.useState(0)
@@ -26,6 +32,14 @@ function VideoPlayer({
   const lastPositionRef = React.useRef(video.resumePosSec ?? 0)
   const nativePlaybackRef = React.useRef(false)
   const nativeLaunchPendingRef = React.useRef(false)
+  const nativeLaunchViewRef = React.useRef({ active: false })
+  React.useEffect(() => {
+    const view = { active: true }
+    nativeLaunchViewRef.current = view
+    return () => {
+      view.active = false
+    }
+  }, [libraryId, video.id])
   const [nativeLaunchError, setNativeLaunchError] = React.useState(null)
   const [mediaPlaybackError, setMediaPlaybackError] = React.useState(null)
   const [playerActionError, setPlayerActionError] = React.useState(null)
@@ -75,9 +89,29 @@ function VideoPlayer({
   const [durationSec, setDurationSec] = React.useState(video.durationSec ?? 0)
   const [isPaused, setIsPaused] = React.useState(true)
   const [isSeekingWithMouse, setIsSeekingWithMouse] = React.useState(false)
+  const [decodedSize, setDecodedSize] = React.useState({ width: 0, height: 0 })
+  const viewEnabled = useInAppPlayback && !nativeLaunchPendingRef.current
+  const view = usePlayerView(
+    containerRef,
+    videoRef,
+    viewEnabled,
+    video.id,
+    setPlayerActionError,
+    onFullscreenChange,
+  )
+  const handleViewKey = view.handleKey
   const { playerVolume, setPlayerVolume } = useLibraryStore()
   const navigate = useNavigate()
   const qc2 = useQueryClient()
+  const { data: settings, error: settingsError } = useQuery({
+    queryKey: ['app-settings'],
+    queryFn: async () => {
+      const result = await window.api.app.getSettings()
+      if (!result.ok) throw new Error(result.error)
+      return result.value
+    },
+  })
+  const seekStepSec = settings?.seekStepSec ?? DEFAULT_SEEK_STEP_SEC
   const {
     data: subtitles = [],
     isLoading: areSubtitlesLoading,
@@ -341,6 +375,8 @@ function VideoPlayer({
   }, [libraryId, playbackSource, recordPlayback, useInAppPlayback, video.durationSec, video.id])
   const openInNativePlayer = useMutation({
     mutationFn: async () => {
+      const view = nativeLaunchViewRef.current
+      if (!view.active) throw new Error('외부 플레이어 실행이 취소되었습니다.')
       const hasMetadata =
         initializedResumeForVideoRef.current === video.id || videoRef.current?.readyState >= 1
       const currentTime = hasMetadata
@@ -352,6 +388,8 @@ function VideoPlayer({
         const result = await window.api.playback.seek(libraryId, video.id, currentTime)
         if (!result.ok) throw new Error(result.error)
       }
+      // Emergency exit unmounts this view; an earlier seek write must not launch a new window later.
+      if (!view.active) throw new Error('외부 플레이어 실행이 취소되었습니다.')
       const bounds = containerRef.current?.getBoundingClientRect()
       const outerLeft = typeof window.screenX === 'number' ? window.screenX : 0
       const outerTop = typeof window.screenY === 'number' ? window.screenY : 0
@@ -428,6 +466,12 @@ function VideoPlayer({
     setIsSeekingWithMouse(false)
     setIsSubtitleEnabled(true)
   }, [video.durationSec, video.id])
+  React.useEffect(() => {
+    setDecodedSize({
+      width: videoRef.current?.videoWidth ?? 0,
+      height: videoRef.current?.videoHeight ?? 0,
+    })
+  }, [video.id, playbackSource])
   React.useEffect(() => {
     if (!useInAppPlayback) return
     if (initializedResumeForVideoRef.current === video.id) return
@@ -753,14 +797,29 @@ function VideoPlayer({
   )
   const handleKeyDown = React.useCallback(
     (event) => {
+      if (event.defaultPrevented || document.querySelector('[aria-modal="true"]')) return
       const isShiftKey =
         event.code === 'ShiftLeft' || event.code === 'ShiftRight' || event.key === 'Shift'
       const isCtrlKey =
         event.code === 'ControlLeft' || event.code === 'ControlRight' || event.key === 'Control'
       const target = event.target
-      if (isTextEditingTarget(target) || subtitleNavigationTarget?.contains(target)) {
+      if (
+        event.defaultPrevented ||
+        event.isComposing ||
+        document.querySelector('[aria-modal="true"]') ||
+        isTextEditingTarget(target) ||
+        subtitleNavigationTarget?.contains(target)
+      ) {
         return
       }
+      if (handleViewKey(event)) return
+      if (event.altKey || event.metaKey) return
+      if (
+        target instanceof Element &&
+        target.closest('button, a, [role="button"]') &&
+        [' ', 'Enter'].includes(event.key)
+      )
+        return
       if (isShiftKey) {
         modifierStateRef.current.shift = true
         return
@@ -771,6 +830,27 @@ function VideoPlayer({
       }
       const key = event.key.toLowerCase()
       const videoElement = videoRef.current
+      if (event.ctrlKey && !['arrowleft', 'arrowright', 'a', 'd'].includes(key)) return
+      if (/^[0-9]$/.test(key) && !event.shiftKey && !event.ctrlKey && useInAppPlayback) {
+        event.preventDefault()
+        event.stopPropagation()
+        if (event.repeat || nativeLaunchPendingRef.current) return
+        const duration = videoElement ? getVideoDuration(videoElement, durationSec) : durationSec
+        if (!Number.isFinite(duration) || duration <= 0) {
+          setPlayerActionError('영상 길이를 확인한 뒤 구간 이동을 사용할 수 있습니다.')
+          return
+        }
+        if (!seekControllerRef.current) {
+          setPlayerActionError('영상을 준비하고 있습니다. 재생 준비가 끝난 뒤 다시 시도해 주세요.')
+          return
+        }
+        stopSmoothSeek(false)
+        setPlayerActionError(null)
+        const position = (duration * Number(key)) / 10
+        seekControllerRef.current.request(position)
+        setStatusMessage(`${Number(key) * 10}% · ${formatTime(position)} 위치로 이동했습니다`)
+        return
+      }
       if (
         event.repeat &&
         ['a', 'd', 'arrowleft', 'arrowright'].includes(key) &&
@@ -845,7 +925,7 @@ function VideoPlayer({
           event.stopPropagation()
           const isShift = event.getModifierState('Shift') || modifierStateRef.current.shift
           const isCtrl = event.getModifierState('Control') || modifierStateRef.current.ctrl
-          const deltaSec = isShift ? 5 : isCtrl ? 30 : 1
+          const deltaSec = isShift ? 5 : isCtrl ? 30 : seekStepSec
           startSmoothSeek(deltaSec)
           if (!event.repeat) {
             seekBy(deltaSec)
@@ -857,7 +937,7 @@ function VideoPlayer({
           event.stopPropagation()
           const isShift = event.getModifierState('Shift') || modifierStateRef.current.shift
           const isCtrl = event.getModifierState('Control') || modifierStateRef.current.ctrl
-          const deltaSec = isShift ? -5 : isCtrl ? -30 : -1
+          const deltaSec = isShift ? -5 : isCtrl ? -30 : -seekStepSec
           startSmoothSeek(deltaSec)
           if (!event.repeat) {
             seekBy(deltaSec)
@@ -927,6 +1007,8 @@ function VideoPlayer({
     },
     [
       durationSec,
+      seekStepSec,
+      handleViewKey,
       handlePlayerAction,
       jumpToAdjacentSubtitle,
       setPlayerVolume,
@@ -1072,6 +1154,14 @@ function VideoPlayer({
       tabIndex={-1}
       className={'flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-black outline-hidden'}
     >
+      <PlayerViewControls
+        view={view}
+        enabled={viewEnabled}
+        isMaximized={isMaximized}
+        onToggleMaximized={onToggleMaximized}
+        seekStepSec={seekStepSec}
+        settingsError={settingsError}
+      />
       {subtitleNavigationTarget &&
         createPortal(
           <SubtitleNavigator
@@ -1092,11 +1182,28 @@ function VideoPlayer({
         <video
           ref={videoRef}
           className={'absolute inset-0 h-full w-full object-contain'}
+          style={view.videoStyle}
+          {...view.pointer}
           src={useInAppPlayback && playbackSource ? toLocalMediaUrl(playbackSource) : void 0}
           autoPlay={true}
-          onClick={() => void togglePlayback()}
+          onClick={() => {
+            if (!view.consumeDrag()) void togglePlayback()
+          }}
           onError={handleMediaError}
-          onLoadedMetadata={handleVideoMetadata}
+          onEmptied={() => setDecodedSize({ width: 0, height: 0 })}
+          onLoadedMetadata={(event) => {
+            setDecodedSize({
+              width: event.currentTarget.videoWidth,
+              height: event.currentTarget.videoHeight,
+            })
+            handleVideoMetadata()
+          }}
+          onResize={(event) =>
+            setDecodedSize({
+              width: event.currentTarget.videoWidth,
+              height: event.currentTarget.videoHeight,
+            })
+          }
           onDurationChange={handleVideoMetadata}
           onTimeUpdate={handleVideoTimeUpdate}
           onPlay={() => setIsPaused(false)}
@@ -1119,6 +1226,14 @@ function VideoPlayer({
           }}
           key={video.id}
         />
+        {view.showInfo && (
+          <PlaybackInfo
+            video={video}
+            decodedSize={decodedSize}
+            inApp={useInAppPlayback}
+            onClose={() => view.setShowInfo(false)}
+          />
+        )}
         {isSubtitleEnabled && activeSubtitleText && (
           <div
             className={`pointer-events-none absolute inset-x-0 z-20 flex justify-center px-8 ${orderedSubtitles.length > 1 ? 'bottom-32' : 'bottom-24'}`}
@@ -1526,6 +1641,7 @@ function clampTime(timeSec, durationSec) {
   return Math.max(0, Math.min(safeTime, durationSec))
 }
 function isTextEditingTarget(target) {
+  if (target instanceof HTMLElement && target.isContentEditable) return true
   if (target instanceof HTMLSelectElement) return true
   if (target instanceof HTMLTextAreaElement) return true
   if (!(target instanceof HTMLInputElement)) return false

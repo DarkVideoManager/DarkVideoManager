@@ -108,6 +108,8 @@ powershell -NoProfile -File scripts/test-fresh-windows-run.ps1 -Action Collect -
 - `release/sources/BUILD.md`, `release/sources/dependencies.json`
 - 변경 사항, 지원 환경, AI 런타임·모델 설치 조건
 
+`SHA256SUMS.txt`에는 최종 서명·패키징이 끝난 공개 파일의 해시를 기록합니다. 파일을 바꾸거나 다시 서명했으면 해시도 다시 계산합니다. 공개 목록에 설치형·포터블의 서로 다른 파일 이름을 사용하고, 사용자의 [다운로드 검증 안내](download-verification.md)를 릴리스 본문에 연결하세요. `scripts/verify-release.ps1`으로 후보 목록의 파일을 대조할 수 있습니다. V3 차단 제보가 있으면 정확한 버전·파일·해시·탐지명으로 조사하고, 오탐 확인과 재검증 결과가 없는 상태에서 해결됐다고 기록하지 않습니다.
+
 미디어 소스 압축에는 해당 FFmpeg·x264 소스, 사용한 빌드 스크립트·설정·관련 자료가 들어갑니다. 실행 파일과 대응 소스를 같은 릴리스 페이지에서 무료로 받을 수 있게 제공하고 본문에 소스 다운로드를 명시하세요. 패키지 안의 `resources/legal/`에 원래 라이선스와 구성요소 목록이 포함됩니다. 자세한 범위는 [외부 구성요소 안내](third-party-licenses.md)와 [미디어 빌드 안내](media-build.md)를 따릅니다.
 
 ## 자동 검사와 배포 후보

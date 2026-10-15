@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useLibraryStore } from '../store/libraryStore'
 import { useVideos } from '../api/useVideos'
 import { useLibrarySubtitleJobs } from '../api/useLibrarySubtitleJobs'
+import { useThumbnailJobs } from '../api/useThumbnailJobs'
 import {
   useLibraries,
   useCreateLibrary,
@@ -19,6 +20,8 @@ import ImportDialog, {
   WorkProgress,
 } from '../components/library/ImportDialog'
 import CsvImportDialog from '../components/library/CsvImportDialog'
+import VideoMetadataFilters from '../components/library/VideoMetadataFilters'
+import { requestPrivacyExit } from '../components/privacy/PrivacyBoundary'
 function LibraryPage() {
   const {
     activeLibraryId,
@@ -33,6 +36,8 @@ function LibraryPage() {
     setSearchText,
     getWithoutSubtitles,
     setWithoutSubtitles,
+    getMetadataFilters,
+    setMetadataFilters,
     getScrollTop,
     setScrollTop,
   } = useLibraryStore()
@@ -47,12 +52,14 @@ function LibraryPage() {
   const initialScrollTop = getScrollTop(activeLibraryId)
   const isLibraryReady = !!activeLibraryId && openedLibraryId === activeLibraryId
   const subtitleJobs = useLibrarySubtitleJobs(activeLibraryId, isLibraryReady)
+  const thumbnailJobs = useThumbnailJobs(activeLibraryId, isLibraryReady)
   const visibleLibraries = [...libraries].sort((a2, b2) => {
     const aTime = a2.lastOpenedAt ?? a2.createdAt
     const bTime = b2.lastOpenedAt ?? b2.createdAt
     return bTime.localeCompare(aTime)
   })
   const [query, setQuery] = React.useState({
+    ...getMetadataFilters(activeLibraryId),
     q: initialSearchText.trim() ? initialSearchText : void 0,
     sortBy: initialSort.sortBy,
     sortDir: initialSort.sortDir,
@@ -68,6 +75,12 @@ function LibraryPage() {
   const refreshWork = useLibraryWorkProgress(activeLibraryId)
   const [refreshMessage, setRefreshMessage] = React.useState(null)
   const [refreshError, setRefreshError] = React.useState(null)
+  const [refreshResult, setRefreshResult] = React.useState(null)
+  React.useEffect(() => {
+    setRefreshMessage(null)
+    setRefreshError(null)
+    setRefreshResult(null)
+  }, [activeLibraryId])
   const refreshLibrary = useMutation({
     mutationFn: async () => {
       if (!activeLibraryId) throw new Error('Library is not selected')
@@ -76,10 +89,13 @@ function LibraryPage() {
       return res.value
     },
     onSuccess: (result) => {
+      setRefreshResult(result)
       setRefreshMessage(
         result.cancelled
           ? '목록 업데이트가 취소되었습니다. 처리된 항목은 반영되었습니다.'
-          : '목록 업데이트가 완료되었습니다.',
+          : result.errors.length
+            ? '목록 업데이트 결과를 확인해 주세요. 일부 항목을 처리하지 못했습니다.'
+            : '목록 업데이트가 완료되었습니다.',
       )
       if (!activeLibraryId) return
       qc2.invalidateQueries({
@@ -94,16 +110,21 @@ function LibraryPage() {
       qc2.invalidateQueries({
         queryKey: ['highlights', activeLibraryId],
       })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', activeLibraryId] })
     },
     onError: (error) =>
       setRefreshError(error instanceof Error ? error.message : '목록 업데이트에 실패했습니다.'),
     onSettled: () => refreshWork.finish(),
   })
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useVideos(
-    activeLibraryId ?? '',
-    query,
-    isLibraryReady,
-  )
+  const {
+    data,
+    isLoading,
+    isError,
+    isPlaceholderData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useVideos(activeLibraryId ?? '', query, isLibraryReady)
   const { data: selectedVideo } = useQuery({
     queryKey: ['video', activeLibraryId, selectedVideoId],
     queryFn: async () => {
@@ -120,13 +141,15 @@ function LibraryPage() {
     setQuery((prev) => ({
       ...prev,
       q: savedSearchText.trim() ? savedSearchText : void 0,
+      category: getMetadataFilters(activeLibraryId).category,
+      tag: getMetadataFilters(activeLibraryId).tag,
       sortBy: sort.sortBy,
       sortDir: sort.sortDir,
       page: 1,
       removed: false,
       hasSubtitles: getWithoutSubtitles(activeLibraryId) ? false : undefined,
     }))
-  }, [activeLibraryId, getSearchText, getSortPreference, getWithoutSubtitles])
+  }, [activeLibraryId, getSearchText, getSortPreference, getWithoutSubtitles, getMetadataFilters])
   React.useEffect(() => {
     if (!activeLibraryId) return
     setSortPreference(activeLibraryId, {
@@ -134,6 +157,20 @@ function LibraryPage() {
       sortDir: query.sortDir ?? 'desc',
     })
   }, [activeLibraryId, query.sortBy, query.sortDir, setSortPreference])
+  React.useEffect(() => {
+    let thumbnailsStarted = false
+    return window.api.on.importProgress((progress) => {
+      if (!activeLibraryId || (progress.libraryId && progress.libraryId !== activeLibraryId)) return
+      if (progress.phase === 'thumbnails' && !thumbnailsStarted) {
+        void qc2.invalidateQueries({ queryKey: ['videos', activeLibraryId] })
+        void qc2.invalidateQueries({ queryKey: ['thumbnail-jobs', activeLibraryId] })
+      }
+      thumbnailsStarted = progress.phase === 'thumbnails'
+      if (progress.phase === 'done') {
+        void qc2.invalidateQueries({ queryKey: ['video-metadata-options', activeLibraryId] })
+      }
+    })
+  }, [activeLibraryId, qc2])
   React.useEffect(() => {
     return window.api.on.thumbnailReady(({ videoId }) => {
       if (!activeLibraryId) return
@@ -170,16 +207,8 @@ function LibraryPage() {
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         return
       }
-      void window.api.app
-        .quit()
-        .then((result) => {
-          if (!result.ok) throw new Error(result.error)
-        })
-        .catch((error) =>
-          window.alert(
-            `앱을 종료하지 못했습니다.\n${error instanceof Error ? error.message : String(error)}`,
-          ),
-        )
+      event.preventDefault()
+      requestPrivacyExit()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -202,6 +231,7 @@ function LibraryPage() {
     if (refreshLibrary.isPending) return
     setRefreshMessage(null)
     setRefreshError(null)
+    setRefreshResult(null)
     refreshWork.begin('scanning')
     refreshLibrary.mutate()
   }
@@ -230,6 +260,15 @@ function LibraryPage() {
       setScrollTop(activeLibraryId, 0)
     }
     setQuery((prev) => ({ ...prev, hasSubtitles: checked ? false : undefined, page: 1 }))
+  }
+  function handleMetadataFiltersChange(patch) {
+    const filters = { category: query.category, tag: query.tag, ...patch }
+    setSelectedVideoId(null)
+    if (activeLibraryId) {
+      setMetadataFilters(activeLibraryId, filters)
+      setScrollTop(activeLibraryId, 0)
+    }
+    setQuery((prev) => ({ ...prev, ...filters, page: 1 }))
   }
   async function handleCreateLibrary() {
     try {
@@ -412,12 +451,18 @@ ${error.message}`)
     )
   }
   return (
-    <div className={'flex flex-1 overflow-hidden'}>
-      <div className={'flex flex-1 flex-col overflow-hidden'}>
-        <div className={'flex flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3'}>
+    <div className={'flex min-h-0 min-w-0 flex-1 overflow-hidden'}>
+      <div className={'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'}>
+        <div
+          className={
+            'flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3'
+          }
+        >
           <input
             type={'text'}
             placeholder={'영상 검색...'}
+            aria-label="영상 검색"
+            title="제목·파일명·태그 검색. #선수명으로 태그만 검색할 수 있습니다."
             className={
               'min-w-40 flex-1 rounded bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-500 outline-hidden focus:ring-1 focus:ring-zinc-600'
             }
@@ -470,8 +515,7 @@ ${error.message}`)
             자막 없는 영상만
           </label>
           <span className={'text-xs text-zinc-500'}>
-            {data.total}
-            {'개 영상'}
+            {isPlaceholderData ? '검색 중...' : `${data.total}개 영상`}
           </span>
           <button
             type="button"
@@ -491,7 +535,14 @@ ${error.message}`)
             {refreshLibrary.isPending ? '목록 갱신 중...' : '목록 업데이트'}
           </button>
           <button
-            onClick={() => setShowImport(true)}
+            onClick={() => setShowImport('files')}
+            disabled={refreshLibrary.isPending}
+            className={'rounded bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500'}
+          >
+            영상 파일 추가
+          </button>
+          <button
+            onClick={() => setShowImport('folder')}
             disabled={refreshLibrary.isPending}
             className={'rounded bg-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600'}
           >
@@ -505,6 +556,30 @@ ${error.message}`)
             {'CSV 가져오기'}
           </button>
         </div>
+        <VideoMetadataFilters
+          libraryId={activeLibraryId}
+          query={query}
+          onChange={handleMetadataFiltersChange}
+        />
+        <details className="border-b border-zinc-800 px-4 py-2 text-xs text-zinc-400">
+          <summary className="w-fit cursor-pointer text-zinc-300">영상 추가·폴더 갱신 안내</summary>
+          <div className="mt-2 space-y-1 leading-relaxed">
+            <p>영상 한 개만 추가하려면 영상 파일 추가를 누르세요. 선택한 파일만 처리합니다.</p>
+            <p>
+              폴더 가져오기는 폴더와 하위 폴더를 갱신 대상으로 등록합니다. 새 파일이 생기면 목록
+              업데이트를 눌러 수동 반영하세요. 폴더 자동 감시는 지원하지 않습니다.
+            </p>
+            <p>
+              목록 업데이트는 등록 폴더를 검색하여 새 영상을 추가하고 사라진 영상을 제거한 항목으로
+              옮깁니다. 기존 영상의 정보와 썸네일은 다시 만들지 않습니다. 썸네일이 없는 영상은
+              생성을 다시 시도합니다.
+            </p>
+            <p>
+              파일 추가로만 등록한 영상의 폴더는 갱신 대상으로 추가되지 않습니다. 진행 단계와 완료
+              후 추가·기존·제거·오류 수를 아래에서 확인할 수 있습니다.
+            </p>
+          </div>
+        </details>
         {refreshWork.progress && (
           <div className="px-4">
             <WorkProgress work={refreshWork} isWorking={refreshLibrary.isPending} />
@@ -514,6 +589,22 @@ ${error.message}`)
           <p role="status" className="px-4 py-2 text-xs text-indigo-200">
             {refreshMessage}
           </p>
+        )}
+        {refreshResult && (
+          <p className="px-4 pb-2 text-xs text-zinc-400">
+            추가 {refreshResult.added}개 · 기존 {refreshResult.skipped}개 · 제거{' '}
+            {refreshResult.removed}개 · 오류 {refreshResult.errors.length}개
+          </p>
+        )}
+        {refreshResult?.errors.length > 0 && (
+          <ul
+            role="alert"
+            className="max-h-32 overflow-y-auto break-words px-4 pb-2 text-xs text-amber-300"
+          >
+            {refreshResult.errors.map((message, index) => (
+              <li key={index}>{message}</li>
+            ))}
+          </ul>
         )}
         {refreshError && (
           <p role="alert" className="px-4 py-2 text-xs text-red-300">
@@ -538,21 +629,50 @@ ${error.message}`)
             </button>
           </div>
         )}
-        <VideoGrid
-          key={`${activeLibraryId}-${Boolean(query.removed)}-${query.hasSubtitles === false}`}
-          videos={data.videos.filter(
-            (video) =>
-              Boolean(video.removalMode) === Boolean(query.removed) &&
-              (query.hasSubtitles !== false || !video.hasSubtitles),
-          )}
-          selectedVideoId={selectedVideoId}
-          subtitleJobs={subtitleJobs.jobsByVideo}
-          initialScrollTop={initialScrollTop}
-          onScrollTopChange={(value) => setScrollTop(activeLibraryId, value)}
-          onVideoClick={handleVideoClick}
-          onVideoDoubleClick={handleVideoDoubleClick}
-        />
-        {hasNextPage && (
+        {thumbnailJobs.error && (
+          <div role="alert" className="flex items-center gap-3 px-4 py-2 text-xs text-amber-200">
+            <span>썸네일 진행 상태를 갱신하지 못했습니다.</span>
+            <button
+              type="button"
+              onClick={() => void thumbnailJobs.refetch()}
+              disabled={thumbnailJobs.isFetching}
+              className="underline disabled:opacity-50"
+            >
+              다시 확인
+            </button>
+          </div>
+        )}
+        {isPlaceholderData ? (
+          <div
+            role="status"
+            className="flex min-h-0 flex-1 items-center justify-center text-sm text-zinc-500"
+          >
+            조건에 맞는 영상을 찾고 있습니다...
+          </div>
+        ) : (
+          <VideoGrid
+            key={JSON.stringify([
+              activeLibraryId,
+              Boolean(query.removed),
+              query.hasSubtitles === false,
+              query.category,
+              query.tag,
+            ])}
+            videos={data.videos.filter(
+              (video) =>
+                Boolean(video.removalMode) === Boolean(query.removed) &&
+                (query.hasSubtitles !== false || !video.hasSubtitles),
+            )}
+            selectedVideoId={selectedVideoId}
+            subtitleJobs={subtitleJobs.jobsByVideo}
+            thumbnailJobs={thumbnailJobs}
+            initialScrollTop={initialScrollTop}
+            onScrollTopChange={(value) => setScrollTop(activeLibraryId, value)}
+            onVideoClick={handleVideoClick}
+            onVideoDoubleClick={handleVideoDoubleClick}
+          />
+        )}
+        {!isPlaceholderData && hasNextPage && (
           <button
             onClick={() => void fetchNextPage()}
             disabled={isFetchingNextPage}
@@ -570,6 +690,7 @@ ${error.message}`)
             key={selectedVideo.id}
             video={selectedVideo}
             libraryId={activeLibraryId}
+            thumbnailJobs={thumbnailJobs}
             onClose={() => setSelectedVideoId(null)}
             onVideoDeleted={() => setSelectedVideoId(null)}
             onVideoRestored={() => setSelectedVideoId(null)}
@@ -586,7 +707,12 @@ ${error.message}`)
         )}
       </aside>
       {showImport && (
-        <ImportDialog libraryId={activeLibraryId} onClose={() => setShowImport(false)} />
+        <ImportDialog
+          libraryId={activeLibraryId}
+          thumbnailJobs={thumbnailJobs}
+          mode={showImport}
+          onClose={() => setShowImport(false)}
+        />
       )}
       {showCsvImport && (
         <CsvImportDialog libraryId={activeLibraryId} onClose={() => setShowCsvImport(false)} />

@@ -1,4 +1,15 @@
 import { z } from 'zod'
+import { SeekStepSecZ } from './playerSettings'
+
+import { PrivacySettingsZ } from './privacy'
+import { DiscoveryQueryZ, DiscoveryPreferencesZ } from './discovery'
+import {
+  StashSettingsPatchZ,
+  MetadataSearchZ,
+  MetadataSearchModeZ,
+  MetadataApplyZ,
+} from './metadataImport'
+import { CleanupRuleZ } from './maintenance'
 import type { HighlightCreate, ImportProgress, SearchQuery, VideoMeta } from './types'
 
 import { IPC } from './channels'
@@ -16,7 +27,7 @@ const NativePlayerInfoZ = z.object({ name: NativePlayerNameZ, path: FilePathZ })
 
 export const SubtitleGenerationOptionsZ = z
   .object({
-    model: z.enum(['tiny', 'base', 'small', 'medium', 'large-v3']),
+    model: z.enum(['tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3']),
     language: z.enum(['auto', 'ja', 'en', 'ko', 'zh']),
     translateToKorean: z.boolean(),
   })
@@ -90,6 +101,8 @@ export const SearchQueryZ = z
   .object({
     removed: z.boolean().optional(),
     q: z.string().optional(),
+    category: z.string().optional(),
+    tag: z.string().optional(),
     rating: z.number().int().min(1).max(5).optional(),
     hasSubtitles: z.boolean().optional(),
     sortBy: z
@@ -116,6 +129,7 @@ export const VideoMetaZ = z
     rating: z.number().int().min(0).max(5).optional(),
     memo: z.string().optional(),
     tags: z.string().optional(),
+    category: z.string().optional(),
     lastPlayedAt: z.string().min(1).optional(),
     playCount: z.number().int().nonnegative().optional(),
     playTimeSec: TimeZ.optional(),
@@ -135,6 +149,24 @@ export const HighlightCreateZ = z
 export const HighlightPatchZ = HighlightCreateZ.partial().strict()
 
 export const IPC_SCHEMAS = {
+  [IPC.PRIVACY.GET]: EmptyArgsZ,
+  [IPC.PRIVACY.SAVE]: z.tuple([PrivacySettingsZ]),
+  [IPC.PRIVACY.EXIT]: EmptyArgsZ,
+  [IPC.DISCOVERY.QUERY]: z.tuple([IdZ, DiscoveryQueryZ]),
+  [IPC.DISCOVERY.FAVORITE]: z.tuple([IdZ, IdZ, z.boolean()]),
+  [IPC.DISCOVERY.TAGS]: z.tuple([IdZ, DiscoveryPreferencesZ.shape.preferredTags]),
+  [IPC.MAINTENANCE.PREVIEW_NAMES]: z.tuple([IdZ, CleanupRuleZ]),
+  [IPC.MAINTENANCE.APPLY_NAMES]: z.tuple([
+    IdZ,
+    z.string().uuid(),
+    z
+      .array(IdZ)
+      .min(1)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length),
+  ]),
+  [IPC.MAINTENANCE.FIND_DUPLICATES]: LibraryIdArgsZ,
+  [IPC.MAINTENANCE.CANCEL]: LibraryIdArgsZ,
   [IPC.APP.QUIT]: EmptyArgsZ,
   [IPC.APP.CLAIM_GITHUB_STAR_PROMPT]: EmptyArgsZ,
   [IPC.APP.OPEN_GITHUB_REPOSITORY]: EmptyArgsZ,
@@ -145,6 +177,7 @@ export const IPC_SCHEMAS = {
     z
       .object({
         cacheLimitGb: z.number().finite().min(1).max(1000).optional(),
+        seekStepSec: SeekStepSecZ.optional(),
         nativePlayer: NativePlayerInfoZ.nullable().optional(),
       })
       .strict(),
@@ -155,17 +188,25 @@ export const IPC_SCHEMAS = {
   [IPC.DATA_IMPORT.SELECT_CSV]: EmptyArgsZ,
   [IPC.DATA_IMPORT.PREVIEW]: z.tuple([IdZ, FilePathZ]),
   [IPC.DATA_IMPORT.IMPORT]: z.tuple([IdZ, FilePathZ, CsvImportOptionsZ]),
+  [IPC.METADATA_IMPORT.GET_SETTINGS]: EmptyArgsZ,
+  [IPC.METADATA_IMPORT.UPDATE_SETTINGS]: z.tuple([StashSettingsPatchZ]),
+  [IPC.METADATA_IMPORT.SEARCH]: z.tuple([MetadataSearchZ, MetadataSearchModeZ.optional()]),
+  [IPC.METADATA_IMPORT.APPLY]: z.tuple([IdZ, IdZ, MetadataApplyZ]),
   [IPC.LIBRARY.LIST]: EmptyArgsZ,
   [IPC.LIBRARY.OPEN]: LibraryIdArgsZ,
   [IPC.LIBRARY.CREATE]: z.tuple([z.string().min(1), FilePathZ]),
   [IPC.LIBRARY.CLOSE]: LibraryIdArgsZ,
   [IPC.LIBRARY.IMPORT_FOLDER]: z.tuple([IdZ, FilePathZ]),
+  [IPC.LIBRARY.IMPORT_FILES]: z.tuple([IdZ, z.array(FilePathZ).min(1).max(1000)]),
+  [IPC.LIBRARY.SELECT_FILES]: EmptyArgsZ,
   [IPC.LIBRARY.REFRESH]: LibraryIdArgsZ,
   [IPC.LIBRARY.CANCEL_WORK]: LibraryIdArgsZ,
   [IPC.LIBRARY.SELECT_FOLDER]: EmptyArgsZ,
   [IPC.LIBRARY.DELETE]: LibraryIdArgsZ,
   [IPC.VIDEOS.SEARCH]: z.tuple([IdZ, SearchQueryZ]),
+  [IPC.VIDEOS.METADATA_OPTIONS]: z.tuple([IdZ, z.boolean().optional()]),
   [IPC.VIDEOS.GET]: VideoArgsZ,
+  [IPC.VIDEOS.REVEAL_SOURCE]: VideoArgsZ,
   [IPC.VIDEOS.GET_PLAYBACK_SOURCE]: VideoArgsZ,
   [IPC.VIDEOS.GET_NATIVE_PLAYER_INFO]: EmptyArgsZ,
   [IPC.VIDEOS.OPEN_IN_NATIVE_PLAYER]: z.tuple([IdZ, IdZ, NativePlayerOptionsZ.optional()]),
@@ -182,6 +223,8 @@ export const IPC_SCHEMAS = {
   [IPC.PLAYBACK.SEEK]: z.tuple([IdZ, IdZ, TimeZ]),
   [IPC.PLAYBACK.END]: z.tuple([IdZ, IdZ, z.number().finite().nonnegative()]),
   [IPC.THUMBNAILS.GET_FOR_VIDEO]: VideoArgsZ,
+  [IPC.THUMBNAILS.LIST_JOBS]: LibraryIdArgsZ,
+  [IPC.THUMBNAILS.CANCEL_FOR_VIDEO]: VideoArgsZ,
   [IPC.THUMBNAILS.SET_PRIMARY]: z.tuple([IdZ, IdZ, IdZ]),
   [IPC.THUMBNAILS.ENSURE_FOR_VIDEO]: z.tuple([IdZ, IdZ, z.boolean().optional()]),
   [IPC.THUMBNAILS.CAPTURE_AT_TIME]: z.tuple([IdZ, IdZ, TimeZ, z.boolean().optional()]),

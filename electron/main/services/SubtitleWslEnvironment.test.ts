@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({ userData: '' }))
 vi.mock('electron', () => ({ app: { getPath: () => state.userData } }))
 import {
   ensureSubtitleWslUser,
+  checkSubtitleWslReady,
   installSubtitleWsl,
   hasSubtitleWslInstall,
   subtitleDistribution,
@@ -44,11 +45,22 @@ function pendingRecord(overrides: Record<string, unknown> = {}) {
   writeFileSync(installFile(), JSON.stringify(record))
   return record
 }
-function completeRecord(code = 0, restartRequired = false) {
+function completeRecord(code = 0, restartRequired = false, details: Record<string, unknown> = {}) {
   const record = JSON.parse(readFileSync(installFile(), 'utf8'))
-  writeFileSync(installFile(), JSON.stringify({ ...record, state: 'done', code, restartRequired }))
+  writeFileSync(
+    installFile(),
+    JSON.stringify({ ...record, state: 'done', code, restartRequired, ...details }),
+  )
 }
-function installerCapture(options: { platform?: boolean; code?: number; restart?: boolean } = {}) {
+function installerCapture(
+  options: {
+    platform?: boolean
+    code?: number
+    restart?: boolean
+    diagnostics?: string
+    launchError?: number
+  } = {},
+) {
   const helpers: string[] = []
   const launchers: string[] = []
   let ready = options.platform ?? false
@@ -56,6 +68,7 @@ function installerCapture(options: { platform?: boolean; code?: number; restart?
     if (command === 'wsl.exe') {
       if (args[0] === '--list') return result('')
       if (args[0] === '--status') return result('', ready ? 0 : 1)
+      if (args[0] === '--distribution') return result('DVM_WSL_READY')
     }
     if (command === 'powershell.exe' && decode(args).includes('DVM_INSTALL_STARTED')) {
       const record = JSON.parse(readFileSync(installFile(), 'utf8'))
@@ -63,7 +76,10 @@ function installerCapture(options: { platform?: boolean; code?: number; restart?
         readFileSync(join(state.userData, `subtitle-wsl-install-${record.token}.ps1`), 'utf8'),
       )
       launchers.push(decode(args))
-      completeRecord(options.code, options.restart)
+      completeRecord(options.code, options.restart, {
+        diagnostics: options.diagnostics,
+        launchError: options.launchError,
+      })
       ready = true
       return result('DVM_INSTALL_STARTED')
     }
@@ -74,6 +90,16 @@ function installerCapture(options: { platform?: boolean; code?: number; restart?
 }
 
 describe('subtitle WSL installation on a fresh Windows account', () => {
+  it.each([3010, 1641])(
+    'honors a resumed reboot code without a restart flag (%i)',
+    async (code) => {
+      pendingRecord({ state: 'done', code, restartRequired: false })
+      const capture = vi.fn<WslCapture>().mockResolvedValue(result('DVM_INSTALL_FINISHED'))
+      expect(await installSubtitleWsl(capture)).toBe(true)
+      expect(capture.mock.calls.every(([command]) => command === 'powershell.exe')).toBe(true)
+    },
+  )
+
   it('uses official web downloads, elevating only the platform and preserving the distro Windows user', async () => {
     const { capture, helpers, launchers } = installerCapture()
     expect(await installSubtitleWsl(capture)).toBe(false)
@@ -106,6 +132,35 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
     expect(helpers[0]).toContain('Component Based Servicing')
   })
 
+  it.each([
+    { code: 3010, restart: false },
+    { code: 1641, restart: false },
+    { code: 0, restart: true },
+  ])(
+    'retains the restart receipt across install retries and checks until a verified reboot ($code, $restart)',
+    async ({ code, restart }) => {
+      const { capture, helpers } = installerCapture({ code, restart })
+      expect(await installSubtitleWsl(capture)).toBe(true)
+      expect(hasSubtitleWslInstall()).toBe(true)
+      const receipt = readFileSync(installFile(), 'utf8')
+      expect(await installSubtitleWsl(capture)).toBe(true)
+      expect(helpers).toHaveLength(1)
+      expect(readFileSync(installFile(), 'utf8')).toBe(receipt)
+
+      const check = vi.fn<WslCapture>().mockResolvedValue(result(''))
+      expect(await checkSubtitleWslReady(check, signal())).toBe(false)
+      expect(check).toHaveBeenCalledOnce()
+      expect(check.mock.calls[0][0]).toBe('powershell.exe')
+      expect(readFileSync(installFile(), 'utf8')).toBe(receipt)
+
+      check
+        .mockResolvedValueOnce(result('DVM_INSTALL_REBOOTED'))
+        .mockResolvedValueOnce(result('DVM_WSL_READY'))
+      expect(await checkSubtitleWslReady(check, signal())).toBe(true)
+      expect(hasSubtitleWslInstall()).toBe(false)
+    },
+  )
+
   it('continues after reboot without elevation when the platform is ready', async () => {
     const { capture, helpers } = installerCapture({ platform: true })
     expect(await installSubtitleWsl(capture)).toBe(false)
@@ -114,14 +169,19 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
   })
 
   it('does not repeat installation of a registered distro without a pending operation', async () => {
-    const capture = vi.fn<WslCapture>().mockResolvedValue(result('Debian\r\nUbuntu-24.04\r\n'))
+    const capture = vi
+      .fn<WslCapture>()
+      .mockResolvedValueOnce(result('Debian\r\nUbuntu-24.04\r\n'))
+      .mockResolvedValueOnce(result('DVM_WSL_READY'))
     expect(await installSubtitleWsl(capture)).toBe(false)
-    expect(capture).toHaveBeenCalledOnce()
+    expect(capture).toHaveBeenCalledTimes(2)
+    expect(capture.mock.calls[1][1]).toContain('sh')
+    expect(capture.mock.calls.flat(2)).not.toContain('python3')
   })
 
   it('removes a confirmed failed launch so declined elevation can be retried', async () => {
     const failed = installerCapture({ code: 1 })
-    await expect(installSubtitleWsl(failed.capture)).rejects.toThrow('권한')
+    await expect(installSubtitleWsl(failed.capture)).rejects.toThrow('오류 코드 1')
     expect(failed.helpers).toHaveLength(1)
     expect(hasSubtitleWslInstall()).toBe(false)
     const retry = installerCapture()
@@ -131,6 +191,46 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
   it('reports distro download failures instead of requesting repeated restarts', async () => {
     const { capture } = installerCapture({ platform: true, code: 1 })
     await expect(installSubtitleWsl(capture)).rejects.toThrow('인터넷')
+  })
+
+  it('keeps the native exit code and diagnostic for a failed distro install', async () => {
+    const { capture } = installerCapture({
+      platform: true,
+      code: -1,
+      diagnostics: 'Wsl/Service/CreateVm/0x80370102',
+    })
+    await expect(installSubtitleWsl(capture)).rejects.toThrow('BIOS/UEFI')
+    expect(hasSubtitleWslInstall()).toBe(false)
+  })
+
+  it('reports user-declined elevation distinctly from installer failure', async () => {
+    const { capture } = installerCapture({
+      code: 1,
+      launchError: 1223,
+      diagnostics: 'User cancelled',
+    })
+    await expect(installSubtitleWsl(capture)).rejects.toThrow('권한 승인이 취소')
+    expect(hasSubtitleWslInstall()).toBe(false)
+  })
+
+  it('does not infer a reboot from a failed WSL status after successful platform installation', async () => {
+    const { capture, helpers } = installerCapture()
+    const installed = capture.getMockImplementation()!
+    capture.mockImplementation(async (command, args, ...rest) => {
+      if (command === 'wsl.exe' && args[0] === '--status' && helpers.length)
+        return result('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED', 1)
+      return installed(command, args, ...rest)
+    })
+    await expect(installSubtitleWsl(capture)).rejects.toThrow('기능이 준비되지')
+    expect(helpers).toHaveLength(1)
+  })
+
+  it('does not reset the supervision deadline when retrying a long-running installer', async () => {
+    pendingRecord({ createdAt: Date.now() - 90 * 60_000 })
+    const capture = vi.fn<WslCapture>().mockResolvedValue(result('DVM_INSTALL_RUNNING'))
+    await expect(installSubtitleWsl(capture)).rejects.toThrow('아직 진행 중')
+    expect(capture).toHaveBeenCalledOnce()
+    expect(hasSubtitleWslInstall()).toBe(true)
   })
 
   it('keeps a still-running installer after a bounded wait and reconnects on retry before checking distros', async () => {
@@ -149,12 +249,12 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
           command === 'powershell.exe' && !decode(args).includes('Start-Process'),
       ),
     ).toBe(true)
-    capture.mockImplementation(async (command) => {
+    capture.mockImplementation(async (command, args) => {
       if (command === 'powershell.exe') {
         completeRecord()
         return result('DVM_INSTALL_STOPPED')
       }
-      return result('Ubuntu-24.04')
+      return result(args[0] === '--list' ? 'Ubuntu-24.04' : 'DVM_WSL_READY')
     })
     expect(await installSubtitleWsl(capture)).toBe(false)
     expect(hasSubtitleWslInstall()).toBe(false)
@@ -179,6 +279,7 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
     capture
       .mockResolvedValueOnce(result('DVM_INSTALL_REBOOTED'))
       .mockResolvedValueOnce(result('Ubuntu-24.04'))
+      .mockResolvedValueOnce(result('DVM_WSL_READY'))
     expect(await installSubtitleWsl(capture)).toBe(false)
     expect(hasSubtitleWslInstall()).toBe(false)
   })
@@ -189,18 +290,19 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
       .fn<WslCapture>()
       .mockResolvedValueOnce(result('DVM_INSTALL_REBOOTED'))
       .mockResolvedValueOnce(result('Ubuntu-24.04'))
+      .mockResolvedValueOnce(result('DVM_WSL_READY'))
     expect(await installSubtitleWsl(capture)).toBe(false)
     expect(hasSubtitleWslInstall()).toBe(false)
   })
 
   it('accepts confirmed completion even if the helper exits during its identity probe', async () => {
     pendingRecord()
-    const capture = vi.fn<WslCapture>().mockImplementation(async (command) => {
+    const capture = vi.fn<WslCapture>().mockImplementation(async (command, args) => {
       if (command === 'powershell.exe') {
         completeRecord()
         return result('query raced with exit', 1)
       }
-      return result('Ubuntu-24.04')
+      return result(args[0] === '--list' ? 'Ubuntu-24.04' : 'DVM_WSL_READY')
     })
     expect(await installSubtitleWsl(capture)).toBe(false)
   })
@@ -225,17 +327,19 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
   })
 
   it.runIf(process.platform === 'win32').each([
-    { operation: 'platform', code: 3010, denyHandle: true },
-    { operation: 'distribution', code: 3010, denyHandle: false },
-    { operation: 'distribution', code: 0, denyHandle: false },
-    { operation: 'distribution', code: 0, denyHandle: true },
+    { operation: 'platform', code: 3010, denyHandle: true, launchFailure: false },
+    { operation: 'distribution', code: 3010, denyHandle: false, launchFailure: false },
+    { operation: 'distribution', code: 0, denyHandle: false, launchFailure: false },
+    { operation: 'distribution', code: 0, denyHandle: true, launchFailure: false },
+    { operation: 'platform', code: 1, denyHandle: false, launchFailure: true },
   ])(
     'runs the generated $operation helper with a harmless child exiting $code (handle denied: $denyHandle)',
-    async ({ operation, code, denyHandle }) => {
+    async ({ operation, code, denyHandle, launchFailure }) => {
       let actualLauncher = ''
       let actualHelper = ''
       const capture = vi.fn<WslCapture>(async (command, args) => {
         // Never execute host WSL. A ready platform selects the redirected distro branch.
+        if (command === 'wsl.exe' && args[0] === '--distribution') return result('DVM_WSL_READY')
         if (command === 'wsl.exe')
           return result('', operation === 'distribution' && args[0] === '--status' ? 0 : 1)
         const script = decode(args)
@@ -263,7 +367,9 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
           }
           let safe = actualHelper.replace(
             start[0],
-            `  $installer=Start-Process -FilePath "$PSHOME\\powershell.exe" -ArgumentList @('-NoProfile','-NonInteractive','-Command','Start-Sleep -Milliseconds 300; exit ${code}') -WindowStyle Hidden -PassThru ${operation === 'distribution' ? '-RedirectStandardOutput $outputPath -RedirectStandardError $errorPath' : ''}`,
+            launchFailure
+              ? "  throw [InvalidOperationException]::new('Elevation cancelled',[ComponentModel.Win32Exception]::new(1223))"
+              : `  $installer=Start-Process -FilePath "$PSHOME\\powershell.exe" -ArgumentList @('-NoProfile','-NonInteractive','-Command','Start-Sleep -Milliseconds 300; exit ${code}') -WindowStyle Hidden -PassThru ${operation === 'distribution' ? '-RedirectStandardOutput $outputPath -RedirectStandardError $errorPath' : ''}`,
           )
           if (denyHandle) {
             const handle = 'try { $null=$installer.Handle } catch {}'
@@ -305,7 +411,10 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
         })
         return result(output)
       })
-      if (denyHandle && operation === 'distribution') {
+      if (launchFailure) {
+        await expect(installSubtitleWsl(capture)).rejects.toThrow('권한 승인이 취소')
+        expect(hasSubtitleWslInstall()).toBe(false)
+      } else if (denyHandle && operation === 'distribution') {
         await expect(installSubtitleWsl(capture)).rejects.toThrow('설치가 끝났는지 확인')
         expect(hasSubtitleWslInstall()).toBe(true)
         const receipt = JSON.parse(readFileSync(installFile(), 'utf8'))
@@ -321,9 +430,9 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
         expect(launchCount()).toBe(1)
       } else {
         expect(await installSubtitleWsl(capture)).toBe(code === 3010)
-        expect(hasSubtitleWslInstall()).toBe(false)
+        expect(hasSubtitleWslInstall()).toBe(code === 3010)
       }
-      expect(readFileSync(installFile() + '.waited', 'utf8')).toBe('done')
+      if (!launchFailure) expect(readFileSync(installFile() + '.waited', 'utf8')).toBe('done')
       for (const [index, source] of [actualHelper, actualLauncher].entries()) {
         const file = join(state.userData, `parse-${index}.ps1`)
         writeFileSync(file, source)
@@ -337,6 +446,74 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
     },
     40_000,
   )
+})
+
+describe('read-only WSL readiness', () => {
+  it('accepts a completed installation receipt and checks Linux without Python', async () => {
+    pendingRecord({ state: 'done', code: 0, restartRequired: false })
+    expect(hasSubtitleWslInstall()).toBe(false)
+    const capture = vi.fn<WslCapture>().mockResolvedValue(result('DVM_WSL_READY'))
+    expect(await checkSubtitleWslReady(capture, signal())).toBe(true)
+    expect(capture).toHaveBeenCalledOnce()
+    expect(capture.mock.calls[0][1]).toContain('sh')
+    expect(capture.mock.calls[0][1]).not.toContain('python3')
+  })
+
+  it('reconciles a completed reboot receipt during environment check after a verified later boot', async () => {
+    pendingRecord({ state: 'done', code: 3010, restartRequired: true })
+    const capture = vi
+      .fn<WslCapture>()
+      .mockResolvedValueOnce(result('DVM_INSTALL_REBOOTED'))
+      .mockResolvedValueOnce(result('DVM_WSL_READY'))
+    expect(await checkSubtitleWslReady(capture, signal())).toBe(true)
+    expect(hasSubtitleWslInstall()).toBe(false)
+    expect(capture.mock.calls.some(([, args]) => args[0] === '--install')).toBe(false)
+  })
+
+  it('does not clear a completed reboot receipt before Windows has restarted', async () => {
+    pendingRecord({ state: 'done', code: 3010, restartRequired: true })
+    const capture = vi.fn<WslCapture>().mockResolvedValue(result(''))
+    expect(await checkSubtitleWslReady(capture, signal())).toBe(false)
+    expect(capture).toHaveBeenCalledOnce()
+    expect(hasSubtitleWslInstall()).toBe(true)
+  })
+
+  it('does not probe Linux while an installer still owns the reservation', async () => {
+    pendingRecord()
+    const capture = vi.fn<WslCapture>()
+    expect(await checkSubtitleWslReady(capture, signal())).toBe(false)
+    expect(capture).not.toHaveBeenCalled()
+  })
+
+  it('returns missing when the distro has not been installed', async () => {
+    const capture = vi
+      .fn<WslCapture>()
+      .mockResolvedValueOnce(result('WSL_E_DISTRO_NOT_FOUND', 1))
+      .mockResolvedValueOnce(result('Debian'))
+    expect(await checkSubtitleWslReady(capture, signal())).toBe(false)
+  })
+
+  it.each(['HCS_E_HYPERV_NOT_INSTALLED', '0x80370102'])(
+    'preserves virtualization diagnostic %s for an existing distro instead of reinstalling',
+    async (diagnostic) => {
+      const capture = vi
+        .fn<WslCapture>()
+        .mockResolvedValueOnce(result(diagnostic, -1))
+        .mockResolvedValueOnce(result('Ubuntu-24.04'))
+      await expect(checkSubtitleWslReady(capture, signal())).rejects.toThrow('BIOS/UEFI')
+      expect(capture).toHaveBeenCalledTimes(2)
+      expect(capture.mock.calls.every(([command]) => command === 'wsl.exe')).toBe(true)
+    },
+  )
+
+  it('also preserves startup diagnostics when called directly to install an already registered distro', async () => {
+    const capture = vi
+      .fn<WslCapture>()
+      .mockResolvedValueOnce(result('Ubuntu-24.04'))
+      .mockResolvedValueOnce(result('Wsl/Service/CreateVm/0x80370102', -1))
+    await expect(installSubtitleWsl(capture)).rejects.toThrow('0x80370102')
+    expect(capture).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('stable Linux account for subtitle workers', () => {

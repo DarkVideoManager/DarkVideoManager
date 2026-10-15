@@ -153,6 +153,47 @@ test('queues multiple videos in one library and manages pause, resume and deleti
   ).toBeVisible()
 })
 
+test('keeps a storage retry control on completed jobs and shows confirmed ASR separately from translation', async ({
+  page,
+}) => {
+  await addJobs(page)
+  await page.evaluate(() => {
+    const state = (window as unknown as QueueWindow).queueHarness
+    const first = state.jobs[0]
+    first.phase = 'completed'
+    first.percent = 100
+    first.storageError =
+      '대기열 저장 실패 (EPERM). 기존 파일은 보존했습니다. 저장 다시 시도를 누르세요.'
+    first.outputPaths = ['/mock/videos/sample.ai.srt']
+    first.processing = {
+      asr: 'vulkan',
+      device: 'Vulkan0',
+      evidence: 'engine',
+      translation: 'ollama',
+    }
+    state.jobs[1].phase = 'paused'
+    state.jobs[1].processing = { asr: 'cpu-legacy', evidence: 'checkpoint' }
+    window.api.subtitles.resumeJob = async (id) => {
+      const item = state.jobs.find((job) => job.id === id)
+      if (item) delete item.storageError
+      return { ok: true, value: Boolean(item) }
+    }
+  })
+  const first = queueItem(page)
+  await expect(first.getByRole('alert')).toContainText('EPERM')
+  await expect(first.getByLabel('자막 처리 장치')).toContainText('Vulkan GPU · Vulkan0 (엔진 확인)')
+  await expect(first.getByLabel('자막 처리 장치')).toContainText(
+    '로컬 Ollama · 처리 장치는 Ollama에서 관리',
+  )
+  await expect(queueItem(page, 'Second video').getByLabel('자막 처리 장치')).toContainText(
+    '기존 CPU 작업 기록',
+  )
+  await first.getByRole('button', { name: '저장 다시 시도', exact: true }).click()
+  await expect(first.getByRole('alert')).toHaveCount(0)
+  await expect(first.getByRole('status')).toContainText('완료')
+  await expect(first.getByRole('list', { name: '생성된 자막 파일' })).toContainText('sample.ai.srt')
+})
+
 test('locks pending queue actions and reports rejected pause, resume and delete without unhandled errors', async ({
   page,
 }) => {
@@ -239,6 +280,7 @@ test('ESC closes through the background-aware app API and respects settings dial
   await expect
     .poll(() => page.evaluate(() => (window as unknown as QueueWindow).queueHarness.quitCalls))
     .toBe(1)
+  await page.getByRole('button', { name: '화면 다시 열기', exact: true }).click()
   await page.getByRole('button', { name: '설정', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')

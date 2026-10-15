@@ -4,6 +4,7 @@ import { PlayHistoryRepository } from '../db/repositories/PlayHistoryRepository'
 import { VideoRepository } from '../db/repositories/VideoRepository'
 import { releasePlaybackCache, trimPlaybackCache } from './CacheService'
 import { createLogger } from '../infra/logger'
+import { acquireSourceFile } from './SourceFileUsage'
 
 const log = createLogger('playback-cache')
 
@@ -14,6 +15,7 @@ interface PlaybackSession {
   lastPosition: number
   lastSampleAt: number
   watchedSec: number
+  releaseSource: () => void
 }
 const activeSessions = new Map<string, PlaybackSession>()
 const keyFor = (libraryId: string, videoId: string) => libraryId + ':' + videoId
@@ -45,6 +47,7 @@ export function startPlayback(
     lastPosition: position,
     lastSampleAt: Date.now(),
     watchedSec: 0,
+    releaseSource: acquireSourceFile(video.filePath),
   })
   return historyId
 }
@@ -84,17 +87,21 @@ export function endPlayback(libraryId: string, videoId: string, positionSec: num
   const key = keyFor(libraryId, videoId)
   const session = activeSessions.get(key)
   if (!session) return
-  const db = getDatabase(libraryId)
-  if (db) {
-    sample(session, positionSec)
-    new PlayHistoryRepository(db).update(
-      session.historyId,
-      new Date().toISOString(),
-      session.lastPosition,
-      session.watchedSec,
-    )
+  try {
+    const db = getDatabase(libraryId)
+    if (db) {
+      sample(session, positionSec)
+      new PlayHistoryRepository(db).update(
+        session.historyId,
+        new Date().toISOString(),
+        session.lastPosition,
+        session.watchedSec,
+      )
+    }
+  } finally {
+    activeSessions.delete(key)
+    session.releaseSource()
   }
-  activeSessions.delete(key)
 }
 
 export function finishPlaybackSessions(libraryId?: string): void {

@@ -406,6 +406,7 @@ def transcribe(audio, output, args, duration, offset, language, on_chunk, emit, 
     vad_model = ensure_model(cache, manifest["vad"], emit)
     language = language or (None if args.language == "auto" else args.language)
     last_percent, last_time = -1, 0.0
+    reported_backend = None
     while offset < duration:
         core_end = min(duration, offset + options["chunk_seconds"])
         read_end = min(duration, core_end + options["right_context_seconds"])
@@ -416,7 +417,11 @@ def transcribe(audio, output, args, duration, offset, language, on_chunk, emit, 
             extract_wave(audio, chunk, offset, read_end)
 
             def report(percent, backend):
-                nonlocal last_percent, last_time
+                nonlocal last_percent, last_time, reported_backend
+                if backend != reported_backend:
+                    # This callback only runs after whisper.cpp confirms its ASR backend.
+                    emit(type="processing_device", asr_backend="vulkan", asr_device=backend)
+                    reported_backend = backend
                 overall = min(99, int((offset + (core_end - offset) * percent / 100) * 100 / duration))
                 now = time.monotonic()
                 if overall > last_percent and now - last_time >= .4:

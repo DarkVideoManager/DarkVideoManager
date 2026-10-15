@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLibraries } from '../api/useLibraries'
 import SubtitleTranslationSettings from '../components/library/SubtitleTranslationSettings'
 import SubtitleEnvironmentSetup from '../components/library/SubtitleEnvironmentSetup'
+import SubtitleProcessingStatus from '../components/library/SubtitleProcessingStatus'
+import { requestPrivacyExit } from '../components/privacy/PrivacyBoundary'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const transitionPhases = new Set(['pausing', 'removing'])
@@ -32,6 +34,12 @@ const errorMessage = (error) => (error instanceof Error ? error.message : String
 
 function QueueItem({ job, libraryName }) {
   const queryClient = useQueryClient()
+  const revealSource = useMutation({
+    mutationFn: async () => {
+      const result = await window.api.videos.revealSource(job.libraryId, job.videoId)
+      if (!result.ok) throw new Error(result.error)
+    },
+  })
   const action = useMutation({
     mutationFn: async (operation) => {
       const result = await window.api.subtitles[`${operation}Job`](job.id)
@@ -49,7 +57,7 @@ function QueueItem({ job, libraryName }) {
   const title = job.title || job.videoId
   const percent = Math.max(0, Math.min(100, Math.round(job.percent ?? 0)))
   const terminal = terminalPhases.has(job.phase)
-  const resumable = job.phase === 'paused' || job.phase === 'failed'
+  const resumable = job.storageError || job.phase === 'paused' || job.phase === 'failed'
   const busy = action.isPending || transitionPhases.has(job.phase)
   const options = job.options
   return (
@@ -88,6 +96,12 @@ function QueueItem({ job, libraryName }) {
         {job.message && (
           <p className="break-words text-xs leading-relaxed text-zinc-400">{job.message}</p>
         )}
+        <SubtitleProcessingStatus job={job} />
+        {job.storageError && (
+          <p role="alert" className="break-words text-xs leading-relaxed text-red-300">
+            {job.storageError}
+          </p>
+        )}
         {!!job.outputPaths?.length && (
           <ul aria-label="생성된 자막 파일" className="space-y-1 text-xs text-zinc-500">
             {job.outputPaths.map((path) => (
@@ -98,6 +112,14 @@ function QueueItem({ job, libraryName }) {
           </ul>
         )}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={revealSource.isPending}
+            onClick={() => revealSource.mutate()}
+            className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {revealSource.isPending ? '원본 위치 여는 중...' : '원본 위치 열기'}
+          </button>
           {resumable ? (
             <button
               type="button"
@@ -107,9 +129,11 @@ function QueueItem({ job, libraryName }) {
             >
               {action.isPending && action.variables === 'resume'
                 ? '재개 요청 중...'
-                : job.phase === 'failed'
-                  ? '재개 · 다시 시도'
-                  : '재개'}
+                : job.storageError
+                  ? '저장 다시 시도'
+                  : job.phase === 'failed'
+                    ? '재개 · 다시 시도'
+                    : '재개'}
             </button>
           ) : (
             !terminal && (
@@ -141,6 +165,11 @@ function QueueItem({ job, libraryName }) {
             {errorMessage(action.error)}
           </p>
         )}
+        {revealSource.error && (
+          <p role="alert" className="break-words text-xs text-red-300">
+            원본 위치를 열지 못했습니다: {errorMessage(revealSource.error)}
+          </p>
+        )}
       </article>
     </li>
   )
@@ -149,8 +178,6 @@ function QueueItem({ job, libraryName }) {
 export default function SubtitleQueuePage() {
   const queryClient = useQueryClient()
   const { data: libraries = [] } = useLibraries()
-  const [closeError, setCloseError] = React.useState(null)
-  const closing = React.useRef(false)
   const completed = React.useRef(new Map())
   const queue = useQuery({
     queryKey: ['subtitle-queue'],
@@ -188,8 +215,7 @@ export default function SubtitleQueuePage() {
   }, [jobs, queryClient])
   React.useEffect(() => {
     function handleKeyDown(event) {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented || closing.current)
-        return
+      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
       const target = event.target
       if (
@@ -198,17 +224,7 @@ export default function SubtitleQueuePage() {
       )
         return
       event.preventDefault()
-      closing.current = true
-      setCloseError(null)
-      void window.api.app
-        .quit()
-        .then((result) => {
-          if (!result.ok) throw new Error(result.error)
-        })
-        .catch((error) => setCloseError(errorMessage(error)))
-        .finally(() => {
-          closing.current = false
-        })
+      requestPrivacyExit()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -248,11 +264,6 @@ export default function SubtitleQueuePage() {
             이어갑니다. 작업을 삭제해도 이미 저장된 자막 파일은 보존합니다.
           </p>
         </div>
-        {closeError && (
-          <p role="alert" className="text-sm text-red-300">
-            창을 닫지 못했습니다: {closeError}
-          </p>
-        )}
         <SubtitleTranslationSettings />
         {queue.isPending && (
           <p role="status" className="text-sm text-zinc-400">

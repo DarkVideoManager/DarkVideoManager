@@ -7,9 +7,12 @@ import { tmpdir } from 'node:os'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import type { Video } from '@shared/types'
 
-const state = vi.hoisted(() => ({ runtime: '' }))
+const state = vi.hoisted(() => ({ runtime: '', seekStepSec: undefined as number | undefined }))
 vi.mock('node:child_process', () => ({ default: { spawn: vi.fn() } }))
 vi.mock('../infra/paths', () => ({ getNativePlayerDir: () => state.runtime }))
+vi.mock('../infra/config', () => ({
+  loadConfig: () => ({ libraries: [], seekStepSec: state.seekStepSec }),
+}))
 vi.mock('../infra/logger', () => ({ createLogger: () => ({ info() {}, warn() {}, error() {} }) }))
 vi.mock('./PlaybackService', () => ({
   startPlayback: vi.fn(),
@@ -51,6 +54,8 @@ async function runSeekScript(assertions: string): Promise<void> {
   child.emit('spawn')
   await vi.advanceTimersByTimeAsync(500)
   await pending
+  const launchEnvironment = vi.mocked(childProcess.spawn).mock.calls.at(-1)?.[2]?.env
+  const seekStepValue = launchEnvironment?.DARK_VIDEO_MANAGER_SEEK_STEP_SEC
   const script = readFileSync(join(state.runtime, 'darkvideomanager-mpv.lua'), 'utf8')
   const { lua, lauxlib, lualib, to_luastring } = fengari
   const vm = lauxlib.luaL_newstate()
@@ -59,7 +64,7 @@ async function runSeekScript(assertions: string): Promise<void> {
   // does not change when a seek is requested. Tests control its acknowledgment.
   const harness = `
     local clock, position, duration = 0, 100, 1000
-    local seeks, timers, keys, events, messages = {}, {}, {}, {}, {}
+    local seeks, timers, keys, events, messages, property_writes = {}, {}, {}, {}, {}, {}
     local mp = {}
     function mp.get_time() return clock end
     function mp.get_property_number(name, default)
@@ -68,8 +73,8 @@ async function runSeekScript(assertions: string): Promise<void> {
       return default
     end
     function mp.get_property_native() return false end
-    function mp.set_property_number() end
-    function mp.set_property_native() end
+    function mp.set_property_number(name, value) property_writes[name] = value end
+    function mp.set_property_native(name, value) property_writes[name] = value end
     function mp.osd_message() end
     function mp.commandv(command, target, flags)
       if command == 'seek' then table.insert(seeks, { target = tonumber(target), flags = flags, at = clock }) end
@@ -107,7 +112,10 @@ async function runSeekScript(assertions: string): Promise<void> {
     end
     package.loaded['mp'] = mp
     package.loaded['mp.utils'] = {}
-    os.getenv = function() return nil end
+    os.getenv = function(name)
+      if name == 'DARK_VIDEO_MANAGER_SEEK_STEP_SEC' then return '${seekStepValue}' end
+      return nil
+    end
     os.clock = function() return 0 end
   `
   try {
@@ -133,6 +141,7 @@ let child: EventEmitter & {
 const video = { id: 'video', filePath: 'C:\\synthetic.mp4', resumePosSec: 0 } as Video
 const webContents = { isDestroyed: () => false, send: vi.fn() } as unknown as Electron.WebContents
 beforeEach(() => {
+  state.seekStepSec = undefined
   state.runtime = mkdtempSync(join(tmpdir(), 'dvm-mpv-test-'))
   child = Object.assign(new EventEmitter(), {
     kill: vi.fn(),
@@ -278,6 +287,48 @@ it('cancels a pending startup during shutdown instead of creating a late session
   await rejected
   expect(child.kill).toHaveBeenCalled()
   expect(startPlayback).not.toHaveBeenCalled()
+})
+
+it('uses the saved seek interval for taps while keeping modifier intervals and hold acceleration', async () => {
+  state.seekStepSec = 10
+  await runSeekScript(`
+    key('RIGHT', 'down'); key('RIGHT', 'up'); key('d', 'press'); key('a', 'press')
+    check_seek(1, 110, 'absolute+exact'); check_seek(2, 120, 'absolute+exact')
+    check_seek(3, 110, 'absolute+exact')
+    key('Shift+RIGHT'); key('Ctrl+LEFT')
+    check_seek(4, 115, 'absolute+exact'); check_seek(5, 85, 'absolute+exact')
+    key('d', 'down'); advance(2); key('d', 'repeat'); key('d', 'up')
+    check_seek(6, 95, 'absolute+exact'); check_seek(7, 100, 'absolute+exact')
+    assert(next(property_writes) == nil, 'seeking must preserve pause and volume')
+  `)
+})
+
+it('seeks by percentage on digits and keypad digits without changing pause or modifier bindings', async () => {
+  await runSeekScript(`
+    for digit = 0, 9 do
+      key(tostring(digit))
+      check_seek(digit + 1, digit * 100, 'absolute+exact')
+      assert(not keys['Ctrl+' .. digit] and not keys['Shift+' .. digit])
+    end
+    for digit = 0, 9 do
+      key('KP' .. digit)
+      check_seek(digit + 11, digit * 100, 'absolute+exact')
+    end
+    assert(next(property_writes) == nil, 'percentage seeking must preserve pause and volume')
+    assert(keys['UP'] and keys['DOWN'], 'volume arrows remain available')
+    duration = 0; key('5')
+    duration = nil; key('KP5')
+    duration = -10; key('2')
+    duration = math.huge; key('8')
+    duration = 0/0; key('3')
+    assert(#seeks == 20, 'unknown duration must not seek')
+    duration = 1000
+    key('d', 'down'); advance(2); key('d', 'repeat')
+    local stale = timers[#timers]
+    key('5'); check_seek(22, 500, 'absolute+exact')
+    stale.callback(); key('d', 'up'); advance(1)
+    assert(#seeks == 22, 'held preview must not overwrite a percentage seek')
+  `)
 })
 
 it('executes exact single taps and fixed modifier steps without losing rapid taps to a slow decoder', async () => {

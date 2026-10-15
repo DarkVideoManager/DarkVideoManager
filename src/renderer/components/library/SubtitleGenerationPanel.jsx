@@ -1,6 +1,8 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import SubtitleProcessingStatus from './SubtitleProcessingStatus'
+import { SubtitleStartGuidance, SubtitlePrivacyGuidance } from './SubtitleGuidance'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const phaseLabels = {
@@ -159,6 +161,7 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
       className="space-y-3 rounded border border-zinc-700 bg-zinc-950/40 p-3"
     >
       <h3 className="text-sm font-semibold text-zinc-100">AI 자막 생성</h3>
+      <SubtitleStartGuidance />
       <p className="text-xs leading-relaxed text-zinc-400">
         시작하면 작업 큐에 추가해 순서대로 처리합니다. 다른 영상도 이어서 추가할 수 있습니다.
       </p>
@@ -177,11 +180,12 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
             disabled={disabled || busy}
             className="w-full rounded bg-zinc-800 p-1.5 text-zinc-100 disabled:opacity-50"
           >
-            <option value="tiny">tiny · 빠름</option>
+            <option value="tiny">tiny · 소형</option>
             <option value="base">base · 기본</option>
             <option value="small">small</option>
             <option value="medium">medium</option>
-            <option value="large-v3">large-v3 · 정밀</option>
+            <option value="large-v2">large-v2 · 대형</option>
+            <option value="large-v3">large-v3 · 대형</option>
           </select>
         </label>
         <label className="space-y-1 text-xs text-zinc-400">
@@ -200,6 +204,12 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
           </select>
         </label>
       </div>
+      <p className="text-[11px] leading-relaxed text-zinc-400" aria-live="polite">
+        {model.startsWith('large')
+          ? '대형 모델이 없으면 약 3.1GB를 다운로드하며 실행 시 더 많은 메모리가 필요합니다. 먼저 짧은 영상으로 확인하세요.'
+          : '선택한 모델이 없으면 처음 생성할 때 다운로드합니다. 기본 base부터 짧은 영상으로 확인할 수 있습니다.'}{' '}
+        모델 변경은 다음에 시작하는 작업에 적용됩니다.
+      </p>
       <label className="flex items-center gap-2 text-xs text-zinc-200">
         <input
           type="checkbox"
@@ -211,10 +221,11 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
         한국어 번역 자막도 생성
       </label>
       <p className="text-[11px] leading-relaxed text-zinc-400">
-        음성 인식은 내 PC에서 처리합니다. 모델은 처음 사용할 때 다운로드하며, 한국어 번역은 인식한
-        텍스트를 공식 Google Cloud Translation으로 전송합니다. 자막 생성 탭에서 API 키와 월 한도를
-        설정할 수 있습니다. 키가 없거나 한도에 도달하거나 연결에 실패하면 PC의 Ollama를 사용합니다.
+        음성 인식은 내 PC에서 처리합니다. Google Cloud 사용은 기본으로 꺼져 있으며, 자막 생성 탭에서
+        사용을 켜고 API 키를 저장한 경우 인식한 텍스트를 전송합니다. 사용을 끄거나 키·한도가 없거나
+        요청에 실패하면 PC의 Ollama를 사용합니다.
       </p>
+      <SubtitlePrivacyGuidance />
       <p className="text-[11px] leading-relaxed text-zinc-500">
         ‘자막 생성 시작’은 기존 자막을 보존합니다. 영상 옆에 .ai.srt와 .ai.ko.srt를 저장하며, 같은
         이름이 있으면 번호를 붙입니다.
@@ -278,6 +289,12 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
             {active ? ` · ${percent}%` : ''}
             {job.message && <span className="mt-1 block text-[11px]">{job.message}</span>}
           </p>
+          <SubtitleProcessingStatus job={job} />
+          {job.storageError && (
+            <p role="alert" className="break-words text-xs text-red-300">
+              {job.storageError}
+            </p>
+          )}
           {active && (
             <progress
               aria-label="자막 생성 진행률"

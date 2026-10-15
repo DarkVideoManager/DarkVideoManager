@@ -11,6 +11,7 @@ const EMPTY_SUBTITLE_JOBS = new Map()
 function VideoGrid({
   videos,
   subtitleJobs = EMPTY_SUBTITLE_JOBS,
+  thumbnailJobs,
   selectedVideoId,
   initialScrollTop = 0,
   onScrollTopChange,
@@ -63,7 +64,7 @@ function VideoGrid({
   }, [initialScrollTop, rowCount, selectedVideoId])
   if (videos.length === 0) {
     return (
-      <div className={'flex flex-1 items-center justify-center text-zinc-500'}>
+      <div className={'flex min-h-0 min-w-0 flex-1 items-center justify-center text-zinc-500'}>
         <p>{'동영상이 없습니다. 폴더를 가져오거나 검색 조건을 변경하세요.'}</p>
       </div>
     )
@@ -73,11 +74,13 @@ function VideoGrid({
   return (
     <div
       ref={containerRef}
-      className={'flex-1 overflow-y-auto'}
+      role="region"
+      aria-label="영상 목록"
+      className={'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto'}
       onScroll={(event) => onScrollTopChange?.(event.currentTarget.scrollTop)}
     >
       <div
-        className={'relative'}
+        className={'relative w-full min-w-0'}
         style={{
           height: totalHeight,
         }}
@@ -105,7 +108,7 @@ function VideoGrid({
                   const left = GRID_PADDING + columnIndex * (itemWidth + GRID_GAP)
                   return (
                     <div
-                      className={'absolute top-0'}
+                      className={'absolute top-0 min-w-0'}
                       style={{
                         left,
                         width: itemWidth,
@@ -116,6 +119,10 @@ function VideoGrid({
                       <VideoCard$1
                         video={video}
                         subtitleJob={subtitleJobs.get(video.id)}
+                        thumbnailJob={thumbnailJobs?.jobsByVideo.get(video.id)}
+                        onCancelThumbnail={() => thumbnailJobs?.cancelVideo(video.id)}
+                        thumbnailCancelError={thumbnailJobs?.cancelErrors.get(video.id)}
+                        isCancellingThumbnail={thumbnailJobs?.cancellingVideos.has(video.id)}
                         isSelected={selectedVideoId === video.id}
                         onClick={() => onVideoClick?.(video)}
                         onDoubleClick={() => onVideoDoubleClick?.(video)}

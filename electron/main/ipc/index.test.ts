@@ -7,6 +7,9 @@ import { secureWindow } from '../infra/windowSecurity'
 
 const mocks = vi.hoisted(() => ({
   handle: vi.fn(),
+  previewNames: vi.fn(),
+  applyNames: vi.fn(),
+  findDuplicates: vi.fn(),
   showOpenDialog: vi.fn(),
   importCsvData: vi.fn(),
   closeLibrary: vi.fn(),
@@ -14,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   updateVideoMeta: vi.fn(),
   deleteVideo: vi.fn(),
   restoreVideo: vi.fn(),
+  revealVideoSource: vi.fn(),
   createHighlight: vi.fn(),
   updateHighlight: vi.fn(),
   deleteHighlight: vi.fn(),
@@ -22,7 +26,10 @@ const mocks = vi.hoisted(() => ({
   captureThumbnailAtTime: vi.fn(),
   saveThumbnailImageCapture: vi.fn(),
   ensureThumbnailForVideo: vi.fn(),
+  listThumbnailJobs: vi.fn(),
+  cancelThumbnailJob: vi.fn(),
   refreshLibrary: vi.fn(),
+  importFiles: vi.fn(),
   recordSeek: vi.fn(),
   listConversions: vi.fn(),
   pauseConversion: vi.fn(),
@@ -66,6 +73,12 @@ vi.mock('../services/DataImportService', () => ({
   previewCsvImport: vi.fn(),
   importCsvData: mocks.importCsvData,
 }))
+vi.mock('../services/LibraryMaintenanceService', () => ({
+  previewFilenameCleanup: mocks.previewNames,
+  applyFilenameCleanup: mocks.applyNames,
+  findExactDuplicates: mocks.findDuplicates,
+  cancelLibraryMaintenance: vi.fn(),
+}))
 vi.mock('../services/LibraryService', () => ({
   listLibraries: vi.fn(),
   openLibrary: vi.fn(),
@@ -73,10 +86,12 @@ vi.mock('../services/LibraryService', () => ({
   closeLibrary: mocks.closeLibrary,
   deleteLibrary: mocks.deleteLibrary,
   importFolder: vi.fn(),
+  importFiles: mocks.importFiles,
   refreshLibrary: mocks.refreshLibrary,
 }))
 vi.mock('../services/VideoService', () => ({
   searchVideos: vi.fn(),
+  getVideoMetadataOptions: vi.fn(),
   getVideo: vi.fn(),
   updateVideoMeta: mocks.updateVideoMeta,
   deleteVideo: mocks.deleteVideo,
@@ -85,6 +100,9 @@ vi.mock('../services/VideoService', () => ({
   getNativePlayerInfo: vi.fn(),
   openVideoInNativePlayer: mocks.openVideoInNativePlayer,
   seekActivePlayback: vi.fn(),
+}))
+vi.mock('../services/VideoSourceLocationService', () => ({
+  revealVideoSource: mocks.revealVideoSource,
 }))
 vi.mock('../services/PlaybackService', () => ({
   startPlayback: vi.fn(),
@@ -104,6 +122,10 @@ vi.mock('../services/ThumbnailService', () => ({
   ensureThumbnailForVideo: mocks.ensureThumbnailForVideo,
   captureThumbnailAtTime: mocks.captureThumbnailAtTime,
   saveThumbnailImageCapture: mocks.saveThumbnailImageCapture,
+}))
+vi.mock('../services/ThumbnailJobService', () => ({
+  listThumbnailJobs: mocks.listThumbnailJobs,
+  cancelThumbnailJob: mocks.cancelThumbnailJob,
 }))
 vi.mock('../services/HighlightService', () => ({
   listHighlights: vi.fn(),
@@ -150,6 +172,119 @@ beforeEach(() => {
 })
 
 describe('IPC dispatch', () => {
+  it('allows thumbnail status and per-video cancellation during an import', async () => {
+    mocks.listThumbnailJobs.mockReturnValue([{ videoId: 'video', phase: 'running' }])
+    mocks.cancelThumbnailJob.mockReturnValue(true)
+    await withLibraryWork('lib', async () => {
+      expect(await invoke(IPC.THUMBNAILS.LIST_JOBS, 'lib')).toEqual({
+        ok: true,
+        value: [{ videoId: 'video', phase: 'running' }],
+      })
+      expect(await invoke(IPC.THUMBNAILS.CANCEL_FOR_VIDEO, 'lib', 'video')).toEqual({
+        ok: true,
+        value: true,
+      })
+    })
+    expect(mocks.cancelThumbnailJob).toHaveBeenCalledWith('lib', 'video')
+    expect(await invoke(IPC.THUMBNAILS.CANCEL_FOR_VIDEO, 'lib', '')).toMatchObject({ ok: false })
+    expect(mocks.cancelThumbnailJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows another video to queue thumbnails while protecting the active video', async () => {
+    await withLibraryWork(
+      'lib',
+      async () => {
+        expect(await invoke(IPC.THUMBNAILS.ENSURE_FOR_VIDEO, 'lib', 'other')).toMatchObject({
+          ok: true,
+        })
+        expect(await invoke(IPC.THUMBNAILS.ENSURE_FOR_VIDEO, 'lib', 'video')).toMatchObject({
+          ok: false,
+        })
+        expect(await invoke(IPC.THUMBNAILS.SET_PRIMARY, 'lib', 'thumb', 'video')).toMatchObject({
+          ok: false,
+        })
+        expect(mocks.ensureThumbnailForVideo).toHaveBeenCalledTimes(1)
+        expect(mocks.setPrimaryThumbnail).not.toHaveBeenCalled()
+      },
+      'thumbnails',
+      'video',
+    )
+  })
+
+  it('selects video files and validates selected-file import arguments before dispatch', async () => {
+    const filePaths = ['C:/videos/one.mp4', 'C:/videos/two.mkv']
+    mocks.showOpenDialog.mockResolvedValue({ canceled: false, filePaths })
+    expect(await invoke(IPC.LIBRARY.SELECT_FILES)).toEqual({ ok: true, value: filePaths })
+    expect(mocks.showOpenDialog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        properties: ['openFile', 'multiSelections'],
+        filters: [expect.objectContaining({ extensions: expect.arrayContaining(['mp4', 'mkv']) })],
+      }),
+    )
+    mocks.importFiles.mockResolvedValue({ added: 2, skipped: 0, removed: 0, errors: [] })
+    expect(await invoke(IPC.LIBRARY.IMPORT_FILES, 'lib', filePaths)).toMatchObject({
+      ok: true,
+      value: { added: 2 },
+    })
+    expect(mocks.importFiles).toHaveBeenCalledExactlyOnceWith('lib', filePaths, expect.anything())
+    for (const invalid of [[], [''], ['one.mp4', 1], 'one.mp4', Array(1001).fill('one.mp4')]) {
+      expect(await invoke(IPC.LIBRARY.IMPORT_FILES, 'lib', invalid)).toMatchObject({ ok: false })
+    }
+    expect(mocks.importFiles).toHaveBeenCalledTimes(1)
+    mocks.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
+    expect(await invoke(IPC.LIBRARY.SELECT_FILES)).toEqual({ ok: true, value: null })
+  })
+
+  it('reveals an original source by library/video IDs and rejects renderer file paths', async () => {
+    expect(await invoke(IPC.VIDEOS.REVEAL_SOURCE, 'other-library', 'video')).toEqual({
+      ok: true,
+      value: null,
+    })
+    expect(mocks.revealVideoSource).toHaveBeenCalledWith('other-library', 'video')
+    for (const args of [
+      ['other-library', 'video', 'C:/renderer-supplied.mp4'],
+      [{ filePath: 'C:/renderer-supplied.mp4' }],
+      ['', 'video'],
+      ['other-library'],
+    ]) {
+      expect(await invoke(IPC.VIDEOS.REVEAL_SOURCE, ...args)).toMatchObject({ ok: false })
+    }
+    expect(mocks.revealVideoSource).toHaveBeenCalledTimes(1)
+    mocks.revealVideoSource.mockRejectedValueOnce(new Error('원본 영상 파일을 찾을 수 없습니다.'))
+    expect(await invoke(IPC.VIDEOS.REVEAL_SOURCE, 'other-library', 'video')).toEqual({
+      ok: false,
+      error: '원본 영상 파일을 찾을 수 없습니다.',
+    })
+  })
+
+  it('accepts cleanup rules and server preview IDs while rejecting renderer target paths', async () => {
+    expect(await invoke(IPC.MAINTENANCE.PREVIEW_NAMES, 'lib', { prefix: '[ad] ' })).toMatchObject({
+      ok: true,
+    })
+    expect(mocks.previewNames).toHaveBeenCalledWith('lib', { prefix: '[ad] ' })
+    for (const input of [
+      { prefix: '../' },
+      { prefix: '' },
+      { prefix: '[ad]', target: 'C:/other.mp4' },
+    ])
+      expect(await invoke(IPC.MAINTENANCE.PREVIEW_NAMES, 'lib', input)).toMatchObject({ ok: false })
+    expect(mocks.previewNames).toHaveBeenCalledTimes(1)
+    const preview = 'dd270470-14f8-45ed-af6e-f3b2da7c86d3'
+    expect(await invoke(IPC.MAINTENANCE.APPLY_NAMES, 'lib', preview, ['video'])).toMatchObject({
+      ok: true,
+    })
+    expect(mocks.applyNames).toHaveBeenCalledWith('lib', preview, ['video'])
+    expect(
+      await invoke(IPC.MAINTENANCE.APPLY_NAMES, 'lib', preview, ['video', 'video']),
+    ).toMatchObject({ ok: false })
+    expect(
+      await invoke(IPC.MAINTENANCE.APPLY_NAMES, 'lib', preview, [{ from: 'old', to: 'new' }]),
+    ).toMatchObject({ ok: false })
+    expect(mocks.applyNames).toHaveBeenCalledTimes(1)
+    expect(await invoke(IPC.MAINTENANCE.FIND_DUPLICATES, 'lib')).toMatchObject({ ok: true })
+    expect(mocks.findDuplicates).toHaveBeenCalledWith('lib')
+  })
   it('rejects subframes and unregistered windows before a privileged handler runs', async () => {
     const entry = mocks.handle.mock.calls.find(([name]) => name === IPC.VIDEOS.UPDATE_META)!
     const args = ['lib', 'video', { rating: 3 }]

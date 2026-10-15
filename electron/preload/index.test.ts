@@ -33,6 +33,28 @@ describe('preload bridge', () => {
   it('exposes all deployed operations with arguments accepted by the main process contracts', async () => {
     bridge.invoke.mockClear()
     await Promise.all([
+      api.privacy.get(),
+      api.privacy.save({
+        maskThumbnails: false,
+        revealOnHover: true,
+        exitAction: 'close',
+        exitUrl: '',
+      }),
+      api.privacy.exit(),
+      api.discovery.query('lib', { text: '미시청', page: 1 }),
+      api.discovery.favorite('lib', 'video', true),
+      api.discovery.tags('lib', ['축구']),
+      api.metadataImport.getSettings(),
+      api.metadataImport.updateSettings({ enabled: false, serverUrl: '' }),
+      api.metadataImport.search('example'),
+      api.metadataImport.apply('lib', 'video', {
+        expected: { title: null, memo: '', tags: '' },
+        patch: { title: 'Example' },
+      }),
+      api.maintenance.previewNames('lib', { prefix: '[sample] ' }),
+      api.maintenance.applyNames('lib', 'dd270470-14f8-45ed-af6e-f3b2da7c86d3', ['video']),
+      api.maintenance.findDuplicates('lib'),
+      api.maintenance.cancel('lib'),
       api.app.quit(),
       api.app.githubStar!.claimPrompt(),
       api.app.githubStar!.openRepository(),
@@ -56,10 +78,14 @@ describe('preload bridge', () => {
       api.library.delete('lib'),
       api.library.selectFolder(),
       api.library.importFolder('lib', 'C:/videos'),
+      api.library.selectFiles(),
+      api.library.importFiles('lib', ['C:/videos/one.mp4']),
       api.library.refresh('lib'),
       api.library.cancelWork('lib'),
       api.videos.search('lib', { sortBy: 'playCount' }),
+      api.videos.metadataOptions('lib'),
       api.videos.get('lib', 'video'),
+      api.videos.revealSource('lib', 'video'),
       api.videos.getPlaybackSource('lib', 'video'),
       api.videos.getNativePlayerInfo(),
       api.videos.openInNativePlayer('lib', 'video'),
@@ -76,6 +102,8 @@ describe('preload bridge', () => {
       api.playback.seek('lib', 'video', 1.5),
       api.playback.end('lib', 'video', 2),
       api.thumbnails.getForVideo('lib', 'video'),
+      api.thumbnails.listJobs('lib'),
+      api.thumbnails.cancelForVideo('lib', 'video'),
       api.thumbnails.setPrimary('lib', 'thumb', 'video'),
       api.thumbnails.ensureForVideo('lib', 'video'),
       api.thumbnails.captureAtTime('lib', 'video', 8),
@@ -127,6 +155,11 @@ describe('preload bridge', () => {
         channel,
       ).toBe(true)
     }
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      IPC.VIDEOS.REVEAL_SOURCE,
+      'lib',
+      'video',
+    )
     expect(bridge.invoke).toHaveBeenCalledWith(
       IPC.THUMBNAILS.ENSURE_FOR_VIDEO,
       'lib',

@@ -3,7 +3,7 @@ import type { Result } from '../../../shared/result'
 
 export default function GitHubStarNotice() {
   const capability = window.api.app.githubStar
-  const claim = useRef<Promise<Result<boolean, string>>>()
+  const claim = useRef<Promise<Result<boolean, string>> | undefined>(undefined)
   const [visible, setVisible] = useState(false)
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState(false)

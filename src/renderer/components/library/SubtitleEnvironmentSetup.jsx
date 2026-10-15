@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { SubtitleSetupGuidance, SubtitlePrivacyGuidance } from './SubtitleGuidance'
 
 const queryKey = ['subtitle-environment-setup']
 const activePhases = new Set(['checking', 'installing'])
@@ -20,6 +21,10 @@ const stateLabels = {
   failed: '확인 필요',
 }
 const errorMessage = (error) => (error instanceof Error ? error.message : String(error))
+const elapsedLabel = (milliseconds) => {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000))
+  return seconds < 60 ? `${seconds}초` : `${Math.floor(seconds / 60)}분 ${seconds % 60}초`
+}
 
 export default function SubtitleEnvironmentSetup() {
   const queryClient = useQueryClient()
@@ -53,6 +58,17 @@ export default function SubtitleEnvironmentSetup() {
   const phase = setup?.phase
   const updatedAt = setup?.updatedAt
   const active = activePhases.has(phase)
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    if (!active) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 5000)
+    return () => window.clearInterval(timer)
+  }, [active, setup?.stepStartedAt])
+  const currentComponent = setup?.components.find((item) => item.id === setup.currentComponent)
+  const stepStartedAt = Date.parse(setup?.stepStartedAt || '')
+  const lastUpdate = Date.parse(updatedAt || '')
+  const waitingForUpdate = active && Number.isFinite(lastUpdate) && now - lastUpdate >= 120_000
   const busy = action.isPending || active
   const error = action.error || status.error
   React.useEffect(() => {
@@ -95,8 +111,12 @@ export default function SubtitleEnvironmentSetup() {
           Windows에서 관리자 승인이나 재시작을 요청할 수 있습니다. 재시작 후 이 화면에서 설치를
           이어가세요.
         </p>
-        <p>Windows 안내에 따라 Ubuntu의 초기 설정이 필요할 수도 있습니다.</p>
+        <p>
+          Ubuntu 계정은 보통 앱이 준비합니다. 최초 설정 메시지가 계속되면 아래 안내를 확인하세요.
+        </p>
       </div>
+      <SubtitleSetupGuidance />
+      <SubtitlePrivacyGuidance />
       {status.isPending && (
         <p role="status" className="text-xs text-zinc-400">
           자막 환경 상태를 불러오는 중...
@@ -109,6 +129,17 @@ export default function SubtitleEnvironmentSetup() {
           className={`break-words text-xs leading-relaxed ${phase === 'ready' ? 'text-emerald-300' : phase === 'failed' || phase === 'restart-required' ? 'text-amber-200' : 'text-zinc-300'}`}
         >
           {setup.message}
+        </p>
+      )}
+      {active && currentComponent && Number.isFinite(stepStartedAt) && (
+        <p aria-label="설치 단계 경과" className="text-xs leading-relaxed text-indigo-200">
+          현재 단계: {currentComponent.label} · 경과 {elapsedLabel(now - stepStartedAt)}
+        </p>
+      )}
+      {waitingForUpdate && (
+        <p className="text-xs leading-relaxed text-amber-200">
+          {elapsedLabel(now - lastUpdate)} 동안 새 진행 안내가 없습니다. 권한 승인 창과 인터넷
+          연결을 확인해 주세요. Windows 설치 중에는 앱을 종료해도 설치가 계속될 수 있습니다.
         </p>
       )}
       {!!setup?.components.length && (
@@ -125,8 +156,12 @@ export default function SubtitleEnvironmentSetup() {
                   <span
                     className={`shrink-0 ${component.state === 'ready' ? 'text-emerald-300' : component.state === 'failed' ? 'text-amber-200' : 'text-zinc-400'}`}
                   >
-                    {component.state === 'checking' && !active
-                      ? '확인 전'
+                    {component.state === 'checking'
+                      ? !active
+                        ? '확인 전'
+                        : setup.currentComponent && component.id !== setup.currentComponent
+                          ? '대기 중'
+                          : stateLabels.checking
                       : stateLabels[component.state] || stateLabels.checking}
                     {component.state === 'installing' && percent !== null ? ` · ${percent}%` : ''}
                   </span>

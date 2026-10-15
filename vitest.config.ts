@@ -8,6 +8,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Windows/WSL process fixtures share the host; serialize to avoid startup timeout races.
+    maxWorkers: 1,
     include: ['src/**/*.test.ts', 'electron/**/*.test.ts'],
   },
 })
