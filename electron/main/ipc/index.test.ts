@@ -258,7 +258,6 @@ describe('IPC dispatch', () => {
     })
   })
 
-
   it('accepts cleanup rules and server preview IDs while rejecting renderer target paths', async () => {
     expect(await invoke(IPC.MAINTENANCE.PREVIEW_NAMES, 'lib', { prefix: '[ad] ' })).toMatchObject({
       ok: true,
