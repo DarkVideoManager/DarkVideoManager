@@ -85,6 +85,10 @@ test('opens privacy help by keyboard in settings and exposes only fixed official
   const summary = dialog.getByText('개인정보 처리 · 공식 배포 확인', { exact: true })
   await dialog.getByRole('button', { name: '닫기', exact: true }).focus()
   await page.keyboard.press('Tab')
+  await expect(
+    dialog.getByRole('button', { name: '단축키·재생 조작 안내', exact: true }),
+  ).toBeFocused()
+  await page.keyboard.press('Tab')
   await expect(summary).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(
