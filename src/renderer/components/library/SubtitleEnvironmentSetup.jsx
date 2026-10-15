@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { SubtitleSetupGuidance, SubtitlePrivacyGuidance } from './SubtitleGuidance'
 
 const queryKey = ['subtitle-environment-setup']
 const activePhases = new Set(['checking', 'installing'])
@@ -95,8 +96,12 @@ export default function SubtitleEnvironmentSetup() {
           Windows에서 관리자 승인이나 재시작을 요청할 수 있습니다. 재시작 후 이 화면에서 설치를
           이어가세요.
         </p>
-        <p>Windows 안내에 따라 Ubuntu의 초기 설정이 필요할 수도 있습니다.</p>
+        <p>
+          Ubuntu 계정은 보통 앱이 준비합니다. 최초 설정 메시지가 계속되면 아래 안내를 확인하세요.
+        </p>
       </div>
+      <SubtitleSetupGuidance />
+      <SubtitlePrivacyGuidance />
       {status.isPending && (
         <p role="status" className="text-xs text-zinc-400">
           자막 환경 상태를 불러오는 중...

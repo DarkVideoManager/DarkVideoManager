@@ -239,6 +239,7 @@ test('ESC closes through the background-aware app API and respects settings dial
   await expect
     .poll(() => page.evaluate(() => (window as unknown as QueueWindow).queueHarness.quitCalls))
     .toBe(1)
+  await page.getByRole('button', { name: '화면 다시 열기', exact: true }).click()
   await page.getByRole('button', { name: '설정', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')

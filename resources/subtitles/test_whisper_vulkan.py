@@ -3,7 +3,7 @@ import hashlib
 import io
 import json
 import os
-from contextlib import redirect_stderr
+from contextlib import nullcontext, redirect_stderr
 from pathlib import Path
 import subprocess
 import sys
@@ -18,6 +18,19 @@ import whisper_vulkan as vulkan
 
 
 class VulkanTests(unittest.TestCase):
+    def test_large_v2_cli_and_pinned_model_manifest(self):
+        model = vulkan.read_manifest()["models"]["large-v2"]
+        self.assertEqual(model["filename"], "ggml-large-v2.bin")
+        self.assertEqual(model["size"], 3094623691)
+        self.assertEqual(model["sha256"], "9a423fe4d40c82774b6af34115b8b935f34152246eb19e80e376071d3f999487")
+        self.assertIn("/5359861c739e955e79d9a303bcbc70fb988958b1/", model["url"])
+        with patch.object(sys, "argv", ["generate.py", "--model", "large-v2", "--backend", "vulkan"]), \
+             patch.object(generate, "cancel_on_stdin_close", return_value=nullcontext(None)), \
+             patch.object(generate, "run") as run:
+            self.assertEqual(generate.main(), 0)
+            self.assertEqual(run.call_args.args[0].model, "large-v2")
+            self.assertEqual(run.call_args.args[0].backend, "vulkan")
+
     def audio(self, path, seconds=2):
         with wave.open(str(path), "wb") as output:
             output.setnchannels(1)

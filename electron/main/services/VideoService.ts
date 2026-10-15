@@ -3,7 +3,12 @@ import { lstat } from 'fs/promises'
 import type { Database } from 'better-sqlite3'
 import { needsPlaybackProxy } from '../ffmpeg/playback.js'
 import { enqueuePlaybackConversion } from './PlaybackConversionService'
-import { findNativePlayer, openInNativePlayer } from './NativePlayerService'
+import {
+  assertNativePlayerLaunchGeneration,
+  findNativePlayer,
+  getNativePlayerLaunchGeneration,
+  openInNativePlayer,
+} from './NativePlayerService'
 import { openInMpv, seekMpvSession } from './MpvSessionService.js'
 import type { NativePlayerOptions, NativePlayerInfo } from '@shared/types'
 import { endPlayback } from './PlaybackService'
@@ -12,6 +17,7 @@ import { VideoRepository } from '../db/repositories/VideoRepository'
 import { SearchQuery, SearchResult, Video, VideoMeta } from '@shared/types'
 import { purgeVideoPlaybackCache, beginPlaybackCacheLease, trimPlaybackCache } from './CacheService'
 import { createLogger } from '../infra/logger'
+import { acquireSourceFile } from './SourceFileUsage'
 
 const log = createLogger('VideoService')
 
@@ -130,28 +136,35 @@ export async function openVideoInNativePlayer(
   webContents: WebContents,
   options: NativePlayerOptions = {},
 ): Promise<NativePlayerInfo> {
+  const generation = getNativePlayerLaunchGeneration()
   const video = getVideo(libraryId, videoId)
   if (!video) throw new Error('Video not found')
   if (video.removalMode) throw new Error('제거한 항목은 목록 복구 후 재생할 수 있습니다.')
-  const player = await findNativePlayer()
-  if (!player) throw new Error('No native player found. Install mpv, ffplay, or VLC.')
-  if (player.name === 'mpv') {
-    await openInMpv(
-      player.path,
-      libraryId,
-      video,
-      options.startTimeSec ?? 0,
-      options.width,
-      options.height,
-      options.x,
-      options.y,
-      webContents,
-    )
-    return player
+  const release = acquireSourceFile(video.filePath)
+  try {
+    const player = await findNativePlayer()
+    assertNativePlayerLaunchGeneration(generation)
+    if (!player) throw new Error('No native player found. Install mpv, ffplay, or VLC.')
+    if (player.name === 'mpv') {
+      await openInMpv(
+        player.path,
+        libraryId,
+        video,
+        options.startTimeSec ?? 0,
+        options.width,
+        options.height,
+        options.x,
+        options.y,
+        webContents,
+      )
+      return player
+    }
+    const opened = await openInNativePlayer(video.filePath, options, player)
+    endPlayback(libraryId, videoId, options.startTimeSec ?? video.resumePosSec)
+    return opened
+  } finally {
+    release()
   }
-  const opened = await openInNativePlayer(video.filePath, options, player)
-  endPlayback(libraryId, videoId, options.startTimeSec ?? video.resumePosSec)
-  return opened
 }
 export async function seekActivePlayback(
   libraryId: string,

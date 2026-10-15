@@ -106,6 +106,22 @@ describe('subtitle GPU routing and legacy resumes', () => {
     expect(calls.commands).toHaveLength(1)
     expect(calls.commands[0].command).toMatch(/python.exe$/)
   })
+  it('preserves the selected large-v2 model across native recognition and WSL translation', async () => {
+    await transcribeSubtitleAudio(
+      join(output, 'sample.wav'),
+      output,
+      { ...options, model: 'large-v2' },
+      new AbortController().signal,
+      vi.fn(),
+      true,
+    )
+    expect(calls.commands).toHaveLength(2)
+    for (const { args } of calls.commands) {
+      const modelIndex = args.indexOf('--model')
+      expect(modelIndex).toBeGreaterThan(-1)
+      expect(args[modelIndex + 1]).toBe('large-v2')
+    }
+  })
   it('uses the persisted Linux account for path conversion and translation after Ubuntu changes its default', async () => {
     writeFileSync(
       join(output, 'subtitle-environment.json'),

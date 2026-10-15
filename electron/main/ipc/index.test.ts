@@ -7,6 +7,9 @@ import { secureWindow } from '../infra/windowSecurity'
 
 const mocks = vi.hoisted(() => ({
   handle: vi.fn(),
+  previewNames: vi.fn(),
+  applyNames: vi.fn(),
+  findDuplicates: vi.fn(),
   showOpenDialog: vi.fn(),
   importCsvData: vi.fn(),
   closeLibrary: vi.fn(),
@@ -65,6 +68,12 @@ vi.mock('../db/repositories/VideoRepository', () => ({
 vi.mock('../services/DataImportService', () => ({
   previewCsvImport: vi.fn(),
   importCsvData: mocks.importCsvData,
+}))
+vi.mock('../services/LibraryMaintenanceService', () => ({
+  previewFilenameCleanup: mocks.previewNames,
+  applyFilenameCleanup: mocks.applyNames,
+  findExactDuplicates: mocks.findDuplicates,
+  cancelLibraryMaintenance: vi.fn(),
 }))
 vi.mock('../services/LibraryService', () => ({
   listLibraries: vi.fn(),
@@ -150,6 +159,33 @@ beforeEach(() => {
 })
 
 describe('IPC dispatch', () => {
+  it('accepts cleanup rules and server preview IDs while rejecting renderer target paths', async () => {
+    expect(await invoke(IPC.MAINTENANCE.PREVIEW_NAMES, 'lib', { prefix: '[ad] ' })).toMatchObject({
+      ok: true,
+    })
+    expect(mocks.previewNames).toHaveBeenCalledWith('lib', { prefix: '[ad] ' })
+    for (const input of [
+      { prefix: '../' },
+      { prefix: '' },
+      { prefix: '[ad]', target: 'C:/other.mp4' },
+    ])
+      expect(await invoke(IPC.MAINTENANCE.PREVIEW_NAMES, 'lib', input)).toMatchObject({ ok: false })
+    expect(mocks.previewNames).toHaveBeenCalledTimes(1)
+    const preview = 'dd270470-14f8-45ed-af6e-f3b2da7c86d3'
+    expect(await invoke(IPC.MAINTENANCE.APPLY_NAMES, 'lib', preview, ['video'])).toMatchObject({
+      ok: true,
+    })
+    expect(mocks.applyNames).toHaveBeenCalledWith('lib', preview, ['video'])
+    expect(
+      await invoke(IPC.MAINTENANCE.APPLY_NAMES, 'lib', preview, ['video', 'video']),
+    ).toMatchObject({ ok: false })
+    expect(
+      await invoke(IPC.MAINTENANCE.APPLY_NAMES, 'lib', preview, [{ from: 'old', to: 'new' }]),
+    ).toMatchObject({ ok: false })
+    expect(mocks.applyNames).toHaveBeenCalledTimes(1)
+    expect(await invoke(IPC.MAINTENANCE.FIND_DUPLICATES, 'lib')).toMatchObject({ ok: true })
+    expect(mocks.findDuplicates).toHaveBeenCalledWith('lib')
+  })
   it('rejects subframes and unregistered windows before a privileged handler runs', async () => {
     const entry = mocks.handle.mock.calls.find(([name]) => name === IPC.VIDEOS.UPDATE_META)!
     const args = ['lib', 'video', { rating: 3 }]

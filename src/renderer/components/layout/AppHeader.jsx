@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useLibraries } from '../../api/useLibraries'
 import { useLibraryStore } from '../../store/libraryStore'
 import SettingsDialog from '../settings/SettingsDialog'
+import { requestPrivacyExit } from '../privacy/PrivacyBoundary'
 function AppHeader() {
   const { data: libraries = [], isLoading } = useLibraries()
   const { activeLibraryId } = useLibraryStore()
@@ -26,6 +27,18 @@ function AppHeader() {
       </div>
       <nav className={'ml-2 flex items-center gap-2'}>
         <Link
+          to="/discover"
+          className="rounded px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800"
+        >
+          추천 탐색
+        </Link>
+        <Link
+          to="/maintenance"
+          className={`rounded px-3 py-1.5 text-xs ${location.pathname === '/maintenance' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+        >
+          파일 정리
+        </Link>
+        <Link
           to={'/'}
           className={`rounded px-3 py-1.5 text-xs ${location.pathname === '/' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
         >
@@ -45,6 +58,14 @@ function AppHeader() {
         </Link>
       </nav>
       <div className={'ml-auto'} />
+      <button
+        type="button"
+        onClick={requestPrivacyExit}
+        title="Ctrl+Shift+H"
+        className="rounded border border-zinc-700 px-3 py-1.5 text-xs"
+      >
+        화면 숨기기
+      </button>
       {isLoading && <span className={'text-xs text-zinc-500'}>{'불러오는 중...'}</span>}
       <button
         type="button"

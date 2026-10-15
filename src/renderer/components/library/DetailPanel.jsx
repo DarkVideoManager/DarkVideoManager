@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { thumbnailsApi } from '../../api'
 import { toLocalMediaUrl } from '../../utils/media'
 import SubtitleGenerationPanel from './SubtitleGenerationPanel'
+import MetadataImportDialog from './MetadataImportDialog'
 const STAR_COUNT = 5
 function StarRating({ value, onChange }) {
   const [hovered, setHovered] = React.useState(0)
@@ -82,6 +83,7 @@ function DetailPanel({
   subtitleNavigationRef,
 }) {
   const [tab, setTab] = React.useState(initialTab)
+  const [showMetadataImport, setShowMetadataImport] = React.useState(false)
   const [memo2, setMemo] = React.useState(video.memo ?? '')
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
   const [deleteMode, setDeleteMode] = React.useState('trash')
@@ -156,10 +158,7 @@ function DetailPanel({
   const updateMeta = useMutation({
     onMutate: () => setActionError(null),
     mutationFn: async (patch) => {
-      const res = await window.api.videos.updateMeta(libraryId, video.id, {
-        rating: patch.rating ?? video.rating,
-        memo: patch.memo ?? video.memo ?? '',
-      })
+      const res = await window.api.videos.updateMeta(libraryId, video.id, patch)
       if (!res.ok) throw new Error(res.error)
     },
     onSuccess: () => {
@@ -266,10 +265,12 @@ function DetailPanel({
   }, [initialTab, video.id])
   React.useEffect(() => {
     setShowDeleteConfirm(false)
+    setShowMetadataImport(false)
     setDeleteError(null)
     setRestoreError(null)
     setActionError(null)
   }, [video.id])
+  React.useEffect(() => () => clearTimeout(memoTimerRef.current), [video.id])
   React.useEffect(() => {
     if (!showDeleteConfirm) return
     const cancelOnEscape = (event) => {
@@ -290,6 +291,7 @@ function DetailPanel({
     setMemo(value)
     if (memoTimerRef.current) clearTimeout(memoTimerRef.current)
     memoTimerRef.current = setTimeout(() => {
+      memoTimerRef.current = null
       updateMeta.mutate({
         memo: value,
       })
@@ -386,6 +388,27 @@ function DetailPanel({
           <div ref={subtitleNavigationRef} className="h-full min-h-0" />
         ) : tab === 'info' ? (
           <div className={'space-y-4'}>
+            {!isRemoved && (
+              <button
+                type="button"
+                disabled={updateMeta.isPending}
+                className="w-full rounded bg-indigo-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+                onClick={async () => {
+                  try {
+                    if (memoTimerRef.current) {
+                      clearTimeout(memoTimerRef.current)
+                      memoTimerRef.current = null
+                      await updateMeta.mutateAsync({ memo: memo2 })
+                    }
+                    setShowMetadataImport(true)
+                  } catch {
+                    /* mutation displays its save error */
+                  }
+                }}
+              >
+                Stash에서 정보 가져오기
+              </button>
+            )}
             {primaryThumbnail ? (
               <img
                 src={toLocalMediaUrl(primaryThumbnail.filePath, primaryThumbnail.id)}
@@ -612,6 +635,14 @@ function DetailPanel({
             </div>
           </div>
         </div>
+      )}
+      {showMetadataImport && (
+        <MetadataImportDialog
+          key={video.id}
+          video={video}
+          libraryId={libraryId}
+          onClose={() => setShowMetadataImport(false)}
+        />
       )}
     </div>
   )

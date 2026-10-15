@@ -32,9 +32,80 @@ import type {
   CacheCleanupResult,
 } from '../../src/shared/types'
 import type { Result } from '../../src/shared/result'
+import type {
+  StashSettings,
+  StashSettingsPatch,
+  MetadataSearchResult,
+  MetadataSearchMode,
+  MetadataApply,
+  MetadataApplyResult,
+} from '../../src/shared/metadataImport'
 import type { PlaybackConversionJob } from '../../src/shared/playbackConversion'
+import type {
+  CleanupRule,
+  DuplicateResult,
+  RenamePreview,
+  RenameResult,
+} from '../../src/shared/maintenance'
+
+import type { PrivacySettings } from '../../src/shared/privacy'
+import type {
+  DiscoveryQuery,
+  DiscoveryResult,
+  DiscoveryPreferences,
+} from '../../src/shared/discovery'
 
 const api = {
+  privacy: {
+    get: (): Promise<Result<PrivacySettings, string>> => ipcRenderer.invoke(IPC.PRIVACY.GET),
+    save: (settings: PrivacySettings): Promise<Result<PrivacySettings, string>> =>
+      ipcRenderer.invoke(IPC.PRIVACY.SAVE, settings),
+    exit: (): Promise<Result<PrivacySettings['exitAction'], string>> =>
+      ipcRenderer.invoke(IPC.PRIVACY.EXIT),
+  },
+  discovery: {
+    query: (libraryId: string, query: DiscoveryQuery): Promise<Result<DiscoveryResult, string>> =>
+      ipcRenderer.invoke(IPC.DISCOVERY.QUERY, libraryId, query),
+    favorite: (
+      libraryId: string,
+      videoId: string,
+      favorite: boolean,
+    ): Promise<Result<DiscoveryPreferences, string>> =>
+      ipcRenderer.invoke(IPC.DISCOVERY.FAVORITE, libraryId, videoId, favorite),
+    tags: (libraryId: string, tags: string[]): Promise<Result<DiscoveryPreferences, string>> =>
+      ipcRenderer.invoke(IPC.DISCOVERY.TAGS, libraryId, tags),
+  },
+  metadataImport: {
+    getSettings: (): Promise<Result<StashSettings, string>> =>
+      ipcRenderer.invoke(IPC.METADATA_IMPORT.GET_SETTINGS),
+    updateSettings: (patch: StashSettingsPatch): Promise<Result<StashSettings, string>> =>
+      ipcRenderer.invoke(IPC.METADATA_IMPORT.UPDATE_SETTINGS, patch),
+    search: (
+      query: string,
+      mode: MetadataSearchMode = 'text',
+    ): Promise<Result<MetadataSearchResult, string>> =>
+      ipcRenderer.invoke(IPC.METADATA_IMPORT.SEARCH, query, mode),
+    apply: (
+      libraryId: string,
+      videoId: string,
+      input: MetadataApply,
+    ): Promise<Result<MetadataApplyResult, string>> =>
+      ipcRenderer.invoke(IPC.METADATA_IMPORT.APPLY, libraryId, videoId, input),
+  },
+  maintenance: {
+    previewNames: (libraryId: string, rule: CleanupRule): Promise<Result<RenamePreview, string>> =>
+      ipcRenderer.invoke(IPC.MAINTENANCE.PREVIEW_NAMES, libraryId, rule),
+    applyNames: (
+      libraryId: string,
+      previewId: string,
+      videoIds: string[],
+    ): Promise<Result<RenameResult, string>> =>
+      ipcRenderer.invoke(IPC.MAINTENANCE.APPLY_NAMES, libraryId, previewId, videoIds),
+    findDuplicates: (libraryId: string): Promise<Result<DuplicateResult, string>> =>
+      ipcRenderer.invoke(IPC.MAINTENANCE.FIND_DUPLICATES, libraryId),
+    cancel: (libraryId: string): Promise<Result<boolean, string>> =>
+      ipcRenderer.invoke(IPC.MAINTENANCE.CANCEL, libraryId),
+  },
   app: {
     githubStar: {
       claimPrompt: (): Promise<Result<boolean, string>> =>
