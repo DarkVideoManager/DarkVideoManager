@@ -7,7 +7,7 @@
     <title>DarkVideoManager — 다시 보고 싶은 순간을 찾다</title>
     <meta
       name="description"
-      content="흩어진 영상을 나만의 라이브러리로. 검색, 하이라이트, AI 자막까지 한곳에서 관리하는 Windows용 로컬 동영상 매니저 DarkVideoManager를 만나보세요."
+      content="흩어진 영상을 나만의 라이브러리로. 카테고리·태그 검색, 하이라이트, AI 자막까지 한곳에서 관리하는 Windows용 로컬 동영상 매니저 DarkVideoManager를 만나보세요."
     />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="ko_KR" />
@@ -144,6 +144,40 @@
         </div>
       </section>
       <section
+        class="container section-space spec-section feature-briefs"
+        id="updates"
+        aria-labelledby="updates-title"
+      >
+        <div class="spec-heading">
+          <span class="spec-index">0.3.0 / 업데이트</span>
+          <h2 id="updates-title">분류부터 재생까지 더 편하게</h2>
+          <p>
+            Windows 앱 0.3.0의 주요 변경사항입니다.
+            <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.0"
+              >릴리스 안내</a
+            >에서 다운로드와 전체 변경사항을 확인하세요.
+          </p>
+        </div>
+        <div class="spec-grid">
+          <article class="spec-card">
+            <h3>내 영상 정리</h3>
+            <p>
+              개별 파일 가져오기, 카테고리와 태그 필터, 파일명 변경 미리보기와 동일 파일 찾기를
+              지원합니다. 직접 연결한 Stash에서 정보를 조회한 뒤 필요한 항목만 골라 적용할 수
+              있습니다.
+            </p>
+          </article>
+          <article class="spec-card">
+            <h3>재생과 자막 작업</h3>
+            <p>
+              숫자 키로 재생 위치를 옮기고, 이동 간격·전체화면·확대 화면을 조절할 수 있습니다.
+              해상도와 비트레이트, 자막 작업의 실제 처리 장치도 확인할 수 있으며 AV1 썸네일 처리를
+              개선했습니다.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section
         class="features container section-space spec-section feature-briefs"
         id="features"
         aria-labelledby="features-title"
@@ -155,60 +189,68 @@
         </div>
         <div class="spec-grid">
           <article class="spec-card">
-            <h3>라이브러리 주요 기능</h3>
-            <p>기본적으로 파일 탐색기가 제공하는 기능은 대부분 제공합니다.</p>
+            <h3>라이브러리 관리</h3>
+            <p>폴더나 개별 영상 파일을 등록하고, 내 기준에 맞춰 정리합니다.</p>
             <ul class="feature-points">
-              <li>영상마다 몇 번 봤는지, 얼마나 오래 봤는지 기록하고 보여줍니다.</li>
-              <li>영상에 대한 나의 평점을 매겨 나중에 평점별로 정렬해서 볼 수도 있습니다.</li>
+              <li>제목·메모·별점·카테고리를 편집하고 태그 또는 <code>#태그</code>로 찾습니다.</li>
+              <li>시청 횟수와 시간을 기록하고, 별점·많이 본 순서·안 본 순서로 정렬합니다.</li>
+              <li>자막 유무를 확인하고, 필요한 환경을 준비한 뒤 AI 자막을 생성합니다.</li>
               <li>
-                자막이 있는 영상인지 없는 영상인지 화면에 표시하고, 자막이 없으면 바로 생성
-                가능합니다.
+                파일명 변경은 미리 확인하고 적용합니다. 동일 파일은 전체 내용을 비교해 찾으며 자동
+                삭제하지 않습니다.
               </li>
-              <li>내가 많이 본 순서로 정렬하거나, 안본 순서로 정렬할 수도 있습니다.</li>
-              <li>도저히 못보겠는 영상은 삭제할수도 있습니다.</li>
+              <li>폴더에 영상을 추가했다면 목록 업데이트로 다시 읽어옵니다.</li>
             </ul>
           </article>
           <article class="spec-card">
-            <h3>동영상 플레이어 기본 기능</h3>
-            <p>기본적으로 동영상 플레이어가 제공하는 기능은 대부분 제공합니다.</p>
+            <h3>장면을 찾는 플레이어</h3>
+            <p>키보드와 화면 도구로 원하는 순간을 찾아 다시 봅니다.</p>
             <ul class="feature-points">
               <li>
-                <strong>가속도 센서가 달린 재생 이동기능</strong>
-                <kbd>A</kbd>·<kbd>D</kbd>로 1초씩 이동합니다. 길게 누를수록 더 빨라져 불필요한
-                장면을 빠르게 넘길 수 있습니다.
+                <strong>재생 위치 이동</strong>
+                <kbd>A</kbd>·<kbd>D</kbd> 또는 방향키로 이동합니다. 기본 간격은 1초이며 설정에서
+                바꿀 수 있습니다. 길게 누르면 빨라지고, 숫자 <kbd>0</kbd>~<kbd>9</kbd>는 영상의
+                0~90% 위치로 이동합니다.
               </li>
               <li>
                 <strong>하이라이트 기능</strong>
-                중요한 장면, 스토리상 분기점, 특정 동작을 시작하는 장면 등으로 빠르게 이동할 수
-                있도록 <kbd>S</kbd>를 누르면 언제든지 해당 순간을 저장하고 나중에 하이라이트 탭이나
-                단축키 <kbd>Q</kbd>·<kbd>E</kbd>로 다시 이동할 수 있습니다.
+                <kbd>S</kbd>로 현재 순간을 저장하고 하이라이트 탭이나 <kbd>Q</kbd>·<kbd>E</kbd>로
+                다시 이동합니다.
               </li>
               <li>
                 <strong>자막 이동</strong>
-                보통 자막이 있는 부분은 불필요하므로 빠르게 자막만 보면서 넘길 수 있습니다.
-                <kbd>Z</kbd>·<kbd>C</kbd>로 이전·다음 자막으로 이동합니다. 한번에 자막을 훑어볼 수
-                있게 자막 탐색기도 제공합니다.
+                <kbd>Z</kbd>·<kbd>C</kbd>로 이전·다음 자막으로 이동합니다. 자막 탐색기에서 내용을
+                훑어보고 장면을 선택할 수도 있습니다.
+              </li>
+              <li>
+                앱 안의 플레이어에서 전체화면, 최대 4배 확대와 화면 이동, 해상도·비트레이트 정보를
+                제공합니다.
               </li>
             </ul>
           </article>
           <article class="spec-card">
-            <h3>통계 기능</h3>
+            <h3>시청 통계와 추천</h3>
             <p>
-              내가 이 프로그램에 얼마나 시간을 썼는지, 뭘 가장 많이 봤는지, 주요 사용 태그 등 다양한
-              데이터를 보여줍니다.
+              시청 시간, 자주 본 영상과 태그를 확인합니다. 내 라이브러리의 별점·즐겨찾기·태그·시청
+              기록을 바탕으로 영상을 추천하며, 지원하는 조건을 문장으로 입력해 찾을 수도 있습니다.
+              외부 추천 서비스로 시청 기록을 보내지 않습니다.
             </p>
             <button type="button" class="text-button" data-open-mode="stats">
               데모에서 통계 보기 <svg aria-hidden="true"><use href="#i-arrow" /></svg>
             </button>
           </article>
           <article class="spec-card">
-            <h3>긴급 탈출 기능</h3>
+            <h3>화면을 빠르게 가리기</h3>
             <p>
-              모든 상황에서 <kbd>ESC</kbd>를 누르면 즉시 이전 화면으로 돌아갑니다. (ESC를 따닥
-              누르면 바로 꺼짐) 라이브러리와 자막 작업 화면에서는 창을 닫습니다. 자막 생성중이라면
-              프로그램은 백그라운드에 그대로 둡니다.
+              앱에 포커스가 있을 때 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd> 또는 화면 숨기기
+              버튼으로 창 닫기·화면 덮기·지정한 웹페이지 열기를 실행합니다. 앱 안의 재생은 멈추고,
+              앱이 직접 실행한 외부 플레이어도 닫습니다.
             </p>
-            <p>자막 작업이 남아 있으면 창을 닫아도 백그라운드에서 계속 진행합니다.</p>
+            <p>
+              자막 작업은 백그라운드에서 계속됩니다. 썸네일 가리기도 설정할 수 있습니다.
+              전체화면에서 <kbd>Esc</kbd>는 먼저 전체화면을 해제하며, 화면 가리기는 파일 암호화나
+              기록 삭제 기능이 아닙니다.
+            </p>
           </article>
           <article class="spec-card">
             <h3>자막 생성 기능</h3>
@@ -217,21 +259,32 @@
               Cloud API 키를 등록하고 사용을 켜서 이용할 수 있습니다.
             </p>
             <p>
-              설정 방법이 어렵다면 GPT나 클로드한테 자막 생성과 번역 설정 방법을 물어보시면 될 것
-              같습니다.
+              새 음성 인식 작업은 내 PC의 Vulkan GPU를 사용합니다. GPU를 사용할 수 없으면 CPU로 자동
+              전환하지 않고 원인을 안내합니다. 작업 화면에서 실제 처리 장치를 확인할 수 있습니다.
+              준비 방법은
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/subtitles.md"
+                >자막 사용 안내</a
+              >를 참고하세요.
             </p>
             <button type="button" class="text-button" data-open-mode="generation">
               데모에서 생성 과정 보기 <svg aria-hidden="true"><use href="#i-arrow" /></svg>
             </button>
           </article>
           <article class="spec-card">
-            <h3>기타</h3>
-            <p>이 프로그램은 자막 도구·모델 설치와 Google 번역 외에 인터넷을 사용하지 않습니다.</p>
+            <h3>Stash에서 정보 가져오기</h3>
             <p>
-              소스는
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager"
-                >GitHub에 공개되어 있습니다</a
-              >. 오픈소스이므로 직접 코드를 다운받아서 GPT한테 분석해달라고 하셔도 됩니다.
+              직접 설정한 Stash 서버에 파일명이나 식별자로 후보를 조회합니다. 결과를 확인하고 수정한
+              뒤 제목·메모·태그 중 선택한 항목만 적용합니다. 인물 정보도 원할 때 태그로 가져올 수
+              있으며, 기존 카테고리·별점·시청 기록은 유지합니다.
+            </p>
+            <p>
+              기본값은 꺼짐이며 조회 버튼을 눌러야 통신합니다. 임의의 사이트를 자동 수집하거나
+              영상을 업로드하지 않습니다.
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/METADATA_IMPORT.md"
+                >연결과 가져오기 안내</a
+              >
             </p>
           </article>
         </div>
@@ -246,9 +299,9 @@
             <span class="spec-index">02 / 저장과 인터넷 사용</span>
             <h2 id="privacy-title">파일 저장과 인터넷 사용</h2>
             <p>
-              당연히 회원가입 없이 사용할 수 있습니다. 영상과 시청 기록을 운영자에게 보내지 않으며,
-              사용 내역이나 오류 보고도 자동으로 보내지 않습니다. 필요한 도구를 내려받거나 Google
-              번역을 사용할 때는 인터넷을 사용합니다.
+              회원가입 없이 사용할 수 있습니다. 영상과 시청 기록을 운영자에게 보내지 않으며, 사용
+              내역이나 오류 보고도 자동으로 보내지 않습니다. 도구·모델 다운로드와 직접 켠 Google
+              번역, Stash 조회, 선택한 외부 웹페이지 열기는 네트워크를 사용합니다.
             </p>
           </div>
           <div class="data-flow-list">
@@ -318,6 +371,23 @@
               </dl>
             </article>
             <article class="data-flow-row">
+              <h3>Stash 정보 조회</h3>
+              <dl>
+                <div>
+                  <dt>사용 조건</dt>
+                  <dd>서버를 설정하고 켠 뒤 조회 버튼을 눌렀을 때만 사용</dd>
+                </div>
+                <div>
+                  <dt>전송 내용</dt>
+                  <dd>
+                    조회창에서 확인한 파일명·식별자와 API 키를 지정한 Stash 서버로 보냅니다. 영상
+                    파일이나 시청 기록은 보내지 않습니다. HTTPS 또는 같은 PC의 HTTP 서버에 연결할 수
+                    있습니다.
+                  </dd>
+                </div>
+              </dl>
+            </article>
+            <article class="data-flow-row">
               <h3>자막에 필요한 도구 설치</h3>
               <dl>
                 <div>
@@ -346,9 +416,10 @@
             <article>
               <h3>저장한 자료의 보호</h3>
               <p>
-                Google API 키는 Windows의 보안 기능으로 암호화해 저장합니다. 영상 정보, 일반 설정,
-                영상, 자막과 임시 파일은 앱에서 암호화하지 않습니다. OneDrive 같은 동기화 폴더에 둔
-                자료는 해당 서비스 설정에 따라 온라인이나 다른 기기에도 저장될 수 있습니다.
+                Google·Stash API 키는 Windows의 보안 기능으로 암호화해 저장합니다. 영상 정보, 일반
+                설정, 영상, 자막과 임시 파일은 앱에서 암호화하지 않습니다. OneDrive 같은 동기화
+                폴더에 둔 자료는 해당 서비스 설정에 따라 온라인이나 다른 기기에도 저장될 수
+                있습니다.
               </p>
             </article>
             <article>
@@ -398,9 +469,9 @@
               <li>
                 <h4>라이브러리 등록</h4>
                 <p>
-                  동영상이 있는 폴더를 등록합니다. 목록에서 영상을 재생하고 제목, 태그, 별점과
-                  메모를 입력할 수 있습니다. 자막을 만들려면 영상 폴더에 새 파일을 저장할 수 있어야
-                  합니다.
+                  동영상이 있는 폴더를 등록하거나 개별 파일을 가져옵니다. 목록에서 영상을 재생하고
+                  제목, 카테고리, 태그, 별점과 메모를 입력할 수 있습니다. 자막을 만들려면 영상
+                  폴더에 새 파일을 저장할 수 있어야 합니다.
                 </p>
               </li>
               <li>
@@ -431,8 +502,8 @@
               <div>
                 <dt>음성 인식</dt>
                 <dd>
-                  Vulkan을 지원하는 그래픽카드가 필요합니다. 그래픽 드라이버는 별도로 설치해야
-                  합니다. 그래픽카드를 사용할 수 없으면 CPU로 바꾸어 진행하지 않고 오류를
+                  새 음성 인식 작업에는 Vulkan을 지원하는 그래픽카드가 필요합니다. 그래픽 드라이버는
+                  별도로 설치해야 합니다. GPU를 사용할 수 없으면 CPU로 자동 전환하지 않고 오류를
                   표시합니다.
                 </dd>
               </div>
@@ -453,8 +524,9 @@
               <div>
                 <dt>인터넷</dt>
                 <dd>
-                  도구와 모델을 내려받거나 Google 번역을 사용할 때 필요합니다. 설치를 마친 음성
-                  인식과 내 PC에서 하는 번역은 인터넷 없이 사용할 수 있습니다.
+                  도구·모델 다운로드, Google 번역, 외부 Stash 서버 조회와 웹페이지 열기에
+                  필요합니다. 준비를 마친 음성 인식과 내 PC에서 하는 번역은 인터넷 없이 사용할 수
+                  있습니다.
                 </dd>
               </div>
               <div>
@@ -469,11 +541,19 @@
         </div>
         <div class="spec-status-grid">
           <article>
-            <h3>테스트한 환경</h3>
+            <h3>0.3.0에서 확인한 범위</h3>
             <p>
-              WSL이 없는 새 Windows 11 가상 PC에서 설치와 재시작 후 준비 상태를 확인했습니다.
-              그래픽카드를 이용한 자막 생성과 한국어 번역은 별도 PC에서 확인했습니다. Windows 10과
-              모든 그래픽카드·드라이버 조합을 시험한 것은 아닙니다.
+              Windows 11 PC에서 포터블 시작·종료와 배포 파일 구성을 확인했습니다. Radeon RX 9060
+              XT의 Vulkan GPU와 base 모델로 짧은 영어 합성 음성의 원어 자막 생성도 확인했습니다.
+              공식 자동 검사는 단위 검사 594개와 브라우저 동작 검사 164개를 통과했습니다.
+            </p>
+            <p>
+              새 Windows 환경의 설치형 설치·제거와 WSL 설치·재시작, 모든 GPU·언어·모델, 한국어 번역
+              품질을 이번 릴리스에서 검증한 것은 아닙니다. 자세한 결과와 제한은
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md"
+                >0.3.0 검증 기록</a
+              >에서 확인할 수 있습니다.
             </p>
           </article>
           <article class="download-panel" id="downloads" aria-labelledby="download-heading">
@@ -517,6 +597,14 @@
             </p>
             <p class="download-updated" data-download-updated></p>
             <p>
+              설치형과 포터블 실행 파일에는 코드 서명이 없습니다. 공식 릴리스의 SHA-256과 비교하는
+              방법은
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/download-verification.md"
+                >다운로드 확인 안내</a
+              >를 참고하세요.
+            </p>
+            <p>
               <a
                 data-release-link
                 href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
@@ -544,7 +632,8 @@
             <p>
               일반 영상 관리·재생·하이라이트는 로컬에서 사용합니다. AI 도구와 모델을 처음 준비할
               때는 인터넷이 필요합니다. 모델 준비 후 원어 자막 생성과 준비된 Ollama를 이용한 로컬
-              번역은 로컬에서 처리하며, Google Cloud 번역은 인터넷이 필요합니다.
+              번역은 로컬에서 처리합니다. Google Cloud 번역, 외부 Stash 서버 조회, 선택한 웹페이지
+              열기에는 네트워크가 필요합니다.
             </p>
           </details>
           <details>
@@ -559,8 +648,13 @@
             <p>
               앱은 운영자 서버에 영상을 업로드하지 않습니다. 음성 인식과 로컬 번역은 PC에서
               처리합니다. Google Cloud Translation을 직접 켠 경우에는 번역할 자막 텍스트가 Google에
-              전송되며 비용이 발생할 수 있습니다. 앱 데이터는 암호화 보관함이 아니며, OneDrive 등
-              동기화 폴더는 해당 서비스 설정을 따릅니다.
+              전송되며 비용이 발생할 수 있습니다. Stash 조회는 직접 설정한 서버에 확인한 검색어와
+              인증 정보를 전송하며 영상은 업로드하지 않습니다. 앱 데이터는 암호화 보관함이 아니며,
+              OneDrive 등 동기화 폴더는 해당 서비스 설정을 따릅니다.
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/PRIVACY.md"
+                >개인정보와 통신 안내</a
+              >에서 기능별 내용을 확인하세요.
             </p>
           </details>
           <details>
@@ -579,10 +673,27 @@
             </p>
           </details>
           <details>
-            <summary>Mac이나 Linux에서도 사용할 수 있나요?<span>+</span></summary>
+            <summary>백신이 차단하거나 경고하면 어떻게 하나요?<span>+</span></summary>
             <p>
-              현재 지원 대상은 Windows 10/11 x64입니다. AI 음성 인식에는 Vulkan을 지원하는 GPU가
-              필요하며, 로컬 번역 환경은 WSL Ubuntu를 사용합니다.
+              0.3.0 실행 파일은 미서명입니다. V3 차단 제보는 현재 파일·해시·탐지명 등 재현 자료가
+              충분하지 않아 원인이나 해소 여부를 확인하지 못했습니다. 보호 기능을 끄기보다 공식
+              파일의 해시와 탐지 메시지를 확인하고
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/download-verification.md"
+                >검증·제보 안내</a
+              >를 따라 주세요. 미서명 여부만으로 탐지 원인을 단정할 수는 없습니다.
+            </p>
+          </details>
+          <details>
+            <summary>다른 운영체제나 스트리밍도 지원하나요?<span>+</span></summary>
+            <p>
+              현재 배포 대상은 Windows 10/11 x64의 로컬 영상입니다. macOS·Linux 데스크톱, Windows
+              ARM·모바일, 스트리밍 URL과 전용 NAS 연동은 구현되지 않았습니다. VSR·SVP 전용 설정과
+              호환성도 제공·검증하지 않습니다. 관련 내용은
+              <a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/platform-and-playback-scope.md"
+                >지원 범위와 검토 항목</a
+              >에 정리되어 있으며 구현 일정이나 지원 약속을 뜻하지 않습니다.
             </p>
           </details>
         </div>
