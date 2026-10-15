@@ -113,6 +113,15 @@ describe('IPC contracts', () => {
     ).toBe(true)
   })
 
+  it('accepts only supported integer seek intervals in settings updates', () => {
+    for (const seekStepSec of [1, 5, 30, 600]) {
+      expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ seekStepSec }]).success).toBe(true)
+    }
+    for (const seekStepSec of [0, -1, 1.5, 601, NaN, Infinity, '10', null]) {
+      expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ seekStepSec }]).success).toBe(false)
+    }
+  })
+
   it('rejects unknown search fields and invalid ranges', () => {
     expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ cacheLimitGb: 10 }]).success).toBe(
       true,

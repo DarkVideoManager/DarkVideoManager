@@ -63,6 +63,7 @@ describe('preload bridge', () => {
       api.videos.search('lib', { sortBy: 'playCount' }),
       api.videos.metadataOptions('lib'),
       api.videos.get('lib', 'video'),
+      api.videos.revealSource('lib', 'video'),
       api.videos.getPlaybackSource('lib', 'video'),
       api.videos.getNativePlayerInfo(),
       api.videos.openInNativePlayer('lib', 'video'),
@@ -132,6 +133,11 @@ describe('preload bridge', () => {
         channel,
       ).toBe(true)
     }
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      IPC.VIDEOS.REVEAL_SOURCE,
+      'lib',
+      'video',
+    )
     expect(bridge.invoke).toHaveBeenCalledWith(
       IPC.THUMBNAILS.ENSURE_FOR_VIDEO,
       'lib',

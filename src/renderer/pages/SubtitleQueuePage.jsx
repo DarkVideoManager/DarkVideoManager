@@ -33,6 +33,12 @@ const errorMessage = (error) => (error instanceof Error ? error.message : String
 
 function QueueItem({ job, libraryName }) {
   const queryClient = useQueryClient()
+  const revealSource = useMutation({
+    mutationFn: async () => {
+      const result = await window.api.videos.revealSource(job.libraryId, job.videoId)
+      if (!result.ok) throw new Error(result.error)
+    },
+  })
   const action = useMutation({
     mutationFn: async (operation) => {
       const result = await window.api.subtitles[`${operation}Job`](job.id)
@@ -105,6 +111,14 @@ function QueueItem({ job, libraryName }) {
           </ul>
         )}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={revealSource.isPending}
+            onClick={() => revealSource.mutate()}
+            className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {revealSource.isPending ? '원본 위치 여는 중...' : '원본 위치 열기'}
+          </button>
           {resumable ? (
             <button
               type="button"
@@ -148,6 +162,11 @@ function QueueItem({ job, libraryName }) {
         {action.error && (
           <p role="alert" className="break-words text-xs text-red-300">
             {errorMessage(action.error)}
+          </p>
+        )}
+        {revealSource.error && (
+          <p role="alert" className="break-words text-xs text-red-300">
+            원본 위치를 열지 못했습니다: {errorMessage(revealSource.error)}
           </p>
         )}
       </article>

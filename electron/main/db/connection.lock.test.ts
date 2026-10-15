@@ -65,6 +65,15 @@ function expectReaderPreservesLock(content: string): void {
 }
 
 describe('database lock ownership', () => {
+  it('does not create a missing database when reopening an existing library', () => {
+    const missingPath = join(directory, 'missing.db')
+    expect(() => openDatabase('missing', missingPath, { fileMustExist: true })).toThrow()
+    expect(existsSync(missingPath)).toBe(false)
+    expect(existsSync(`${missingPath}.lock`)).toBe(false)
+    const reopened = openDatabase('existing', dbPath, { fileMustExist: true })
+    expect(reopened.prepare('SELECT body FROM notes').get()).toEqual({ body: 'preserved' })
+  })
+
   it('recovers a dead owner and preserves existing database contents', () => {
     writeLock()
     vi.mocked(process.kill).mockImplementation(() => {

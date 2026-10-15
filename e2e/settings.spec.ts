@@ -26,7 +26,11 @@ async function prepareSettings(page: Page): Promise<void> {
   await page.evaluate(() => {
     const gb = 1024 ** 3
     const state: SettingsHarness = {
-      settings: { cacheLimitGb: 10, nativePlayer: { name: 'mpv', path: 'C:\\Apps\\mpv.exe' } },
+      settings: {
+        cacheLimitGb: 10,
+        seekStepSec: 1,
+        nativePlayer: { name: 'mpv', path: 'C:\\Apps\\mpv.exe' },
+      },
       info: { usedBytes: 2 * gb, limitBytes: 10 * gb, fileCount: 4, protectedBytes: gb / 2 },
       patches: [],
       cleanCalls: 0,
@@ -183,7 +187,9 @@ for (const failure of ['result', 'rejection']) {
     await expect(
       acceleration.getByRole('button', { name: '다시 확인', exact: true }),
     ).toBeDisabled()
-    await dialog.getByRole('spinbutton').fill('20')
+    await dialog
+      .getByRole('spinbutton', { name: '캐시 용량 상한 (GB)', exact: true })
+      .fill('20')
     await dialog.getByRole('button', { name: '저장', exact: true }).click()
     await expect(dialog.getByRole('status')).toHaveText('캐시 용량 상한을 저장했습니다.')
     await expect(acceleration.getByText('가속 상태 확인 중...')).toBeVisible()
@@ -195,7 +201,9 @@ for (const failure of ['result', 'rejection']) {
     ).toBeVisible()
     await expect(acceleration.getByText('가속 상태 확인 중...')).toHaveCount(0)
     await expect(acceleration.getByRole('button', { name: '다시 확인', exact: true })).toBeEnabled()
-    await dialog.getByRole('spinbutton').fill('30')
+    await dialog
+      .getByRole('spinbutton', { name: '캐시 용량 상한 (GB)', exact: true })
+      .fill('30')
     await dialog
       .getByRole('combobox', { name: '재생에 사용할 외부 플레이어', exact: true })
       .selectOption('auto')
@@ -284,7 +292,7 @@ test('native settings select detected and manual players, apply only on save, an
   await dialog.getByRole('button', { name: '실행 파일 선택', exact: true }).click()
   await expect(choice).toHaveValue('ffplay:D:\\Players\\ffplay.exe')
   await expect(dialog.getByTestId('saved-native-player')).toHaveText('vlc · C:\\Apps\\vlc.exe')
-  await dialog.getByRole('spinbutton').fill('30')
+  await dialog.getByRole('spinbutton', { name: '캐시 용량 상한 (GB)', exact: true }).fill('30')
   await dialog.getByRole('button', { name: '저장', exact: true }).click()
   await expect(dialog.getByRole('status')).toHaveText('캐시와 외부 플레이어 설정을 저장했습니다.')
   await page.evaluate(() => {
@@ -481,7 +489,7 @@ test('load, save, and cleanup failures are visible and permit retry', async ({ p
     state.failCleanup = true
   })
   await dialog.getByRole('button', { name: '다시 시도', exact: true }).click()
-  await dialog.getByRole('spinbutton').fill('20')
+  await dialog.getByRole('spinbutton', { name: '캐시 용량 상한 (GB)', exact: true }).fill('20')
   await dialog.getByRole('button', { name: '저장', exact: true }).click()
   await expect(dialog.getByRole('alert')).toHaveText('설정 저장 테스트 실패')
   await expect(dialog.getByRole('button', { name: '저장', exact: true })).toBeEnabled()
