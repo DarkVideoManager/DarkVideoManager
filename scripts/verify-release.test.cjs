@@ -65,7 +65,9 @@ function rejects(f, message) {
     () => verify(f),
     (error) => {
       assert.equal(error.status, 1)
-      assert.match(error.stderr, message)
+      // Windows PowerShell wraps Write-Error at its host width, even mid-word.
+      // Remove display line breaks without weakening the expected message.
+      assert.match(error.stderr.replace(/\r?\n/g, ''), message)
       return true
     },
   )
@@ -97,7 +99,7 @@ test('rejects modified file bytes and reports both hashes', windowsOnly, (t) => 
     () => verify(f),
     (error) => {
       assert.equal(error.status, 1)
-      assert.match(error.stderr, /SHA-256 mismatch/)
+      assert.match(error.stderr.replace(/\r?\n/g, ''), /SHA-256 mismatch/)
       const result = JSON.parse(error.stdout)
       assert.equal(result.HashMatches, false)
       assert.equal(result.ExpectedSha256, f.hash)
