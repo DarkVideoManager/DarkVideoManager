@@ -5,11 +5,13 @@ import path from 'node:path'
 import { MPV_HARDWARE_DECODING_ARGS, spawnNativePlayerProcess } from './NativePlayerService'
 import net from 'node:net'
 import { getNativePlayerDir } from '../infra/paths'
+import { loadConfig } from '../infra/config'
 import { createLogger } from '../infra/logger'
 import { createHighlight } from './HighlightService'
 import { captureThumbnailAtTime } from './ThumbnailService'
 import { startPlayback, heartbeat, endPlayback, resetPlaybackPosition } from './PlaybackService'
 import { IPC } from '../../../src/shared/ipc'
+import { DEFAULT_SEEK_STEP_SEC } from '../../../src/shared/playerSettings'
 const log = createLogger('mpv-session')
 const sessions = /* @__PURE__ */ new Map()
 const pendingSessions = new Map()
@@ -62,6 +64,7 @@ export async function openInMpv(
       env: {
         ...process.env,
         DARK_VIDEO_MANAGER_MPV_EVENT_FILE: eventFilePath,
+        DARK_VIDEO_MANAGER_SEEK_STEP_SEC: String(loadConfig().seekStepSec ?? DEFAULT_SEEK_STEP_SEC),
       },
     })
     pending.child = child
@@ -196,6 +199,7 @@ function ensureMpvScript(runtimeDir) {
 local mp = require 'mp'
 local utils = require 'mp.utils'
 local event_file = os.getenv('DARK_VIDEO_MANAGER_MPV_EVENT_FILE')
+local seek_step = tonumber(os.getenv('DARK_VIDEO_MANAGER_SEEK_STEP_SEC')) or ${DEFAULT_SEEK_STEP_SEC}
 local seek_acceleration = { direction = 0, started_at = 0, target = nil, key = nil, repeated = false, timer = nil, generation = 0 }
 local seek_interval = 0.1
 local seek_anchor = nil
@@ -260,13 +264,20 @@ local function seek_relative(seconds)
   seek_absolute(target + seconds, 'absolute+exact')
 end
 
+local function seek_percentage(fraction)
+  local duration = mp.get_property_number('duration')
+  if not duration or duration <= 0 or duration ~= duration or duration == math.huge then return end
+  finish_held_seek(false)
+  seek_absolute(duration * fraction, 'absolute+exact')
+end
+
 local function accelerated_seek_relative(direction, key, event)
   local kind = event and event.event or 'press'
   if kind == 'up' or (event and event.canceled) then
     if seek_acceleration.key == key then finish_held_seek(true) end
     return
   end
-  if kind == 'press' then seek_relative(direction); return end
+  if kind == 'press' then seek_relative(direction * seek_step); return end
   if kind == 'repeat' and seek_acceleration.key ~= key then return end
   local now = mp.get_time()
   if kind == 'down' then
@@ -275,8 +286,8 @@ local function accelerated_seek_relative(direction, key, event)
     seek_acceleration.direction = direction
     seek_acceleration.key = key
     seek_acceleration.started_at = now
-    seek_acceleration.target = clamp_seek_target(origin + direction)
-    -- A single tap remains an immediate, precise one-second seek.
+    seek_acceleration.target = clamp_seek_target(origin + direction * seek_step)
+    -- A single tap uses the configured interval and remains immediate and precise.
     seek_absolute(seek_acceleration.target, 'absolute+exact')
     return
   end
@@ -349,6 +360,11 @@ mp.add_forced_key_binding('s', 'darkvideomanager-save-highlight', function() emi
 mp.add_forced_key_binding('f', 'darkvideomanager-set-thumbnail', function() emit_named('set-thumbnail') end, { repeatable = false })
 mp.add_forced_key_binding('SPACE', 'darkvideomanager-toggle-pause', toggle_pause, { repeatable = false })
 mp.add_forced_key_binding('p', 'darkvideomanager-toggle-pause-p', toggle_pause, { repeatable = false })
+for digit = 0, 9 do
+  local fraction = digit / 10
+  mp.add_forced_key_binding(tostring(digit), 'darkvideomanager-seek-percent-' .. digit, function() seek_percentage(fraction) end, { repeatable = false })
+  mp.add_forced_key_binding('KP' .. digit, 'darkvideomanager-seek-percent-keypad-' .. digit, function() seek_percentage(fraction) end, { repeatable = false })
+end
 mp.add_forced_key_binding('RIGHT', 'darkvideomanager-seek-forward-1', function(event) accelerated_seek_relative(1, 'RIGHT', event) end, { complex = true })
 mp.add_forced_key_binding('d', 'darkvideomanager-seek-forward-1-d', function(event) accelerated_seek_relative(1, 'd', event) end, { complex = true })
 mp.add_forced_key_binding('LEFT', 'darkvideomanager-seek-backward-1', function(event) accelerated_seek_relative(-1, 'LEFT', event) end, { complex = true })

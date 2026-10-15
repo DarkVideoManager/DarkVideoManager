@@ -1,6 +1,7 @@
 import { app, dialog, BrowserWindow } from 'electron'
 import { IPC } from '@shared/ipc'
 import { ok } from '@shared/result'
+import { DEFAULT_SEEK_STEP_SEC } from '@shared/playerSettings'
 import { registerIpcHandler } from './index'
 import { loadConfig, updateConfig } from '../infra/config'
 import { getCacheInfo, cleanPlaybackCache, trimPlaybackCache } from '../services/CacheService'
@@ -17,7 +18,11 @@ app.once('gpu-info-update', () => {
 
 function getSettings() {
   const config = loadConfig()
-  return { cacheLimitGb: config.cacheLimitGb ?? 10, nativePlayer: config.nativePlayer ?? null }
+  return {
+    cacheLimitGb: config.cacheLimitGb ?? 10,
+    seekStepSec: config.seekStepSec ?? DEFAULT_SEEK_STEP_SEC,
+    nativePlayer: config.nativePlayer ?? null,
+  }
 }
 
 export function registerAppHandlers(): void {

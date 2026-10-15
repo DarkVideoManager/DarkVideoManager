@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto'
 import { basename, dirname, join } from 'node:path'
 import { z } from 'zod'
 import type { Config } from '@shared/types'
+import { SeekStepSecZ } from '@shared/playerSettings'
 import { getConfigPath } from './paths'
 
 // passthrough keeps settings added by later versions instead of silently dropping them.
@@ -39,6 +40,7 @@ const ConfigSchema = z
       ),
     lastActiveLibraryId: NonemptyString.optional(),
     cacheLimitGb: z.number().finite().min(1).max(1000).optional(),
+    seekStepSec: SeekStepSecZ.optional(),
     githubStarPromptShown: z.boolean().optional(),
     nativePlayer: z
       .object({ name: z.enum(['mpv', 'ffplay', 'vlc']), path: NonemptyString })
