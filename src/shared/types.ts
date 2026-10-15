@@ -327,12 +327,14 @@ export interface Config {
   libraries: Library[]
   lastActiveLibraryId?: string
   cacheLimitGb?: number
+  seekStepSec?: number
   nativePlayer?: NativePlayerInfo | null
   githubStarPromptShown?: boolean
 }
 
 export interface AppSettings {
   cacheLimitGb: number
+  seekStepSec: number
   nativePlayer?: NativePlayerInfo | null
 }
 /** Chromium capabilities, not the decoder selected for an individual video. */

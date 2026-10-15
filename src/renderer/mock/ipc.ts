@@ -1,4 +1,5 @@
 import type { WindowApi } from '../../../electron/preload'
+import { DEFAULT_SEEK_STEP_SEC, SeekStepSecZ } from '../../shared/playerSettings'
 import { err, ok } from '../../shared/result'
 import type { Result } from '../../shared/result'
 import type { PlaybackConversionJob } from '../../shared/playbackConversion'
@@ -107,6 +108,7 @@ const progressListeners = new Set<(progress: ImportProgress) => void>()
 const thumbnailListeners = new Set<(data: { videoId: string }) => void>()
 const mockSettings = {
   cacheLimitGb: 10,
+  seekStepSec: DEFAULT_SEEK_STEP_SEC,
   nativePlayer: null as import('../../shared/types').NativePlayerInfo | null,
 }
 let mockCacheBytes = 512 * 1024 * 1024
@@ -498,6 +500,8 @@ export const mockApi: WindowApi = {
     quit: async () => ok(null),
     getSettings: async () => ok({ ...mockSettings }),
     updateSettings: async (patch) => {
+      if (patch.seekStepSec !== undefined && !SeekStepSecZ.safeParse(patch.seekStepSec).success)
+        return err('탐색 간격은 1~600초의 정수로 입력하세요.')
       Object.assign(mockSettings, patch)
       return ok({ ...mockSettings })
     },
@@ -566,6 +570,8 @@ export const mockApi: WindowApi = {
       })
     },
     get: async (libraryId, videoId) => ok(findVideo(libraryId, videoId) ?? null),
+    revealSource: async (libraryId, videoId) =>
+      findVideo(libraryId, videoId) ? ok(null) : err('원본 영상을 찾을 수 없습니다.'),
     getPlaybackSource: async (libraryId, videoId) => {
       await new Promise((resolve) => setTimeout(resolve, 50))
       return ok(findVideo(libraryId, videoId)?.filePath ?? '/mock/videos/sample.mp4')

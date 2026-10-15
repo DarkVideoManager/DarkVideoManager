@@ -96,6 +96,8 @@ const api = {
       ipcRenderer.invoke(IPC.VIDEOS.SEARCH, libraryId, query),
     get: (libraryId: string, videoId: string): Promise<Result<Video | null, string>> =>
       ipcRenderer.invoke(IPC.VIDEOS.GET, libraryId, videoId),
+    revealSource: (libraryId: string, videoId: string): Promise<Result<null, string>> =>
+      ipcRenderer.invoke(IPC.VIDEOS.REVEAL_SOURCE, libraryId, videoId),
     getPlaybackSource: (libraryId: string, videoId: string): Promise<Result<string, string>> =>
       ipcRenderer.invoke(IPC.VIDEOS.GET_PLAYBACK_SOURCE, libraryId, videoId),
     getNativePlayerInfo: (): Promise<Result<NativePlayerInfo | null, string>> =>

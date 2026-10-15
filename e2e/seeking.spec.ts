@@ -26,9 +26,14 @@ interface SeekingHarness {
 }
 type SeekingWindow = Window & { seekingHarness: SeekingHarness }
 
-async function prepareSlowDecoder(page: Page, ready = true): Promise<void> {
+async function prepareSlowDecoder(page: Page, ready = true, seekStepSec = 1): Promise<void> {
   await page.goto('/')
-  await page.evaluate(async () => {
+  await page.evaluate(async (step) => {
+    const getSettings = window.api.app.getSettings
+    window.api.app.getSettings = async () => {
+      const result = await getSettings()
+      return result.ok ? { ok: true, value: { ...result.value, seekStepSec: step } } : result
+    }
     const result = await window.api.videos.get('mock-library', 'mock-video-1')
     if (!result.ok || !result.value) throw new Error('Missing video fixture')
     result.value.resumePosSec = 100
@@ -76,7 +81,7 @@ async function prepareSlowDecoder(page: Page, ready = true): Promise<void> {
       },
       true,
     )
-  })
+  }, seekStepSec)
   await page.getByRole('button', { name: '열기', exact: true }).click()
   await page
     .getByRole('button')
@@ -335,4 +340,85 @@ test('seek requested before metadata is queued and survives resume initializatio
   expect(target).toBeGreaterThan(100)
   await page.evaluate(() => (window as unknown as SeekingWindow).seekingHarness.setReady())
   await expectFinalTarget(page, target)
+})
+
+test('digits and numeric keypad seek by percentage without resuming paused playback', async ({
+  page,
+}) => {
+  await prepareSlowDecoder(page)
+  for (const [key, target] of [
+    ['0', 0],
+    ['1', 30],
+    ['9', 270],
+  ] as const) {
+    await page.keyboard.press(key)
+    await expectFinalTarget(page, target)
+  }
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '3', code: 'Numpad3', bubbles: true }),
+    ),
+  )
+  await expectFinalTarget(page, 90)
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '7', code: 'Digit7', repeat: true, bubbles: true }),
+    ),
+  )
+  await expectFinalTarget(page, 90)
+})
+
+test('percentage seek waits for metadata and does not get overwritten by the saved position', async ({
+  page,
+}) => {
+  await prepareSlowDecoder(page, false)
+  await page.keyboard.press('9')
+  expect(
+    await page.evaluate(() => (window as unknown as SeekingWindow).seekingHarness.writes.length),
+  ).toBe(0)
+  await page.evaluate(() => (window as unknown as SeekingWindow).seekingHarness.setReady())
+  await expectFinalTarget(page, 270)
+})
+
+test('number shortcuts leave modified keys, editable fields and composition input alone', async ({
+  page,
+}) => {
+  await prepareSlowDecoder(page)
+  await page.keyboard.press('Control+1')
+  await page.keyboard.press('Shift+2')
+  await page.evaluate(() => {
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.setAttribute('aria-label', 'Shortcut input fixture')
+    document.body.appendChild(input)
+    input.focus()
+  })
+  await page.keyboard.type('123')
+  await expect(page.getByLabel('Shortcut input fixture')).toHaveValue('123')
+  await page.evaluate(() => {
+    const editor = document.createElement('div')
+    editor.contentEditable = 'true'
+    document.body.appendChild(editor)
+    editor.focus()
+    editor.dispatchEvent(new KeyboardEvent('keydown', { key: '9', bubbles: true }))
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '9', bubbles: true, isComposing: true }),
+    )
+  })
+  await expectFinalTarget(page, 100)
+})
+
+test('configured seek interval applies to arrows and A/D while modifier intervals stay fixed', async ({
+  page,
+}) => {
+  await prepareSlowDecoder(page, true, 12)
+  await expect(page.getByRole('group', { name: '영상 보기 도구' })).toContainText('좌우 이동 12초')
+  await page.keyboard.press('ArrowRight')
+  await expectFinalTarget(page, 112)
+  await page.keyboard.press('a')
+  await expectFinalTarget(page, 100)
+  await page.keyboard.press('Shift+ArrowRight')
+  await expectFinalTarget(page, 105)
+  await page.keyboard.press('Control+ArrowLeft')
+  await expectFinalTarget(page, 75)
 })

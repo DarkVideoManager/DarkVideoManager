@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SeekStepSecZ } from './playerSettings'
 import type { HighlightCreate, ImportProgress, SearchQuery, VideoMeta } from './types'
 
 import { IPC } from './channels'
@@ -145,6 +146,7 @@ export const IPC_SCHEMAS = {
     z
       .object({
         cacheLimitGb: z.number().finite().min(1).max(1000).optional(),
+        seekStepSec: SeekStepSecZ.optional(),
         nativePlayer: NativePlayerInfoZ.nullable().optional(),
       })
       .strict(),
@@ -166,6 +168,7 @@ export const IPC_SCHEMAS = {
   [IPC.LIBRARY.DELETE]: LibraryIdArgsZ,
   [IPC.VIDEOS.SEARCH]: z.tuple([IdZ, SearchQueryZ]),
   [IPC.VIDEOS.GET]: VideoArgsZ,
+  [IPC.VIDEOS.REVEAL_SOURCE]: VideoArgsZ,
   [IPC.VIDEOS.GET_PLAYBACK_SOURCE]: VideoArgsZ,
   [IPC.VIDEOS.GET_NATIVE_PLAYER_INFO]: EmptyArgsZ,
   [IPC.VIDEOS.OPEN_IN_NATIVE_PLAYER]: z.tuple([IdZ, IdZ, NativePlayerOptionsZ.optional()]),
