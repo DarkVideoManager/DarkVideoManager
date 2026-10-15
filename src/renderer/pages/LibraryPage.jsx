@@ -21,6 +21,7 @@ import ImportDialog, {
 } from '../components/library/ImportDialog'
 import CsvImportDialog from '../components/library/CsvImportDialog'
 import VideoMetadataFilters from '../components/library/VideoMetadataFilters'
+import { requestPrivacyExit } from '../components/privacy/PrivacyBoundary'
 function LibraryPage() {
   const {
     activeLibraryId,
@@ -206,16 +207,8 @@ function LibraryPage() {
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         return
       }
-      void window.api.app
-        .quit()
-        .then((result) => {
-          if (!result.ok) throw new Error(result.error)
-        })
-        .catch((error) =>
-          window.alert(
-            `앱을 종료하지 못했습니다.\n${error instanceof Error ? error.message : String(error)}`,
-          ),
-        )
+      event.preventDefault()
+      requestPrivacyExit()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)

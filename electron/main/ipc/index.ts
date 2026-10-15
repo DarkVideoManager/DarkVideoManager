@@ -9,15 +9,19 @@ import { registerPlaybackHandlers } from './playback'
 import { registerStatsHandlers } from './stats'
 import { registerThumbnailHandlers } from './thumbnails'
 import { registerVideoHandlers } from './videos'
+import { registerMetadataImportHandlers } from './metadataImport'
 import { registerAppHandlers } from './app'
 import { registerDataImportHandlers } from './dataImport'
 import { registerSubtitleGenerationHandlers } from './subtitleGeneration'
+import { registerDiscoveryHandlers } from './discovery'
+import { registerMaintenanceHandlers } from './maintenance'
 
 const log = createLogger('ipc:index')
 const mutationWorkKinds = new Map<string, LibraryWorkKind>([
   [IPC.LIBRARY.CLOSE, 'exclusive'],
   [IPC.LIBRARY.DELETE, 'exclusive'],
   [IPC.VIDEOS.UPDATE_META, 'exclusive'],
+  [IPC.METADATA_IMPORT.APPLY, 'exclusive'],
   [IPC.VIDEOS.DELETE, 'exclusive'],
   [IPC.VIDEOS.RESTORE, 'exclusive'],
   [IPC.HIGHLIGHTS.CREATE, 'thumbnails'],
@@ -81,14 +85,17 @@ export function registerIpcHandler<C extends InvokeChannel>(
 }
 
 export function registerAllHandlers(): void {
+  registerDiscoveryHandlers()
   registerAppHandlers()
   registerDataImportHandlers()
   registerLibraryHandlers()
   registerVideoHandlers()
+  registerMetadataImportHandlers()
   registerPlaybackHandlers()
   registerThumbnailHandlers()
   registerHighlightHandlers()
   registerStatsHandlers()
   registerSubtitleGenerationHandlers()
+  registerMaintenanceHandlers()
   log.info('모든 IPC 핸들러 등록 완료')
 }

@@ -18,6 +18,7 @@ import {
   spawnNativePlayerProcess,
   validateNativePlayer,
 } from './NativePlayerService'
+import { isSourceFileInUse } from './SourceFileUsage'
 
 const bin = path.resolve('synthetic-native-bin')
 const executable = (name: string) =>
@@ -55,6 +56,33 @@ function fakeChild() {
 }
 
 describe('native player discovery and launch', () => {
+  it('protects a source through a live native process and releases it only on exit', async () => {
+    vi.useFakeTimers()
+    const child = Object.assign(fakeChild(), { pid: 123 })
+    const sourcePath = path.resolve('native-usage-fixture.mp4')
+    const launched = spawnNativePlayerProcess(executable('mpv'), [sourcePath], { sourcePath })
+    expect(isSourceFileInUse(sourcePath)).toBe(true)
+    expect(vi.mocked(childProcess.spawn).mock.calls[0][2]).not.toHaveProperty('sourcePath')
+    child.emit('spawn')
+    await vi.advanceTimersByTimeAsync(500)
+    await launched.ready
+    child.emit('error', new Error('kill request failed'))
+    expect(isSourceFileInUse(sourcePath)).toBe(true)
+    child.emit('exit', 0, null)
+    expect(isSourceFileInUse(sourcePath)).toBe(false)
+  })
+
+  it('releases a source when the native process could not start', async () => {
+    vi.useFakeTimers()
+    const child = fakeChild()
+    const sourcePath = path.resolve('failed-native-usage-fixture.mp4')
+    const launched = spawnNativePlayerProcess(executable('mpv'), [sourcePath], { sourcePath })
+    const rejected = expect(launched.ready).rejects.toThrow('EACCES')
+    child.emit('error', new Error('EACCES'))
+    await rejected
+    expect(isSourceFileInUse(sourcePath)).toBe(false)
+  })
+
   it('prioritizes PATH mpv before fixed ffplay/VLC and deduplicates repeated PATH entries', async () => {
     available.add(executable('mpv'))
     available.add(executable('ffplay'))
@@ -139,7 +167,7 @@ describe('native player discovery and launch', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(childProcess.spawn).toHaveBeenCalledWith(
       executable('vlc'),
-      ['--start-time=23', '--', 'C:\\media files\\movie & name.mp4'],
+      ['--no-one-instance', '--start-time=23', '--', 'C:\\media files\\movie & name.mp4'],
       expect.objectContaining({ stdio: ['ignore', 'ignore', 'pipe'] }),
     )
     child.emit('spawn')

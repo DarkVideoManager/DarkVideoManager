@@ -4,12 +4,15 @@ import LibraryPage from './pages/LibraryPage'
 import PlayerPage from './pages/PlayerPage'
 import StatsPage from './pages/StatsPage'
 import SubtitleQueuePage from './pages/SubtitleQueuePage'
+import DiscoveryPage from './pages/DiscoveryPage'
+import LibraryMaintenancePage from './pages/LibraryMaintenancePage'
 
 const router = createHashRouter([
   {
     path: '/',
     element: <MainLayout />,
     children: [
+      { path: 'discover', element: <DiscoveryPage /> },
       {
         index: true,
         element: <LibraryPage />,
@@ -21,6 +24,10 @@ const router = createHashRouter([
       {
         path: 'subtitles',
         element: <SubtitleQueuePage />,
+      },
+      {
+        path: 'maintenance',
+        element: <LibraryMaintenancePage />,
       },
     ],
   },

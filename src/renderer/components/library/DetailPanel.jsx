@@ -7,6 +7,7 @@ import { toLocalMediaUrl } from '../../utils/media'
 import SubtitleGenerationPanel from './SubtitleGenerationPanel'
 import ThumbnailJobStatus, { isThumbnailJobActive } from './ThumbnailJobStatus'
 import VideoMetadataEditor from './VideoMetadataEditor'
+import MetadataImportDialog from './MetadataImportDialog'
 const STAR_COUNT = 5
 function StarRating({ value, onChange, disabled = false }) {
   const [hovered, setHovered] = React.useState(0)
@@ -87,6 +88,7 @@ function DetailPanel({
   thumbnailJobs: sharedThumbnailJobs,
 }) {
   const [tab, setTab] = React.useState(initialTab)
+  const [showMetadataImport, setShowMetadataImport] = React.useState(false)
   const [memo2, setMemo] = React.useState(video.memo ?? '')
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
   const [deleteMode, setDeleteMode] = React.useState('trash')
@@ -316,6 +318,7 @@ function DetailPanel({
   }, [initialTab, video.id])
   React.useEffect(() => {
     setShowDeleteConfirm(false)
+    setShowMetadataImport(false)
     setDeleteError(null)
     setRestoreError(null)
     setActionError(null)
@@ -343,6 +346,7 @@ function DetailPanel({
     const pending = { targetLibraryId: libraryId, videoId: video.id, patch: { memo: value } }
     pendingMemoRef.current = pending
     memoTimerRef.current = setTimeout(() => {
+      memoTimerRef.current = null
       pendingMemoRef.current = null
       updateMeta.mutate(pending)
     }, 500)
@@ -438,6 +442,37 @@ function DetailPanel({
           <div ref={subtitleNavigationRef} className="h-full min-h-0" />
         ) : tab === 'info' ? (
           <div className={'space-y-4'}>
+            {!isRemoved && (
+              <button
+                type="button"
+                disabled={updateMeta.isPending}
+                className="w-full rounded bg-indigo-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+                onClick={async () => {
+                  try {
+                    const draft = { ...memoDraftRef.current }
+                    if (memoTimerRef.current) clearTimeout(memoTimerRef.current)
+                    memoTimerRef.current = null
+                    pendingMemoRef.current = null
+                    if (draft.value !== draft.saved) {
+                      await updateMeta.mutateAsync({
+                        targetLibraryId: draft.libraryId,
+                        videoId: draft.videoId,
+                        patch: { memo: draft.value },
+                      })
+                    }
+                    if (
+                      currentVideoRef.current.libraryId === draft.libraryId &&
+                      currentVideoRef.current.videoId === draft.videoId
+                    )
+                      setShowMetadataImport(true)
+                  } catch {
+                    /* mutation displays its save error */
+                  }
+                }}
+              >
+                Stash에서 정보 가져오기
+              </button>
+            )}
             {primaryThumbnail ? (
               <img
                 src={toLocalMediaUrl(primaryThumbnail.filePath, primaryThumbnail.id)}
@@ -683,6 +718,14 @@ function DetailPanel({
             </div>
           </div>
         </div>
+      )}
+      {showMetadataImport && (
+        <MetadataImportDialog
+          key={video.id}
+          video={video}
+          libraryId={libraryId}
+          onClose={() => setShowMetadataImport(false)}
+        />
       )}
     </div>
   )

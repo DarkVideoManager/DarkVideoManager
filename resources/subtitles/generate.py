@@ -859,7 +859,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--audio")
     parser.add_argument("--output")
-    parser.add_argument("--model", choices=("tiny", "base", "small", "medium", "large-v3"), default="base")
+    parser.add_argument("--model", choices=("tiny", "base", "small", "medium", "large-v2", "large-v3"), default="base")
     parser.add_argument("--language", choices=("auto", "ja", "en", "ko", "zh"), default="auto")
     parser.add_argument("--translate-ko", action="store_true")
     parser.add_argument("--cloud-translation-bridge", action="store_true", help="Request official Google Cloud Translation through the parent's metered bridge")

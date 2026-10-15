@@ -9,6 +9,8 @@ import {
   MIN_SEEK_STEP_SEC,
   SeekStepSecZ,
 } from '@shared/playerSettings'
+import PrivacySettingsPanel from '../privacy/PrivacySettingsPanel'
+import { SubtitlePrivacyGuidance } from '../library/SubtitleGuidance'
 
 interface SettingsDialogProps {
   onClose: () => void
@@ -267,7 +269,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
         if (event.key !== 'Tab') return
         const controls = Array.from(
           event.currentTarget.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, a[href], [tabindex="0"]',
           ),
         ).filter((element) => element.getClientRects().length > 0)
         const first = controls[0]
@@ -316,6 +318,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
           </p>
           <PlaybackHelpButton label="단축키·재생 조작 안내" />
         </section>
+        <SubtitlePrivacyGuidance />
         {loading && (
           <p role="status" className="text-zinc-400">
             설정을 불러오는 중...
@@ -335,6 +338,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
             다시 시도
           </button>
         )}
+        <PrivacySettingsPanel />
         {settings && cacheInfo && (
           <form onSubmit={(event) => void saveSettings(event)} noValidate className="space-y-5">
             <section aria-labelledby="seek-step-title" className="space-y-3">

@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { SubtitlePrivacyGuidance } from './SubtitleGuidance'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 const queryKey = ['subtitle-translation-settings']
@@ -195,8 +196,9 @@ export default function SubtitleTranslationSettings() {
       <div className="space-y-2">
         <h2 className="text-sm font-medium text-zinc-100">한국어 번역 설정</h2>
         <p className="text-xs leading-relaxed text-zinc-400">
-          공식 Google Cloud Translation으로 번역하고, 설정한 월 한도에 도달하거나 연결에 실패하면
-          PC의 Ollama로 전환합니다. Google에는 자막 텍스트가 전송됩니다.
+          기본은 PC의 Ollama 번역입니다. Google Cloud 사용을 켜고 API 키를 저장하면 자막 텍스트를
+          Google에 보내 번역합니다. 키가 없거나 월 한도에 도달하거나 요청이 실패하면 로컬로
+          전환합니다.
         </p>
         <p className="text-[11px] leading-relaxed text-zinc-500">
           Google Cloud에서 결제 계정 연결, Cloud Translation API 활성화 및 API 키 발급이 필요합니다.
@@ -204,6 +206,7 @@ export default function SubtitleTranslationSettings() {
           설정은 Google 계정 전체의 과금을 차단하지 않습니다.
         </p>
       </div>
+      <SubtitlePrivacyGuidance />
       {settings.isPending && (
         <p role="status" className="text-xs text-zinc-400">
           번역 설정을 불러오는 중...

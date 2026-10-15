@@ -68,7 +68,7 @@ export interface Subtitle {
 }
 
 export interface SubtitleGenerationOptions {
-  model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
+  model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v2' | 'large-v3'
   language: 'auto' | 'ja' | 'en' | 'ko' | 'zh'
   translateToKorean: boolean
 }
@@ -352,6 +352,8 @@ export interface NativePlayerActionEvent extends VideoEvent {
 }
 
 export interface Config {
+  privacySettings?: import('./privacy').PrivacySettings
+  discoveryPreferences?: Record<string, import('./discovery').DiscoveryPreferences>
   libraries: Library[]
   lastActiveLibraryId?: string
   cacheLimitGb?: number

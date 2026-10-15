@@ -24,6 +24,7 @@ release/
 *.p12
 *.pfx
 credentials.json
+stash-metadata.json
 service-account*.json
 id_rsa
 id_dsa

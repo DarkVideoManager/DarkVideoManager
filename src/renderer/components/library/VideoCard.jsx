@@ -2,6 +2,7 @@
 import * as React from 'react'
 import { toLocalMediaUrl } from '../../utils/media'
 import ThumbnailJobStatus from './ThumbnailJobStatus'
+import ProtectedThumbnail from '../privacy/ProtectedThumbnail'
 const SUBTITLE_PHASE_LABELS = {
   queued: '자막 생성 대기',
   preparing: '자막 생성 준비 중',
@@ -72,7 +73,7 @@ function VideoCard({
       >
         <div className={'relative h-32 w-full flex-none overflow-hidden bg-zinc-800'}>
           {primary ? (
-            <img
+            <ProtectedThumbnail
               src={toLocalMediaUrl(primary, video.id)}
               alt={displayTitle}
               className={

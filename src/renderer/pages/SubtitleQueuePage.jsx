@@ -5,6 +5,7 @@ import { useLibraries } from '../api/useLibraries'
 import SubtitleTranslationSettings from '../components/library/SubtitleTranslationSettings'
 import SubtitleEnvironmentSetup from '../components/library/SubtitleEnvironmentSetup'
 import SubtitleProcessingStatus from '../components/library/SubtitleProcessingStatus'
+import { requestPrivacyExit } from '../components/privacy/PrivacyBoundary'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const transitionPhases = new Set(['pausing', 'removing'])
@@ -177,8 +178,6 @@ function QueueItem({ job, libraryName }) {
 export default function SubtitleQueuePage() {
   const queryClient = useQueryClient()
   const { data: libraries = [] } = useLibraries()
-  const [closeError, setCloseError] = React.useState(null)
-  const closing = React.useRef(false)
   const completed = React.useRef(new Map())
   const queue = useQuery({
     queryKey: ['subtitle-queue'],
@@ -216,8 +215,7 @@ export default function SubtitleQueuePage() {
   }, [jobs, queryClient])
   React.useEffect(() => {
     function handleKeyDown(event) {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented || closing.current)
-        return
+      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
       const target = event.target
       if (
@@ -226,17 +224,7 @@ export default function SubtitleQueuePage() {
       )
         return
       event.preventDefault()
-      closing.current = true
-      setCloseError(null)
-      void window.api.app
-        .quit()
-        .then((result) => {
-          if (!result.ok) throw new Error(result.error)
-        })
-        .catch((error) => setCloseError(errorMessage(error)))
-        .finally(() => {
-          closing.current = false
-        })
+      requestPrivacyExit()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -276,11 +264,6 @@ export default function SubtitleQueuePage() {
             이어갑니다. 작업을 삭제해도 이미 저장된 자막 파일은 보존합니다.
           </p>
         </div>
-        {closeError && (
-          <p role="alert" className="text-sm text-red-300">
-            창을 닫지 못했습니다: {closeError}
-          </p>
-        )}
         <SubtitleTranslationSettings />
         {queue.isPending && (
           <p role="status" className="text-sm text-zinc-400">
