@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, writeFileSync, unlinkSync, rmSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  unlinkSync,
+  rmSync,
+} from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,7 +38,7 @@ import { closeAllDatabases, getDatabase } from '../db/connection'
 import { VideoRepository } from '../db/repositories/VideoRepository'
 import { HighlightRepository } from '../db/repositories/HighlightRepository'
 import { SubtitleRepository } from '../db/repositories/SubtitleRepository'
-import { updateConfig } from '../infra/config'
+import { loadConfig, saveConfig, updateConfig } from '../infra/config'
 import { probeVideo } from '../ffmpeg/ffprobe'
 import { generateThumbnails } from '../ffmpeg/thumbnail'
 import { createAbortError, thumbnailQueue } from '../ffmpeg/queue'
@@ -76,6 +85,27 @@ function makeLibrary() {
 }
 
 describe('cancellable folder work', () => {
+  it.skipIf(process.platform !== 'win32')(
+    'creates a library with a read-only backup that already protects the empty registry',
+    () => {
+      saveConfig({ libraries: [] })
+      const backupPath = join(state.userData, 'config.json.bak')
+      const backup = JSON.stringify({ libraries: [] })
+      writeFileSync(backupPath, backup)
+      chmodSync(backupPath, 0o444)
+      try {
+        const library = createLibrary('New library', root)
+        expect(loadConfig().libraries).toEqual([library])
+        expect(loadConfig().lastActiveLibraryId).toBe(library.id)
+        expect(readFileSync(backupPath, 'utf8')).toBe(backup)
+        expect(getDatabase(library.id)).toBeDefined()
+        expect(readdirSync(state.userData).filter((name) => name.includes('.tmp.'))).toEqual([])
+      } finally {
+        chmodSync(backupPath, 0o600)
+      }
+    },
+  )
+
   it('scans overlapping refresh roots once and handles an odd number of thumbnail jobs', async () => {
     const { library, directory, repository } = makeLibrary()
     const nested = join(directory, 'nested')
