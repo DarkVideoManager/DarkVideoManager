@@ -5,6 +5,7 @@ import { registerIpcHandler } from './index'
 import { loadConfig, updateConfig } from '../infra/config'
 import { getCacheInfo, cleanPlaybackCache, trimPlaybackCache } from '../services/CacheService'
 import { discoverNativePlayers, validateNativePlayer } from '../services/NativePlayerService'
+import { claimGitHubStarPrompt, openGitHubRepository } from '../services/GitHubStarService'
 
 // This module is imported synchronously at startup, before whenReady registers IPC.
 // Listen now so an update before handler registration is not lost. Electron 31's
@@ -20,6 +21,11 @@ function getSettings() {
 }
 
 export function registerAppHandlers(): void {
+  registerIpcHandler(IPC.APP.CLAIM_GITHUB_STAR_PROMPT, () => ok(claimGitHubStarPrompt()))
+  registerIpcHandler(IPC.APP.OPEN_GITHUB_REPOSITORY, async () => {
+    await openGitHubRepository()
+    return ok(null)
+  })
   registerIpcHandler(IPC.APP.GET_ACCELERATION_INFO, () => {
     if (!gpuInfoReady) {
       return ok({ videoDecodeStatus: 'unknown', gpuCompositingStatus: 'unknown' })

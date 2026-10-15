@@ -36,6 +36,12 @@ import type { PlaybackConversionJob } from '../../src/shared/playbackConversion'
 
 const api = {
   app: {
+    githubStar: {
+      claimPrompt: (): Promise<Result<boolean, string>> =>
+        ipcRenderer.invoke(IPC.APP.CLAIM_GITHUB_STAR_PROMPT),
+      openRepository: (): Promise<Result<null, string>> =>
+        ipcRenderer.invoke(IPC.APP.OPEN_GITHUB_REPOSITORY),
+    },
     getAccelerationInfo: (): Promise<Result<AccelerationInfo, string>> =>
       ipcRenderer.invoke(IPC.APP.GET_ACCELERATION_INFO),
     getNativePlayers: (): Promise<Result<NativePlayerInfo[], string>> =>
@@ -292,7 +298,10 @@ const api = {
   },
 }
 
-export type WindowApi = typeof api
+// Desktop-only capabilities may be omitted by browser demos and preview adapters.
+export type WindowApi = Omit<typeof api, 'app'> & {
+  app: Omit<typeof api.app, 'githubStar'> & { githubStar?: typeof api.app.githubStar }
+}
 
 if (process.contextIsolated) {
   try {

@@ -34,6 +34,8 @@ describe('preload bridge', () => {
     bridge.invoke.mockClear()
     await Promise.all([
       api.app.quit(),
+      api.app.githubStar!.claimPrompt(),
+      api.app.githubStar!.openRepository(),
       api.dataImport.selectCsv(),
       api.dataImport.preview('lib', 'history.csv'),
       api.app.getSettings(),

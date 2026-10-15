@@ -22,6 +22,20 @@ import {
 } from './result'
 
 describe('IPC contracts', () => {
+  it('does not accept renderer URLs or account details for the GitHub quick link', () => {
+    for (const channel of [IPC.APP.CLAIM_GITHUB_STAR_PROMPT, IPC.APP.OPEN_GITHUB_REPOSITORY]) {
+      expect(IPC_SCHEMAS[channel].safeParse([]).success).toBe(true)
+      for (const args of [
+        ['https://example.com'],
+        ['file:///C:/Windows/notepad.exe'],
+        [{ token: 'x' }],
+      ])
+        expect(IPC_SCHEMAS[channel].safeParse(args).success).toBe(false)
+    }
+    expect(
+      IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ githubStarPromptShown: false }]).success,
+    ).toBe(false)
+  })
   it('bounds statistics to one through 365 days', () => {
     const schema = IPC_SCHEMAS[IPC.STATS.GET]
     expect(schema.safeParse(['library']).success).toBe(true)

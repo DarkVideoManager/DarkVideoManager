@@ -328,6 +328,7 @@ export interface Config {
   lastActiveLibraryId?: string
   cacheLimitGb?: number
   nativePlayer?: NativePlayerInfo | null
+  githubStarPromptShown?: boolean
 }
 
 export interface AppSettings {

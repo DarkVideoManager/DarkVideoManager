@@ -136,6 +136,8 @@ export const HighlightPatchZ = HighlightCreateZ.partial().strict()
 
 export const IPC_SCHEMAS = {
   [IPC.APP.QUIT]: EmptyArgsZ,
+  [IPC.APP.CLAIM_GITHUB_STAR_PROMPT]: EmptyArgsZ,
+  [IPC.APP.OPEN_GITHUB_REPOSITORY]: EmptyArgsZ,
   [IPC.APP.GET_SETTINGS]: EmptyArgsZ,
   [IPC.APP.GET_NATIVE_PLAYERS]: EmptyArgsZ,
   [IPC.APP.SELECT_NATIVE_PLAYER]: z.tuple([NativePlayerNameZ]),

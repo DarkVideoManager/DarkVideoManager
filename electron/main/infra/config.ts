@@ -39,6 +39,7 @@ const ConfigSchema = z
       ),
     lastActiveLibraryId: NonemptyString.optional(),
     cacheLimitGb: z.number().finite().min(1).max(1000).optional(),
+    githubStarPromptShown: z.boolean().optional(),
     nativePlayer: z
       .object({ name: z.enum(['mpv', 'ffplay', 'vlc']), path: NonemptyString })
       .nullable()

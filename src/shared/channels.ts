@@ -2,6 +2,8 @@
 export const IPC = {
   APP: {
     QUIT: 'app:quit',
+    CLAIM_GITHUB_STAR_PROMPT: 'app:claimGitHubStarPrompt',
+    OPEN_GITHUB_REPOSITORY: 'app:openGitHubRepository',
     GET_SETTINGS: 'app:getSettings',
     UPDATE_SETTINGS: 'app:updateSettings',
     GET_CACHE_INFO: 'app:getCacheInfo',
