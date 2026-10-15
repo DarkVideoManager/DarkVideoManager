@@ -31,6 +31,8 @@ interface InstallRecord {
   installerStart?: string
   code?: number
   restartRequired?: boolean
+  launchError?: number
+  diagnostics?: string
 }
 
 const installStillRunning =
@@ -75,6 +77,9 @@ function readInstallRecord(): InstallRecord | undefined {
       !identityValid(record.installerPid, record.installerStart) ||
       (record.code !== undefined && !Number.isSafeInteger(record.code)) ||
       (record.restartRequired !== undefined && typeof record.restartRequired !== 'boolean') ||
+      (record.launchError !== undefined && !Number.isSafeInteger(record.launchError)) ||
+      (record.diagnostics !== undefined &&
+        (typeof record.diagnostics !== 'string' || record.diagnostics.length > 2000)) ||
       (record.state === 'done' && record.code === undefined)
     )
       throw new Error('invalid install record')
@@ -88,7 +93,40 @@ function readInstallRecord(): InstallRecord | undefined {
 }
 
 export function hasSubtitleWslInstall(): boolean {
-  return readInstallRecord() !== undefined
+  const record = readInstallRecord()
+  // A helper can finish while the app is closed. Its successful receipt must not
+  // hide an already working environment during a later read-only check.
+  return (
+    !!record && (record.state !== 'done' || record.code !== 0 || record.restartRequired === true)
+  )
+}
+
+function installFailure(
+  context: string,
+  result: { code?: number; diagnostics?: string; launchError?: number },
+): Error {
+  const diagnostics = (result.diagnostics ?? '').replaceAll('\0', '').trim().slice(-1600)
+  let message = `${context} 인터넷 연결과 Windows 업데이트 상태를 확인한 뒤 다시 시도해 주세요.`
+  if (result.launchError === 1223 || result.code === 1223 || /0x800704c7/i.test(diagnostics))
+    message =
+      'Windows 권한 승인이 취소되었습니다. 자동 설치를 다시 누르고 권한 승인 창에서 허용해 주세요.'
+  else if (/HCS_E_HYPERV_NOT_INSTALLED|0x80370102/i.test(diagnostics))
+    message =
+      'Windows 가상 머신을 시작하지 못했습니다. Windows의 가상 머신 플랫폼 기능과 BIOS/UEFI의 CPU 가상화를 확인해 주세요. 가상 PC에서는 중첩 가상화도 필요합니다.'
+  else if (
+    /WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED|WSL_E_VIRTUAL_MACHINE_PLATFORM_REQUIRED|0x8007019e/i.test(
+      diagnostics,
+    )
+  )
+    message =
+      'Windows의 WSL 또는 가상 머신 플랫폼 기능이 준비되지 않았습니다. Windows 기능과 업데이트 상태를 확인한 뒤 다시 시도해 주세요.'
+  else if (result.launchError === 5 || /E_ACCESSDENIED|0x80070005/i.test(diagnostics))
+    message =
+      'Windows 설치 권한이 거부되었습니다. 권한 승인과 PC의 관리자 정책을 확인한 뒤 다시 시도해 주세요.'
+  const code = result.launchError ?? result.code
+  return new Error(
+    `${message}${code === undefined ? '' : ` (오류 코드 ${code})`}${diagnostics ? `\n${diagnostics}` : ''}`,
+  )
 }
 
 function writeInstallRecord(record: InstallRecord): void {
@@ -155,15 +193,16 @@ try {
   $record | Add-Member -Force NoteProperty code ([int]$installer.ExitCode)
   $finished=$true
   $requiresRestart=($installer.ExitCode -eq 3010 -or $installer.ExitCode -eq 1641)
-  ${
-    record.operation === 'distribution'
-      ? `if (Test-Path -LiteralPath $errorPath) {
-    $diagnostics=(Get-Content -LiteralPath $outputPath -Raw -ErrorAction SilentlyContinue)+(Get-Content -LiteralPath $errorPath -Raw -ErrorAction SilentlyContinue)
-    if ($diagnostics -match 'HCS_E_HYPERV_NOT_INSTALLED|WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED|WSL_E_VIRTUAL_MACHINE_PLATFORM_REQUIRED|0x80370102') { $requiresRestart=$true }
-  }`
-      : ''
+  $diagnostics=''
+  foreach ($file in @($outputPath,$errorPath)) {
+    if (Test-Path -LiteralPath $file) {
+      $diagnostics+=((Get-Content -LiteralPath $file -Tail 12 -ErrorAction SilentlyContinue) -join "\n")+"\n"
+    }
   }
-  if (Test-Path -LiteralPath 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending') { $requiresRestart=$true }
+  if ($diagnostics.Length -gt 2000) { $diagnostics=$diagnostics.Substring($diagnostics.Length-2000) }
+  $record | Add-Member -Force NoteProperty diagnostics $diagnostics
+  # Virtualization/feature error text alone does not prove a reboot is needed.
+  if (($installer.ExitCode -eq 0) -and (Test-Path -LiteralPath 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending')) { $requiresRestart=$true }
   $record | Add-Member -Force NoteProperty restartRequired $requiresRestart
 } catch {
   # Only a launch failure is known to leave no installer. After launch, preserve
@@ -171,6 +210,14 @@ try {
   if ($null -eq $installer) {
     $record | Add-Member -Force NoteProperty code 1
     $record | Add-Member -Force NoteProperty restartRequired $false
+    $exception=$_.Exception
+    $diagnostics=$exception.Message
+    while ($null -ne $exception) {
+      if ($exception -is [ComponentModel.Win32Exception]) { $record | Add-Member -Force NoteProperty launchError $exception.NativeErrorCode; break }
+      $exception=$exception.InnerException
+    }
+    if ($diagnostics.Length -gt 2000) { $diagnostics=$diagnostics.Substring($diagnostics.Length-2000) }
+    $record | Add-Member -Force NoteProperty diagnostics $diagnostics
     $finished=$true
   }
 } finally {
@@ -225,12 +272,21 @@ async function waitForInstall(
   progress?: (message: string) => void,
   signal?: AbortSignal,
 ): Promise<InstallRecord | undefined> {
-  const deadline = Date.now() + 45 * 60_000
   let lastProgress = 0
   for (;;) {
     signal?.throwIfAborted()
     const record = readInstallRecord()
     if (!record) return undefined
+    if (Date.now() - lastProgress >= 30_000) {
+      lastProgress = Date.now()
+      const minutes = Math.max(0, Math.floor((Date.now() - record.createdAt) / 60_000))
+      const stage = record.installerPid
+        ? 'Windows 설치 도구가 실행 중입니다.'
+        : 'Windows 설치 도구를 시작하고 있습니다. 권한 승인 창이 있으면 확인해 주세요.'
+      progress?.(
+        `${stage} 경과 ${minutes}분. 앱을 종료해도 Windows 설치는 계속되며 다시 실행한 뒤 자동 설치를 누르면 진행 상태를 확인합니다.`,
+      )
+    }
     // PID alone is never sufficient: reject PID reuse, and allow recovery after reboot.
     const identity = await capture(
       'powershell.exe',
@@ -262,14 +318,8 @@ else { Write-Output 'DVM_INSTALL_STOPPED' }`),
     }
     if (identity.code !== 0) throw new Error(installInterrupted)
     if (!identity.output.includes('DVM_INSTALL_RUNNING')) throw new Error(installInterrupted)
-    if (Date.now() >= deadline) throw new Error(installStillRunning)
-    if (Date.now() - lastProgress >= 30_000) {
-      lastProgress = Date.now()
-      const minutes = Math.floor((Date.now() - record.createdAt) / 60_000)
-      progress?.(
-        `Windows 자막 실행 환경을 설치하고 있습니다. 경과 ${Math.max(0, minutes)}분. 권한 승인 창이 있으면 확인해 주세요. 앱을 종료해도 Windows 설치는 계속되며 다시 실행한 뒤 자동 설치를 누르면 진행 상태를 확인합니다.`,
-      )
-    }
+    // Retrying attaches to the same installer; it must not reset the wait budget.
+    if (Date.now() - record.createdAt >= 45 * 60_000) throw new Error(installStillRunning)
     await new Promise<void>((resolve) => {
       const finished = (): void => {
         clearTimeout(timer)
@@ -383,6 +433,74 @@ export async function ensureSubtitleWslUser(
   if (!bindings().includes(distribution)) saveBinding(distribution)
 }
 
+async function wslStartup(capture: WslCapture, signal?: AbortSignal): Promise<WslCommandResult> {
+  return capture(
+    'wsl.exe',
+    [...subtitleWslArgs('default'), 'sh', '-c', 'printf "DVM_WSL_READY\\n"'],
+    signal,
+  ).catch((error: unknown) => {
+    signal?.throwIfAborted()
+    return { code: 1, output: error instanceof Error ? error.message : String(error) }
+  })
+}
+
+function distributionListed(result: WslCommandResult | undefined): boolean {
+  return (
+    result?.code === 0 &&
+    result.output
+      .replaceAll('\0', '')
+      .split(/\r?\n/)
+      .some((name) => name.trim() === subtitleDistribution())
+  )
+}
+
+/** Test Linux itself, independently of Python prerequisite installation. */
+export async function checkSubtitleWslReady(
+  capture: WslCapture,
+  signal: AbortSignal,
+): Promise<boolean> {
+  const record = readInstallRecord()
+  if (
+    record?.state === 'done' &&
+    (record.restartRequired || [3010, 1641].includes(record.code ?? -1))
+  ) {
+    // Read-only checks can also resume after reboot; they never launch an installer.
+    const boot = await capture(
+      'powershell.exe',
+      psArgs(`$ErrorActionPreference='Stop'
+$boot=(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime()
+if (([DateTimeOffset]$boot).ToUnixTimeMilliseconds() -gt ${record.createdAt}) { Write-Output 'DVM_INSTALL_REBOOTED' }`),
+      signal,
+    )
+    if (boot.code !== 0) throw new Error(installInterrupted)
+    if (!boot.output.includes('DVM_INSTALL_REBOOTED')) return false
+    clearInstallRecord(record)
+  } else if (hasSubtitleWslInstall()) return false
+  const startup = await wslStartup(capture, signal)
+  if (startup.code === 0 && startup.output.includes('DVM_WSL_READY')) return true
+  const listed = await capture('wsl.exe', ['--list', '--quiet'], signal).catch(() => {
+    signal.throwIfAborted()
+    return undefined
+  })
+  // An existing distro that cannot boot needs its actual diagnostic, not another
+  // installation attempt or a reboot prompt inferred from failed readiness.
+  if (distributionListed(listed))
+    throw installFailure('설치된 Windows 자막 실행 환경을 시작하지 못했습니다.', {
+      code: startup.code,
+      diagnostics: startup.output,
+    })
+  return false
+}
+
+async function requireWslStartup(capture: WslCapture, signal?: AbortSignal): Promise<void> {
+  const startup = await wslStartup(capture, signal)
+  if (startup.code !== 0 || !startup.output.includes('DVM_WSL_READY'))
+    throw installFailure('Windows 설치 후 자막 실행 환경을 시작하지 못했습니다.', {
+      code: startup.code,
+      diagnostics: startup.output,
+    })
+}
+
 /** Elevate only machine-wide WSL features; distros belong to the original user. */
 export async function installSubtitleWsl(
   capture: WslCapture,
@@ -390,43 +508,45 @@ export async function installSubtitleWsl(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const resumed = await waitForInstall(capture, progress, signal)
-  if (resumed?.restartRequired) return true
+  if (resumed?.restartRequired || [3010, 1641].includes(resumed?.code ?? -1)) return true
   if (resumed && resumed.code !== 0)
-    throw new Error(
-      '이전 Windows 설치를 완료하지 못했습니다. 권한 승인과 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
-    )
+    throw installFailure('이전 Windows 설치를 완료하지 못했습니다.', resumed)
   signal?.throwIfAborted()
-  const distribution = subtitleDistribution()
-  const listed = await capture('wsl.exe', ['--list', '--quiet']).catch(() => undefined)
-  if (
-    listed?.code === 0 &&
-    listed.output.split(/\r?\n/).some((name) => name.trim() === distribution)
-  )
+  const listed = await capture('wsl.exe', ['--list', '--quiet'], signal).catch(() => {
+    signal?.throwIfAborted()
+    return undefined
+  })
+  if (distributionListed(listed)) {
+    await requireWslStartup(capture, signal)
     return false
-  const platform = await capture('wsl.exe', ['--status']).catch(() => undefined)
+  }
+  const platform = await capture('wsl.exe', ['--status'], signal).catch(() => {
+    signal?.throwIfAborted()
+    return undefined
+  })
   if (!platform || platform.code !== 0) {
     signal?.throwIfAborted()
     await launchInstall(capture, 'platform')
     const result = await waitForInstall(capture, progress, signal)
-    if (!result) return true
-    if (result.restartRequired) return true
-    if (![0, 3010, 1641].includes(result.code ?? -1))
-      throw new Error(
-        'Windows 자막 환경을 설치하지 못했습니다. 권한 승인을 확인하고 Windows 업데이트 후 다시 시도해 주세요.',
-      )
-    if (result.code === 3010 || result.code === 1641) return true
-    const ready = await capture('wsl.exe', ['--status']).catch(() => undefined)
-    if (!ready || ready.code !== 0) return true
+    if (result?.restartRequired || result?.code === 3010 || result?.code === 1641) return true
+    if (result && result.code !== 0)
+      throw installFailure('Windows 자막 환경을 설치하지 못했습니다.', result)
+    const ready = await capture('wsl.exe', ['--status'], signal).catch(() => {
+      signal?.throwIfAborted()
+      return undefined
+    })
+    if (!ready || ready.code !== 0)
+      throw installFailure('Windows 설치 후 WSL 상태를 확인하지 못했습니다.', {
+        code: ready?.code,
+        diagnostics: ready?.output,
+      })
   }
   signal?.throwIfAborted()
   await launchInstall(capture, 'distribution')
   const installed = await waitForInstall(capture, progress, signal)
-  if (!installed || installed.restartRequired) return true
-  if ([3010, 1641].includes(installed.code ?? -1)) return true
-  if (installed.code !== 0) {
-    throw new Error(
-      '현재 Windows 사용자에 Ubuntu를 설치하지 못했습니다. 인터넷 연결과 Windows 업데이트 상태를 확인해 주세요.',
-    )
-  }
+  if (installed?.restartRequired || [3010, 1641].includes(installed?.code ?? -1)) return true
+  if (installed && installed.code !== 0)
+    throw installFailure('현재 Windows 사용자에 Ubuntu를 설치하지 못했습니다.', installed)
+  await requireWslStartup(capture, signal)
   return false
 }

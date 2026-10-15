@@ -20,6 +20,10 @@ const stateLabels = {
   failed: '확인 필요',
 }
 const errorMessage = (error) => (error instanceof Error ? error.message : String(error))
+const elapsedLabel = (milliseconds) => {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000))
+  return seconds < 60 ? `${seconds}초` : `${Math.floor(seconds / 60)}분 ${seconds % 60}초`
+}
 
 export default function SubtitleEnvironmentSetup() {
   const queryClient = useQueryClient()
@@ -53,6 +57,17 @@ export default function SubtitleEnvironmentSetup() {
   const phase = setup?.phase
   const updatedAt = setup?.updatedAt
   const active = activePhases.has(phase)
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    if (!active) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 5000)
+    return () => window.clearInterval(timer)
+  }, [active, setup?.stepStartedAt])
+  const currentComponent = setup?.components.find((item) => item.id === setup.currentComponent)
+  const stepStartedAt = Date.parse(setup?.stepStartedAt || '')
+  const lastUpdate = Date.parse(updatedAt || '')
+  const waitingForUpdate = active && Number.isFinite(lastUpdate) && now - lastUpdate >= 120_000
   const busy = action.isPending || active
   const error = action.error || status.error
   React.useEffect(() => {
@@ -111,6 +126,17 @@ export default function SubtitleEnvironmentSetup() {
           {setup.message}
         </p>
       )}
+      {active && currentComponent && Number.isFinite(stepStartedAt) && (
+        <p aria-label="설치 단계 경과" className="text-xs leading-relaxed text-indigo-200">
+          현재 단계: {currentComponent.label} · 경과 {elapsedLabel(now - stepStartedAt)}
+        </p>
+      )}
+      {waitingForUpdate && (
+        <p className="text-xs leading-relaxed text-amber-200">
+          {elapsedLabel(now - lastUpdate)} 동안 새 진행 안내가 없습니다. 권한 승인 창과 인터넷
+          연결을 확인해 주세요. Windows 설치 중에는 앱을 종료해도 설치가 계속될 수 있습니다.
+        </p>
+      )}
       {!!setup?.components.length && (
         <ul aria-label="자막 환경 준비 상태" className="grid gap-2 sm:grid-cols-2">
           {setup.components.map((component) => {
@@ -125,8 +151,12 @@ export default function SubtitleEnvironmentSetup() {
                   <span
                     className={`shrink-0 ${component.state === 'ready' ? 'text-emerald-300' : component.state === 'failed' ? 'text-amber-200' : 'text-zinc-400'}`}
                   >
-                    {component.state === 'checking' && !active
-                      ? '확인 전'
+                    {component.state === 'checking'
+                      ? !active
+                        ? '확인 전'
+                        : setup.currentComponent && component.id !== setup.currentComponent
+                          ? '대기 중'
+                          : stateLabels.checking
                       : stateLabels[component.state] || stateLabels.checking}
                     {component.state === 'installing' && percent !== null ? ` · ${percent}%` : ''}
                   </span>

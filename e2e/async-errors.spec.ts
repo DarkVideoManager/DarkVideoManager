@@ -9,6 +9,7 @@ type ErrorWindow = Window & { errorHarness: ErrorHarness }
 
 async function prepareErrors(page: Page, captureRejects: boolean): Promise<void> {
   await page.goto('/')
+  await page.waitForFunction(() => Boolean(window.api))
   await page.evaluate(async (rejectCapture) => {
     const state: ErrorHarness = { captures: 0, updates: 0, unhandled: [] }
     ;(window as unknown as ErrorWindow).errorHarness = state
