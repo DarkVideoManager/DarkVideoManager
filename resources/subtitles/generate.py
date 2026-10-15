@@ -664,6 +664,7 @@ def translate_cues(cues, language, translator_factory=None, sleep=time.sleep, lo
         progress.update(100, force=True)
         return translated
     if language == "ko":
+        emit(type="processing_device", translation="original-ko")
         for cue in cues[len(translated):]:
             translated.append(cue)
             if on_cue:
@@ -696,6 +697,7 @@ def translate_cues(cues, language, translator_factory=None, sleep=time.sleep, lo
                 # The parent reserves usage before one bounded official API
                 # call. Never retry a possibly billed Cloud request here.
                 text = validate_translation(translator.translate(cue.text), cue.text)
+                emit(type="processing_device", translation="cloud")
             except Exception as error:
                 cloud_reason = str(error) if isinstance(error, CloudTranslationError) else "Google Cloud Translation을 사용할 수 없습니다."
                 translator = None
@@ -716,6 +718,7 @@ def translate_cues(cues, language, translator_factory=None, sleep=time.sleep, lo
             try:
                 # Ollama bounds each retry itself; an outer deadline would cut
                 # off subsequent attempts while the checkpoint remains intact.
+                emit(type="processing_device", translation="ollama")
                 text = validate_translation(local_translator.translate(cue.text), cue.text)
             except Exception as error:
                 detail = str(error) if isinstance(error, LocalTranslationError) else "로컬 번역 처리 중 오류가 발생했습니다."
@@ -796,6 +799,7 @@ def run(args):
             emit(phase="loading", percent=0, message=f"{args.model} 모델을 준비하고 있습니다. 첫 실행 시 모델을 내려받습니다.")
             model_factory = load_dependencies(args.translate_ko)
             model = model_factory(args.model, device="cpu", compute_type="int8", cpu_threads=min(8, os.cpu_count() or 4))
+            emit(type="processing_device", asr_backend="cpu-legacy")
             emit(phase="loading", percent=100)
             progress.update(offset * 100 / duration, "음성을 인식하고 있습니다.", force=True)
             source = decode_resume_audio(audio, offset) if offset else str(audio)

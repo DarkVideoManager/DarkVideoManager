@@ -163,6 +163,7 @@ class VulkanTests(unittest.TestCase):
             audio = self.audio(output / "audio.wav", 12)
             options = {**generate.VULKAN_TRANSCRIPTION_OPTIONS, "chunk_seconds": 4, "right_context_seconds": 1}
             requests, saved = [], []
+            events = Mock()
             def fake_cli(executable, model, vad, chunk, destination, language, options, report):
                 requests.append(language)
                 report(50, "Vulkan0")
@@ -179,13 +180,17 @@ class VulkanTests(unittest.TestCase):
                  patch.object(vulkan, "ensure_model", return_value=Path("model")), \
                  patch.object(vulkan, "run_cli", side_effect=fake_cli):
                 vulkan.transcribe(audio, output, self.args(output), 12, 0, None,
-                                  lambda *values: saved.append(values), Mock(), options)
+                                  lambda *values: saved.append(values), events, options)
             self.assertEqual(requests, [None, None, "en"])
             self.assertEqual([item[1] for item in saved], [4, 8, 12])
             self.assertEqual([item[2] for item in saved], [None, "en", "en"])
             self.assertEqual(saved[1][0], [{"start": 5, "end": 6, "text": "hello"}])
             self.assertEqual(saved[2][0], [{"start": 9, "end": 10, "text": "hello"}])
             self.assertEqual(list(output.glob("vulkan-*")), [])
+            device_events = [call.kwargs for call in events.call_args_list
+                             if call.kwargs.get("type") == "processing_device"]
+            self.assertEqual(device_events, [{"type": "processing_device", "asr_backend": "vulkan",
+                                              "asr_device": "Vulkan0"}])
 
     def test_cli_json_uses_millisecond_offsets_and_validates_shape(self):
         with tempfile.TemporaryDirectory() as directory:
