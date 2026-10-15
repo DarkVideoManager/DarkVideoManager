@@ -138,6 +138,13 @@ export interface SubtitleGenerationJob {
   percent: number
   message: string
   outputPaths?: string[]
+  storageError?: string
+  processing?: {
+    asr: 'unconfirmed' | 'vulkan' | 'cpu-legacy'
+    device?: string
+    evidence?: 'engine' | 'checkpoint'
+    translation?: 'cloud' | 'ollama' | 'original-ko'
+  }
 }
 
 export interface Highlight {

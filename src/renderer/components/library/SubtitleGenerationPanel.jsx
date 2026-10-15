@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import SubtitleProcessingStatus from './SubtitleProcessingStatus'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const phaseLabels = {
@@ -278,6 +279,12 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
             {active ? ` · ${percent}%` : ''}
             {job.message && <span className="mt-1 block text-[11px]">{job.message}</span>}
           </p>
+          <SubtitleProcessingStatus job={job} />
+          {job.storageError && (
+            <p role="alert" className="break-words text-xs text-red-300">
+              {job.storageError}
+            </p>
+          )}
           {active && (
             <progress
               aria-label="자막 생성 진행률"

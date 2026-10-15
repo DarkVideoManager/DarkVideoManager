@@ -10,6 +10,8 @@ const calls = vi.hoisted(() => ({
   pathCommands: [] as string[][],
   failNative: false,
   userData: '',
+  nativeEvents: [] as Record<string, unknown>[],
+  wslEvents: [] as Record<string, unknown>[],
 }))
 vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => process.cwd(), getPath: () => calls.userData },
@@ -40,6 +42,8 @@ vi.mock('node:child_process', () => ({
         child.emit('close', 1)
         return
       }
+      for (const event of native ? calls.nativeEvents : calls.wslEvents)
+        child.stdout.write(JSON.stringify(event) + '\n')
       child.stdout.end(
         JSON.stringify({
           phase: 'completed',
@@ -65,6 +69,8 @@ describe('subtitle GPU routing and legacy resumes', () => {
     calls.commands.length = 0
     calls.pathCommands.length = 0
     calls.failNative = false
+    calls.nativeEvents = []
+    calls.wslEvents = []
   })
   afterEach(() => rmSync(output, { recursive: true, force: true }))
   function checkpoint(backend?: string, complete = false) {
@@ -77,13 +83,13 @@ describe('subtitle GPU routing and legacy resumes', () => {
       }),
     )
   }
-  async function run(translateToKorean = true) {
+  async function run(translateToKorean = true, progress = vi.fn()) {
     return transcribeSubtitleAudio(
       join(output, "영상 '& $.wav"),
       output,
       { ...options, translateToKorean },
       new AbortController().signal,
-      vi.fn(),
+      progress,
       true,
     )
   }
@@ -147,5 +153,75 @@ describe('subtitle GPU routing and legacy resumes', () => {
     expect(() => subtitleCheckpointEngine(output)).toThrow('진행 내용')
     writeFileSync(join(output, 'checkpoint.json'), '{')
     expect(() => subtitleCheckpointEngine(output)).toThrow('진행 내용')
+  })
+
+  it('does not claim verified GPU use merely because the Vulkan worker was selected', async () => {
+    const progress = vi.fn()
+    await run(false, progress)
+    expect(progress).toHaveBeenCalled()
+    expect(progress.mock.calls.every(([event]) => event.processing.asr === 'unconfirmed')).toBe(
+      true,
+    )
+  })
+
+  it('retains confirmed ASR backend separately when Ollama translation starts', async () => {
+    calls.nativeEvents = [
+      { phase: 'loading', percent: 0, message: '모델 준비' },
+      { type: 'processing_device', asr_backend: 'vulkan', asr_device: 'Vulkan0' },
+      { phase: 'transcribing', percent: 50, message: '인식 중' },
+    ]
+    calls.wslEvents = [
+      { phase: 'translating', percent: 0, message: '번역 중' },
+      { type: 'processing_device', translation: 'ollama' },
+    ]
+    const progress = vi.fn()
+    await run(true, progress)
+    expect(progress.mock.calls[0][0].processing).toEqual({ asr: 'unconfirmed' })
+    expect(progress.mock.lastCall?.[0]).toMatchObject({
+      phase: 'translating',
+      processing: { asr: 'vulkan', device: 'Vulkan0', evidence: 'engine', translation: 'ollama' },
+    })
+  })
+
+  it('identifies a legacy CPU resume with its reason and accepts CPU evidence only on that route', async () => {
+    checkpoint()
+    calls.wslEvents = [{ type: 'processing_device', asr_backend: 'cpu-legacy' }]
+    const progress = vi.fn()
+    await run(true, progress)
+    expect(progress.mock.calls[0][0]).toMatchObject({
+      processing: { asr: 'cpu-legacy', evidence: 'checkpoint' },
+    })
+    expect(progress.mock.calls[0][0].message).toContain('기존 CPU 작업')
+    expect(progress.mock.lastCall?.[0].processing).toEqual({
+      asr: 'cpu-legacy',
+      evidence: 'engine',
+    })
+  })
+
+  it('labels persisted GPU proof as a previous record when only translation is resumed', async () => {
+    writeFileSync(
+      join(output, 'checkpoint.json'),
+      JSON.stringify({
+        version: 1,
+        identity: { backend: 'vulkan' },
+        transcription_complete: true,
+        gpu_backend: 'Vulkan0',
+      }),
+    )
+    const progress = vi.fn()
+    await run(true, progress)
+    expect(progress.mock.calls[0][0].processing).toEqual({
+      asr: 'vulkan',
+      device: 'Vulkan0',
+      evidence: 'checkpoint',
+    })
+    expect(calls.commands).toHaveLength(1)
+    expect(calls.commands[0].command).toBe('wsl.exe')
+  })
+
+  it('rejects unsupported device evidence without silently selecting CPU', async () => {
+    calls.nativeEvents = [{ type: 'processing_device', asr_backend: 'cpu-legacy' }]
+    await expect(run()).rejects.toThrow('처리 장치 응답')
+    expect(calls.commands).toHaveLength(1)
   })
 })

@@ -12,9 +12,39 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SubtitleGenerationOptions } from '@shared/types'
+import type { SubtitleGenerationJob, SubtitleGenerationOptions } from '@shared/types'
 
-const state = vi.hoisted(() => ({ root: '', extract: vi.fn(), transcribe: vi.fn() }))
+const state = vi.hoisted(() => ({
+  root: '',
+  extract: vi.fn(),
+  transcribe: vi.fn(),
+  failWrites: false,
+  failCompletion: false,
+  failEmpty: false,
+  writes: 0,
+}))
+vi.mock('./SubtitleQueueStorage', async (original) => {
+  const actual = await original<typeof import('./SubtitleQueueStorage')>()
+  return {
+    ...actual,
+    writeSubtitleQueueSnapshot: (
+      file: string,
+      value: { entries: { job: SubtitleGenerationJob }[] },
+    ) => {
+      state.writes++
+      if (
+        state.failWrites ||
+        (state.failEmpty && !value.entries.length) ||
+        (state.failCompletion && value.entries.some(({ job }) => job.phase === 'completed'))
+      )
+        throw new actual.SubtitleQueueStorageError(
+          file,
+          Object.assign(new Error('Injected queue lock'), { code: 'EPERM' }),
+        )
+      actual.writeSubtitleQueueSnapshot(file, value)
+    },
+  }
+})
 vi.mock('electron', () => ({ app: { getPath: () => state.root, isPackaged: false } }))
 vi.mock('../infra/logger', () => ({ createLogger: () => ({ info() {}, warn() {}, error() {} }) }))
 vi.mock('./SubtitleRuntime', () => ({
@@ -55,6 +85,7 @@ interface Worker {
   resolve: (result: Result) => void
   reject: (error: Error) => void
   deferAbort: boolean
+  update: (patch: Partial<SubtitleGenerationJob>) => void
 }
 let db: ReturnType<typeof openDatabase>
 let libraryId: string
@@ -98,6 +129,10 @@ async function complete(
 }
 
 beforeEach(() => {
+  state.failWrites = false
+  state.failCompletion = false
+  state.failEmpty = false
+  state.writes = 0
   roots = []
   root = createRoot()
   state.root = root
@@ -125,7 +160,7 @@ beforeEach(() => {
       directory: string,
       requested: SubtitleGenerationOptions,
       signal: AbortSignal,
-      _update: unknown,
+      update: Worker['update'],
       resume: boolean,
     ) =>
       new Promise<Result>((resolve, reject) => {
@@ -138,6 +173,7 @@ beforeEach(() => {
           resolve,
           reject,
           deferAbort: false,
+          update,
         }
         workers.push(current)
         signal.addEventListener(
@@ -152,6 +188,9 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
+  state.failWrites = false
+  state.failCompletion = false
+  state.failEmpty = false
   await shutdownSubtitleQueue()
   await drainLibraryWork()
   closeAllDatabases()
@@ -389,11 +428,175 @@ describe('subtitle queue lifecycle', () => {
         expect(original.signal.aborted).toBe(true)
         expect(isLibraryBusy(libraryId)).toBe(false)
         expect(new SubtitleRepository(db).findByVideoId('first')).toEqual([])
-        expect(existsSync(original.directory)).toBe(action === 'pause')
+        expect(existsSync(original.directory)).toBe(true)
       } finally {
         rmdirSync(journal)
         writeFileSync(journal, saved)
       }
     },
   )
+
+  it('freezes the whole queue after a persistent save failure and retries only after a user action', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const second = startSubtitleGeneration(libraryId, 'second', options)
+    const current = await worker(0)
+    const checkpoint = join(current.directory, 'checkpoint.json')
+    writeFileSync(checkpoint, 'committed transcript')
+    const journal = join(root, 'subtitle-queue.json')
+    const durable = readFileSync(journal)
+    state.failWrites = true
+    expect(() => current.update({ phase: 'transcribing', percent: 15 })).toThrow('EPERM')
+    await vi.waitFor(() => expect(isLibraryBusy(libraryId)).toBe(false))
+    expect(listSubtitleQueue().map(({ phase }) => phase)).toEqual(['paused', 'paused'])
+    expect(job(first.id)?.storageError).toContain('저장 다시 시도')
+    expect(readFileSync(journal)).toEqual(durable)
+    expect(readFileSync(checkpoint, 'utf8')).toBe('committed transcript')
+    const writes = state.writes
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(state.writes).toBe(writes)
+    expect(state.transcribe).toHaveBeenCalledOnce()
+    expect(() => resumeSubtitleJob(first.id)).toThrow('EPERM')
+    expect(job(first.id)?.phase).toBe('paused')
+    state.failWrites = false
+    expect(resumeSubtitleJob(first.id)).toBe(true)
+    await complete(await worker(1))
+    expect(job(first.id)?.storageError).toBeUndefined()
+    expect(job(second.id)?.phase).toBe('paused')
+    expect(state.extract).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an unsaved queue admission without retaining a duplicate job', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    await worker(0)
+    await pauseSubtitleJob(first.id)
+    const durable = readFileSync(join(root, 'subtitle-queue.json'))
+    state.failWrites = true
+    expect(() => startSubtitleGeneration(libraryId, 'second', options)).toThrow('EPERM')
+    expect(listSubtitleQueue().map(({ id }) => id)).toEqual([first.id])
+    expect(readFileSync(join(root, 'subtitle-queue.json'))).toEqual(durable)
+    state.failWrites = false
+    expect(resumeSubtitleJob(first.id)).toBe(true)
+    await complete(await worker(1))
+  })
+
+  it('preserves published outputs and checkpoints when completion cannot be saved, and never republishes on storage retry', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const current = await worker(0)
+    const checkpoint = join(current.directory, 'checkpoint.json')
+    writeFileSync(checkpoint, 'finished transcript')
+    state.failCompletion = true
+    await complete(current)
+    await vi.waitFor(() => expect(job(first.id)?.storageError).toContain('EPERM'))
+    expect(job(first.id)?.phase).toBe('completed')
+    const durable = JSON.parse(readFileSync(join(root, 'subtitle-queue.json'), 'utf8'))
+    expect(durable.entries[0].job.phase).toBe('saving')
+    expect(durable.entries[0].job.outputPaths).toBeUndefined()
+    expect(readFileSync(checkpoint, 'utf8')).toBe('finished transcript')
+    const outputs = job(first.id)!.outputPaths!
+    expect(outputs.every(existsSync)).toBe(true)
+    state.failCompletion = false
+    expect(resumeSubtitleJob(first.id)).toBe(true)
+    expect(job(first.id)?.storageError).toBeUndefined()
+    expect(job(first.id)?.outputPaths).toEqual(outputs)
+    expect(new SubtitleRepository(db).findByVideoId('first')).toHaveLength(2)
+    expect(state.transcribe).toHaveBeenCalledOnce()
+    expect(readdirSync(root).filter((path) => path.endsWith('.srt'))).toHaveLength(2)
+  })
+
+  it.each(['running', 'completed'] as const)(
+    'retains a retry control if removing the last %s job cannot be saved',
+    async (phase) => {
+      const first = startSubtitleGeneration(libraryId, 'first', options)
+      const current = await worker(0)
+      if (phase === 'completed') await complete(current)
+      state.failEmpty = true
+      await expect(removeSubtitleJob(first.id)).rejects.toThrow('EPERM')
+      await vi.waitFor(() => expect(isLibraryBusy(libraryId)).toBe(false))
+      expect(job(first.id)).toMatchObject({
+        phase: 'cancelled',
+        storageError: expect.stringContaining('저장 다시 시도'),
+      })
+      state.failEmpty = false
+      expect(resumeSubtitleJob(first.id)).toBe(true)
+      expect(state.transcribe).toHaveBeenCalledOnce()
+      expect(await removeSubtitleJob(first.id)).toBe(true)
+      expect(listSubtitleQueue()).toEqual([])
+      startSubtitleGeneration(libraryId, 'second', options)
+      await complete(await worker(1))
+    },
+  )
+
+  it('restores publication intent after restart and reuses verified outputs instead of creating another pair', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const current = await worker(0)
+    writeFileSync(join(current.directory, 'checkpoint.json'), 'finished transcript')
+    state.failCompletion = true
+    await complete(current)
+    await vi.waitFor(() => expect(job(first.id)?.storageError).toContain('EPERM'))
+    const outputs = job(first.id)!.outputPaths!
+    state.failCompletion = false
+    state.root = createRoot()
+    initializeSubtitleQueue()
+    state.root = root
+    initializeSubtitleQueue()
+    expect(job(first.id)?.phase).toBe('paused')
+    expect(job(first.id)?.outputPaths).toBeUndefined()
+    expect(resumeSubtitleJob(first.id)).toBe(true)
+    const resumed = await worker(1)
+    expect(resumed.directory).toBe(current.directory)
+    await complete(resumed)
+    expect(job(first.id)?.outputPaths).toEqual(outputs)
+    expect(new SubtitleRepository(db).findByVideoId('first')).toHaveLength(2)
+    expect(readdirSync(root).filter((path) => path.endsWith('.srt'))).toHaveLength(2)
+    expect(state.extract).toHaveBeenCalledOnce()
+  })
+
+  it('allows an explicit new attempt after the initial unsaved admission leaves an empty queue', async () => {
+    state.failWrites = true
+    expect(() => startSubtitleGeneration(libraryId, 'first', options)).toThrow('EPERM')
+    expect(listSubtitleQueue()).toEqual([])
+    state.failWrites = false
+    startSubtitleGeneration(libraryId, 'first', options)
+    await complete(await worker(0))
+  })
+
+  it('persists confirmed device evidence, isolates snapshots, and marks restored evidence as a previous record', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const current = await worker(0)
+    current.update({
+      processing: { asr: 'vulkan', device: 'Vulkan0', evidence: 'engine', translation: 'ollama' },
+    })
+    const copy = job(first.id)!
+    copy.processing!.device = 'changed by caller'
+    expect(job(first.id)?.processing?.device).toBe('Vulkan0')
+    await pauseSubtitleJob(first.id)
+    state.root = createRoot()
+    initializeSubtitleQueue()
+    state.root = root
+    initializeSubtitleQueue()
+    expect(job(first.id)?.processing).toEqual({
+      asr: 'vulkan',
+      device: 'Vulkan0',
+      evidence: 'checkpoint',
+      translation: 'ollama',
+    })
+    expect(state.transcribe).toHaveBeenCalledOnce()
+  })
+
+  it('resumes failed work after storage recovery while retaining its checkpoint', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const current = await worker(0)
+    writeFileSync(join(current.directory, 'checkpoint.json'), 'partial translation')
+    state.failWrites = true
+    current.reject(new Error('translation unavailable'))
+    await vi.waitFor(() => expect(job(first.id)?.storageError).toContain('EPERM'))
+    expect(job(first.id)?.phase).toBe('failed')
+    state.failWrites = false
+    expect(resumeSubtitleJob(first.id)).toBe(true)
+    const resumed = await worker(1)
+    expect(readFileSync(join(resumed.directory, 'checkpoint.json'), 'utf8')).toBe(
+      'partial translation',
+    )
+    await complete(resumed)
+  })
 })
