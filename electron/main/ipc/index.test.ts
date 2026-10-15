@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   saveThumbnailImageCapture: vi.fn(),
   ensureThumbnailForVideo: vi.fn(),
   refreshLibrary: vi.fn(),
+  importFiles: vi.fn(),
   recordSeek: vi.fn(),
   listConversions: vi.fn(),
   pauseConversion: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('../services/LibraryService', () => ({
   closeLibrary: mocks.closeLibrary,
   deleteLibrary: mocks.deleteLibrary,
   importFolder: vi.fn(),
+  importFiles: mocks.importFiles,
   refreshLibrary: mocks.refreshLibrary,
 }))
 vi.mock('../services/VideoService', () => ({
@@ -150,6 +152,30 @@ beforeEach(() => {
 })
 
 describe('IPC dispatch', () => {
+  it('selects video files and validates selected-file import arguments before dispatch', async () => {
+    const filePaths = ['C:/videos/one.mp4', 'C:/videos/two.mkv']
+    mocks.showOpenDialog.mockResolvedValue({ canceled: false, filePaths })
+    expect(await invoke(IPC.LIBRARY.SELECT_FILES)).toEqual({ ok: true, value: filePaths })
+    expect(mocks.showOpenDialog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        properties: ['openFile', 'multiSelections'],
+        filters: [expect.objectContaining({ extensions: expect.arrayContaining(['mp4', 'mkv']) })],
+      }),
+    )
+    mocks.importFiles.mockResolvedValue({ added: 2, skipped: 0, removed: 0, errors: [] })
+    expect(await invoke(IPC.LIBRARY.IMPORT_FILES, 'lib', filePaths)).toMatchObject({
+      ok: true,
+      value: { added: 2 },
+    })
+    expect(mocks.importFiles).toHaveBeenCalledExactlyOnceWith('lib', filePaths, expect.anything())
+    for (const invalid of [[], [''], ['one.mp4', 1], 'one.mp4', Array(1001).fill('one.mp4')]) {
+      expect(await invoke(IPC.LIBRARY.IMPORT_FILES, 'lib', invalid)).toMatchObject({ ok: false })
+    }
+    expect(mocks.importFiles).toHaveBeenCalledTimes(1)
+    mocks.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
+    expect(await invoke(IPC.LIBRARY.SELECT_FILES)).toEqual({ ok: true, value: null })
+  })
   it('rejects subframes and unregistered windows before a privileged handler runs', async () => {
     const entry = mocks.handle.mock.calls.find(([name]) => name === IPC.VIDEOS.UPDATE_META)!
     const args = ['lib', 'video', { rating: 3 }]

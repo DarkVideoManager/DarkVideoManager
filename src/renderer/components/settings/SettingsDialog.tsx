@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AccelerationInfo, AppSettings, CacheInfo, NativePlayerInfo } from '@shared/types'
+import PlaybackHelpButton from '../player/PlaybackHelpButton'
 
 interface SettingsDialogProps {
   onClose: () => void
@@ -289,6 +290,12 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
         </button>
       </div>
       <div className="space-y-5 p-5 text-sm">
+        <section aria-label="재생 조작 도움말" className="rounded border border-zinc-700 p-3">
+          <p className="mb-2 text-zinc-400">
+            왼손 조작, 음량, 화면 크기와 현재 지원하는 단축키를 확인하세요.
+          </p>
+          <PlaybackHelpButton label="단축키·재생 조작 안내" />
+        </section>
         {loading && (
           <p role="status" className="text-zinc-400">
             설정을 불러오는 중...

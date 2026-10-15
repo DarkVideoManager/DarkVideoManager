@@ -541,6 +541,8 @@ export const mockApi: WindowApi = {
     },
     selectFolder: async () => ok('/mock/videos'),
     importFolder: mockImport,
+    selectFiles: async () => ok(['/mock/videos/sample.mp4']),
+    importFiles: mockImport,
     refresh: async () => ok({ added: 0, skipped: 1, removed: 0, errors: [] }),
     cancelWork: async () => ok(true),
   },
