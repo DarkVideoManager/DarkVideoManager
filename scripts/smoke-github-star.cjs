@@ -15,7 +15,7 @@ const appCode = executablePath
   ? require('@electron/asar')
       .extractFile(
         path.join(path.dirname(executablePath), 'resources/app.asar'),
-        'out/main/index.js',
+        path.join('out', 'main', 'index.js'),
       )
       .toString('utf8')
   : fs.readFileSync(path.join(root, 'out/main/index.js'), 'utf8')
@@ -74,6 +74,9 @@ async function calls(app) {
 }
 
 async function capture(app, name) {
+  // Hidden Electron windows can commit their next compositor frame after the
+  // DOM assertion resolves. Let that frame paint before collecting evidence.
+  await new Promise((resolve) => setTimeout(resolve, 250))
   const png = await app.evaluate(async ({ BrowserWindow }) => {
     const image = await BrowserWindow.getAllWindows()[0].webContents.capturePage()
     return image.isEmpty() ? null : image.toPNG().toString('base64')
@@ -130,6 +133,7 @@ async function main() {
     assert.deepEqual(await calls(clicked.app), [])
     await notice.getByRole('button', { name: 'GitHub에서 Star 누르기' }).click()
     await expect(notice.getByRole('alert')).toContainText('브라우저를 열지 못했습니다')
+    await expect(notice.getByRole('button', { name: 'GitHub에서 Star 누르기' })).toBeEnabled()
     assert.deepEqual(await calls(clicked.app), [expectedUrl])
     await capture(clicked.app, 'browser-failure.png')
     await clicked.app.evaluate(() => {
