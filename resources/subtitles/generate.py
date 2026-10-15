@@ -28,6 +28,8 @@ import threading
 import time
 import wave
 
+from atomic_output import atomic_replace, cancel_all_children as cancel_output_children
+
 
 PROTOCOL_OUTPUT = sys.stdout
 OLLAMA_START_LOCK = threading.Lock()
@@ -111,7 +113,7 @@ def atomic_write(output, text):
             destination.write(text)
             destination.flush()
             os.fsync(destination.fileno())
-        os.replace(temporary, output)
+        atomic_replace(temporary, output)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
@@ -338,9 +340,12 @@ def cancel_on_stdin_close():
                 cancel()
         finally:
             try:
-                cancel_ollama_start()
+                cancel_output_children()
             finally:
-                os._exit(130)
+                try:
+                    cancel_ollama_start()
+                finally:
+                    os._exit(130)
 
     def watch():
         buffer = bytearray()
