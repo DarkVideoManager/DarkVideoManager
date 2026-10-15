@@ -17,6 +17,7 @@ import type {
   SearchQuery,
   SearchResult,
   VideoMeta,
+  VideoMetadataOptions,
   ImportResult,
   ImportProgress,
   LibraryStats,
@@ -93,6 +94,11 @@ const api = {
       ipcRenderer.invoke(IPC.LIBRARY.CANCEL_WORK, libraryId),
   },
   videos: {
+    metadataOptions: (
+      libraryId: string,
+      removed = false,
+    ): Promise<Result<VideoMetadataOptions, string>> =>
+      ipcRenderer.invoke(IPC.VIDEOS.METADATA_OPTIONS, libraryId, removed),
     search: (libraryId: string, query: SearchQuery): Promise<Result<SearchResult, string>> =>
       ipcRenderer.invoke(IPC.VIDEOS.SEARCH, libraryId, query),
     get: (libraryId: string, videoId: string): Promise<Result<Video | null, string>> =>

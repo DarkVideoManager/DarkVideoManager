@@ -16,6 +16,7 @@ const libraryApi: WindowApi['library'] = {
   cancelWork: (id2) => getApi().library.cancelWork(id2),
 }
 const videosApi: WindowApi['videos'] = {
+  metadataOptions: (libraryId, removed) => getApi().videos.metadataOptions(libraryId, removed),
   search: (libraryId, query) => getApi().videos.search(libraryId, query),
   get: (libraryId, videoId) => getApi().videos.get(libraryId, videoId),
   getPlaybackSource: (libraryId, videoId) => getApi().videos.getPlaybackSource(libraryId, videoId),

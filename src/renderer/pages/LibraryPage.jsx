@@ -20,6 +20,7 @@ import ImportDialog, {
   WorkProgress,
 } from '../components/library/ImportDialog'
 import CsvImportDialog from '../components/library/CsvImportDialog'
+import VideoMetadataFilters from '../components/library/VideoMetadataFilters'
 function LibraryPage() {
   const {
     activeLibraryId,
@@ -34,6 +35,8 @@ function LibraryPage() {
     setSearchText,
     getWithoutSubtitles,
     setWithoutSubtitles,
+    getMetadataFilters,
+    setMetadataFilters,
     getScrollTop,
     setScrollTop,
   } = useLibraryStore()
@@ -55,6 +58,7 @@ function LibraryPage() {
     return bTime.localeCompare(aTime)
   })
   const [query, setQuery] = React.useState({
+    ...getMetadataFilters(activeLibraryId),
     q: initialSearchText.trim() ? initialSearchText : void 0,
     sortBy: initialSort.sortBy,
     sortDir: initialSort.sortDir,
@@ -96,16 +100,21 @@ function LibraryPage() {
       qc2.invalidateQueries({
         queryKey: ['highlights', activeLibraryId],
       })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', activeLibraryId] })
     },
     onError: (error) =>
       setRefreshError(error instanceof Error ? error.message : '목록 업데이트에 실패했습니다.'),
     onSettled: () => refreshWork.finish(),
   })
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useVideos(
-    activeLibraryId ?? '',
-    query,
-    isLibraryReady,
-  )
+  const {
+    data,
+    isLoading,
+    isError,
+    isPlaceholderData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useVideos(activeLibraryId ?? '', query, isLibraryReady)
   const { data: selectedVideo } = useQuery({
     queryKey: ['video', activeLibraryId, selectedVideoId],
     queryFn: async () => {
@@ -122,13 +131,15 @@ function LibraryPage() {
     setQuery((prev) => ({
       ...prev,
       q: savedSearchText.trim() ? savedSearchText : void 0,
+      category: getMetadataFilters(activeLibraryId).category,
+      tag: getMetadataFilters(activeLibraryId).tag,
       sortBy: sort.sortBy,
       sortDir: sort.sortDir,
       page: 1,
       removed: false,
       hasSubtitles: getWithoutSubtitles(activeLibraryId) ? false : undefined,
     }))
-  }, [activeLibraryId, getSearchText, getSortPreference, getWithoutSubtitles])
+  }, [activeLibraryId, getSearchText, getSortPreference, getWithoutSubtitles, getMetadataFilters])
   React.useEffect(() => {
     if (!activeLibraryId) return
     setSortPreference(activeLibraryId, {
@@ -145,6 +156,9 @@ function LibraryPage() {
         void qc2.invalidateQueries({ queryKey: ['thumbnail-jobs', activeLibraryId] })
       }
       thumbnailsStarted = progress.phase === 'thumbnails'
+      if (progress.phase === 'done') {
+        void qc2.invalidateQueries({ queryKey: ['video-metadata-options', activeLibraryId] })
+      }
     })
   }, [activeLibraryId, qc2])
   React.useEffect(() => {
@@ -243,6 +257,15 @@ function LibraryPage() {
       setScrollTop(activeLibraryId, 0)
     }
     setQuery((prev) => ({ ...prev, hasSubtitles: checked ? false : undefined, page: 1 }))
+  }
+  function handleMetadataFiltersChange(patch) {
+    const filters = { category: query.category, tag: query.tag, ...patch }
+    setSelectedVideoId(null)
+    if (activeLibraryId) {
+      setMetadataFilters(activeLibraryId, filters)
+      setScrollTop(activeLibraryId, 0)
+    }
+    setQuery((prev) => ({ ...prev, ...filters, page: 1 }))
   }
   async function handleCreateLibrary() {
     try {
@@ -425,12 +448,18 @@ ${error.message}`)
     )
   }
   return (
-    <div className={'flex flex-1 overflow-hidden'}>
-      <div className={'flex flex-1 flex-col overflow-hidden'}>
-        <div className={'flex flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3'}>
+    <div className={'flex min-h-0 min-w-0 flex-1 overflow-hidden'}>
+      <div className={'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'}>
+        <div
+          className={
+            'flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3'
+          }
+        >
           <input
             type={'text'}
             placeholder={'영상 검색...'}
+            aria-label="영상 검색"
+            title="제목·파일명·태그 검색. #선수명으로 태그만 검색할 수 있습니다."
             className={
               'min-w-40 flex-1 rounded bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-500 outline-hidden focus:ring-1 focus:ring-zinc-600'
             }
@@ -483,8 +512,7 @@ ${error.message}`)
             자막 없는 영상만
           </label>
           <span className={'text-xs text-zinc-500'}>
-            {data.total}
-            {'개 영상'}
+            {isPlaceholderData ? '검색 중...' : `${data.total}개 영상`}
           </span>
           <button
             type="button"
@@ -518,6 +546,11 @@ ${error.message}`)
             {'CSV 가져오기'}
           </button>
         </div>
+        <VideoMetadataFilters
+          libraryId={activeLibraryId}
+          query={query}
+          onChange={handleMetadataFiltersChange}
+        />
         {refreshWork.progress && (
           <div className="px-4">
             <WorkProgress work={refreshWork} isWorking={refreshLibrary.isPending} />
@@ -564,22 +597,37 @@ ${error.message}`)
             </button>
           </div>
         )}
-        <VideoGrid
-          key={`${activeLibraryId}-${Boolean(query.removed)}-${query.hasSubtitles === false}`}
-          videos={data.videos.filter(
-            (video) =>
-              Boolean(video.removalMode) === Boolean(query.removed) &&
-              (query.hasSubtitles !== false || !video.hasSubtitles),
-          )}
-          selectedVideoId={selectedVideoId}
-          subtitleJobs={subtitleJobs.jobsByVideo}
-          thumbnailJobs={thumbnailJobs}
-          initialScrollTop={initialScrollTop}
-          onScrollTopChange={(value) => setScrollTop(activeLibraryId, value)}
-          onVideoClick={handleVideoClick}
-          onVideoDoubleClick={handleVideoDoubleClick}
-        />
-        {hasNextPage && (
+        {isPlaceholderData ? (
+          <div
+            role="status"
+            className="flex min-h-0 flex-1 items-center justify-center text-sm text-zinc-500"
+          >
+            조건에 맞는 영상을 찾고 있습니다...
+          </div>
+        ) : (
+          <VideoGrid
+            key={JSON.stringify([
+              activeLibraryId,
+              Boolean(query.removed),
+              query.hasSubtitles === false,
+              query.category,
+              query.tag,
+            ])}
+            videos={data.videos.filter(
+              (video) =>
+                Boolean(video.removalMode) === Boolean(query.removed) &&
+                (query.hasSubtitles !== false || !video.hasSubtitles),
+            )}
+            selectedVideoId={selectedVideoId}
+            subtitleJobs={subtitleJobs.jobsByVideo}
+            thumbnailJobs={thumbnailJobs}
+            initialScrollTop={initialScrollTop}
+            onScrollTopChange={(value) => setScrollTop(activeLibraryId, value)}
+            onVideoClick={handleVideoClick}
+            onVideoDoubleClick={handleVideoDoubleClick}
+          />
+        )}
+        {!isPlaceholderData && hasNextPage && (
           <button
             onClick={() => void fetchNextPage()}
             disabled={isFetchingNextPage}

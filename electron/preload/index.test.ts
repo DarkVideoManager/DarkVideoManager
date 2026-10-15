@@ -59,6 +59,7 @@ describe('preload bridge', () => {
       api.library.refresh('lib'),
       api.library.cancelWork('lib'),
       api.videos.search('lib', { sortBy: 'playCount' }),
+      api.videos.metadataOptions('lib'),
       api.videos.get('lib', 'video'),
       api.videos.getPlaybackSource('lib', 'video'),
       api.videos.getNativePlayerInfo(),

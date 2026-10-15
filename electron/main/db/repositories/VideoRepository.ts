@@ -1,5 +1,22 @@
 import type { Database } from 'better-sqlite3'
-import { Video, SearchQuery, SearchResult, VideoMeta, ProbeData } from '@shared/types'
+import {
+  Video,
+  SearchQuery,
+  SearchResult,
+  VideoMeta,
+  ProbeData,
+  VideoMetadataOptions,
+} from '@shared/types'
+import {
+  collectVideoMetadataOptions,
+  hasVideoTag,
+  normalizeVideoCategory,
+  normalizeVideoTag,
+  parseVideoSearch,
+  serializeVideoTags,
+} from '@shared/videoMetadata'
+
+const metadataFunctionsRegistered = new WeakSet<Database>()
 
 interface VideoRow {
   id: string
@@ -18,6 +35,7 @@ interface VideoRow {
   rating: number
   memo: string
   tags: string
+  category: string
   play_count: number
   play_time_sec: number
   has_subtitles: number
@@ -47,6 +65,7 @@ function rowToVideo(row: VideoRow): Video {
     rating: row.rating,
     memo: row.memo,
     tags: row.tags ?? '',
+    category: row.category ?? '',
     playCount: row.play_count ?? 0,
     playTimeSec: row.play_time_sec ?? 0,
     hasSubtitles: row.has_subtitles === 1,
@@ -60,7 +79,15 @@ function rowToVideo(row: VideoRow): Video {
 }
 
 export class VideoRepository {
-  constructor(private db: Database) {}
+  constructor(private db: Database) {
+    if (!metadataFunctionsRegistered.has(db)) {
+      // Match complete normalized tags before counting/paginating, without rewriting legacy CSV.
+      db.function('dvm_has_video_tag', { deterministic: true }, (tags, tag) =>
+        typeof tag === 'string' && hasVideoTag(typeof tags === 'string' ? tags : '', tag) ? 1 : 0,
+      )
+      metadataFunctionsRegistered.add(db)
+    }
+  }
 
   insert(
     video: Omit<
@@ -80,10 +107,10 @@ export class VideoRepository {
       .prepare(
         `INSERT OR IGNORE INTO videos
          (id, file_path, file_name, file_hash, duration_sec, width, height,
-          codec, fps, bitrate, container, size_bytes, title, rating, memo, resume_pos_sec, tags, play_count, play_time_sec, last_played_at)
+          codec, fps, bitrate, container, size_bytes, title, rating, memo, resume_pos_sec, tags, category, play_count, play_time_sec, last_played_at)
          VALUES
          (@id, @filePath, @fileName, @fileHash, @durationSec, @width, @height,
-          @codec, @fps, @bitrate, @container, @sizeBytes, @title, @rating, @memo, @resumePosSec, @tags, @playCount, @playTimeSec, @lastPlayedAt)`,
+          @codec, @fps, @bitrate, @container, @sizeBytes, @title, @rating, @memo, @resumePosSec, @tags, @category, @playCount, @playTimeSec, @lastPlayedAt)`,
       )
       .run({
         id: video.id,
@@ -103,6 +130,7 @@ export class VideoRepository {
         memo: video.memo,
         resumePosSec: video.resumePosSec,
         tags: video.tags ?? '',
+        category: normalizeVideoCategory(video.category),
         playCount: video.playCount ?? 0,
         playTimeSec: video.playTimeSec ?? 0,
         lastPlayedAt: video.lastPlayedAt ?? null,
@@ -149,7 +177,9 @@ export class VideoRepository {
 
   search(query: SearchQuery): SearchResult {
     const {
-      q,
+      q: rawQuery,
+      category,
+      tag,
       rating,
       hasSubtitles,
       removed = false,
@@ -158,6 +188,9 @@ export class VideoRepository {
       page = 1,
       pageSize = 50,
     } = query
+    const { text: q, tags: queryTags } = parseVideoSearch(rawQuery)
+    const requestedTags = [...queryTags]
+    if (tag !== undefined && normalizeVideoTag(tag)) requestedTags.push(tag)
 
     const colMap: Record<string, string> = {
       title: 'COALESCE(v.title, v.file_name)',
@@ -175,6 +208,15 @@ export class VideoRepository {
     const conditions: string[] = [removed ? 'v.removal_mode IS NOT NULL' : 'v.removal_mode IS NULL']
     const params: Record<string, unknown> = {}
 
+    if (category !== undefined) {
+      conditions.push('v.category = @category')
+      params['category'] = normalizeVideoCategory(category)
+    }
+    requestedTags.forEach((requestedTag, index) => {
+      const parameter = `tag${index}`
+      conditions.push(`dvm_has_video_tag(v.tags, @${parameter}) = 1`)
+      params[parameter] = normalizeVideoTag(requestedTag)
+    })
     if (q) {
       conditions.push(
         `(LOWER(v.file_name) LIKE '%' || LOWER(@q) || '%' OR LOWER(COALESCE(v.title,'')) LIKE '%' || LOWER(@q) || '%' OR LOWER(COALESCE(v.tags,'')) LIKE '%' || LOWER(@q) || '%')`,
@@ -219,6 +261,15 @@ export class VideoRepository {
     return { videos: rows.map(rowToVideo), total: cnt, page, pageSize }
   }
 
+  metadataOptions(removed = false): VideoMetadataOptions {
+    const rows = this.db
+      .prepare(
+        `SELECT category, tags FROM videos WHERE removal_mode IS ${removed ? 'NOT ' : ''}NULL`,
+      )
+      .all() as Array<{ category: string; tags: string }>
+    return collectVideoMetadataOptions(rows)
+  }
+
   updateMeta(id: string, meta: VideoMeta): void {
     const fields: string[] = []
     const params: Record<string, unknown> = { id }
@@ -236,7 +287,11 @@ export class VideoRepository {
     }
     if (meta.tags !== undefined) {
       fields.push('tags = @tags')
-      params['tags'] = meta.tags
+      params['tags'] = serializeVideoTags(meta.tags)
+    }
+    if (meta.category !== undefined) {
+      fields.push('category = @category')
+      params['category'] = normalizeVideoCategory(meta.category)
     }
     if (meta.lastPlayedAt !== undefined) {
       fields.push('last_played_at = @lastPlayedAt')

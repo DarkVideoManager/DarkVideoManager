@@ -59,13 +59,18 @@ function VideoCard({
     ['마지막 재생', formatDateTime(video.lastPlayedAt)],
   ]
   return (
-    <div className="relative h-[440px]" role="group" aria-label={`${displayTitle} 영상 카드`}>
+    <div
+      className="relative h-[440px] w-full min-w-0"
+      role="group"
+      aria-label={`${displayTitle} 영상 카드`}
+    >
       <button
         onClick={onClick}
         onDoubleClick={onDoubleClick}
-        className={`group flex h-full w-full flex-col overflow-hidden rounded-xl border bg-zinc-900 text-left transition-colors ${isSelected ? 'border-indigo-500 ring-1 ring-indigo-500/40' : isSubtitleRunning ? 'border-cyan-500/70 hover:border-cyan-400' : 'border-zinc-800 hover:border-zinc-500'}`}
+        aria-label={`${displayTitle} 영상 카드`}
+        className={`group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-zinc-900 text-left transition-colors ${isSelected ? 'border-indigo-500 ring-1 ring-indigo-500/40' : isSubtitleRunning ? 'border-cyan-500/70 hover:border-cyan-400' : 'border-zinc-800 hover:border-zinc-500'}`}
       >
-        <div className={'relative aspect-video w-full flex-none overflow-hidden bg-zinc-800'}>
+        <div className={'relative h-32 w-full flex-none overflow-hidden bg-zinc-800'}>
           {primary ? (
             <img
               src={toLocalMediaUrl(primary, video.id)}
@@ -162,9 +167,13 @@ function VideoCard({
             </div>
           )}
         </div>
-        <div className={'grid flex-1 grid-rows-[56px_132px_64px_18px] gap-2.5 px-3 py-3'}>
-          <div className={'min-w-0 overflow-hidden'}>
-            <div className={'mb-1 flex items-center gap-2'}>
+        <div
+          className={
+            'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[80px_104px_minmax(0,1fr)_16px] gap-2 p-3'
+          }
+        >
+          <div className={'grid min-w-0 grid-rows-[20px_36px_16px] gap-1 overflow-hidden'}>
+            <div className={'flex min-w-0 items-center gap-2'}>
               <div className={'flex items-center gap-0.5'} aria-label={`별점 ${ratingLabel}`}>
                 {Array.from(
                   {
@@ -195,14 +204,14 @@ function VideoCard({
             </div>
             <p
               className={
-                'line-clamp-2 h-9 overflow-hidden break-words text-sm font-semibold leading-[1.125rem] text-zinc-100'
+                'line-clamp-2 h-9 min-w-0 overflow-hidden text-sm font-semibold leading-[1.125rem] text-zinc-100 [overflow-wrap:anywhere]'
               }
               title={displayTitle}
             >
               {displayTitle}
             </p>
             <p
-              className={'mt-1 h-4 truncate text-[11px] leading-4 text-zinc-500'}
+              className={'h-4 min-w-0 truncate text-[11px] leading-4 text-zinc-500'}
               title={video.fileName}
             >
               {video.fileName}
@@ -210,43 +219,56 @@ function VideoCard({
           </div>
           <div
             className={
-              'grid h-[132px] grid-cols-2 gap-2 rounded-lg border border-zinc-800 bg-zinc-950/50 p-2.5'
+              'grid min-w-0 grid-cols-2 grid-rows-2 gap-2 rounded-lg border border-zinc-800 bg-zinc-950/50 p-2'
             }
           >
             {infoItems.map(([label, value]) => (
               <div
                 className={
-                  'flex h-[52px] min-w-0 flex-col justify-between rounded-md border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2'
+                  'flex min-h-0 min-w-0 flex-col justify-between rounded-md border border-zinc-800/80 bg-zinc-900/70 px-2 py-1'
                 }
                 key={label}
               >
-                <p className={'truncate text-[10px] tracking-wide text-zinc-500'}>{label}</p>
-                <p className={'truncate text-xs font-medium text-zinc-100'} title={value}>
+                <p className={'truncate text-[10px] leading-3 tracking-wide text-zinc-500'}>
+                  {label}
+                </p>
+                <p className={'truncate text-xs font-medium leading-4 text-zinc-100'} title={value}>
                   {value}
                 </p>
               </div>
             ))}
           </div>
-          <div className={'rounded-lg border border-zinc-800 bg-zinc-950/40 p-2.5'}>
-            <p className={'text-[10px] uppercase tracking-wide text-zinc-600'}>{'메모'}</p>
+          <div
+            className={
+              'min-h-0 min-w-0 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/40 p-1.5'
+            }
+          >
+            <p className={'text-[10px] leading-3 uppercase tracking-wide text-zinc-600'}>
+              {'메모'}
+            </p>
             {video.memo ? (
               <p
                 className={
-                  'mt-1 line-clamp-2 whitespace-pre-wrap break-words text-xs text-zinc-300'
+                  'mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-4 text-zinc-300 [overflow-wrap:anywhere]'
                 }
+                title={video.memo}
               >
                 {video.memo}
               </p>
             ) : (
-              <p className={'mt-1 text-xs text-zinc-600'}>{'메모 없음'}</p>
+              <p className={'mt-1 text-xs leading-4 text-zinc-600'}>{'메모 없음'}</p>
             )}
           </div>
-          <div className={'flex items-center justify-between text-[11px] text-zinc-500'}>
-            <span>
+          <div
+            className={
+              'flex min-w-0 items-center justify-between gap-2 text-[11px] leading-4 text-zinc-500'
+            }
+          >
+            <span className="truncate">
               {'이어보기 '}
               {formatDuration(video.resumePosSec)}
             </span>
-            <span>{hasSubtitles ? '자막 준비됨' : '자막 없음'}</span>
+            <span className="shrink-0">{hasSubtitles ? '자막 준비됨' : '자막 없음'}</span>
           </div>
         </div>
       </button>

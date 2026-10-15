@@ -129,6 +129,13 @@ describe('IPC contracts', () => {
     expect(SearchQueryZ.safeParse({ sortBy: 'playCount' }).success).toBe(true)
     expect(SearchQueryZ.safeParse({ sortBy: 'playTimeSec' }).success).toBe(true)
     expect(VideoMetaZ.safeParse({ tags: 'travel, family' }).success).toBe(true)
+    expect(VideoMetaZ.safeParse({ category: '', tags: '#선수명' }).success).toBe(true)
+    expect(SearchQueryZ.safeParse({ category: '', tag: '#선수명' }).success).toBe(true)
+    expect(SearchQueryZ.safeParse({ category: 3 }).success).toBe(false)
+    expect(SearchQueryZ.safeParse({ tag: ['선수명'] }).success).toBe(false)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.METADATA_OPTIONS].safeParse(['lib']).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.METADATA_OPTIONS].safeParse(['lib', true]).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.METADATA_OPTIONS].safeParse(['lib', 'false']).success).toBe(false)
   })
 
   it('accepts optional boolean subtitle filters without coercing other values', () => {

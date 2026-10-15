@@ -30,6 +30,7 @@ export const IPC = {
   },
   VIDEOS: {
     SEARCH: 'videos:search',
+    METADATA_OPTIONS: 'videos:metadataOptions',
     GET: 'videos:get',
     GET_PLAYBACK_SOURCE: 'videos:getPlaybackSource',
     GET_NATIVE_PLAYER_INFO: 'videos:getNativePlayerInfo',
