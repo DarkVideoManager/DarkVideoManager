@@ -254,7 +254,9 @@ export async function extractSubtitleAudio(
       '-ar',
       '16000',
       '-af',
-      'highpass=f=80,lowpass=f=8000',
+      // Resampling already removes frequencies above 8 kHz. A low-pass at
+      // Nyquist is numerically unstable for 16 kHz floating-point AAC input.
+      'highpass=f=80',
       '-c:a',
       'pcm_s16le',
       '-progress',
