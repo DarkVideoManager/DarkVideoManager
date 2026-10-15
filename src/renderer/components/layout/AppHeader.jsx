@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useLibraries } from '../../api/useLibraries'
 import { useLibraryStore } from '../../store/libraryStore'
 import SettingsDialog from '../settings/SettingsDialog'
+import PlaybackHelpButton from '../player/PlaybackHelpButton'
 function AppHeader() {
   const { data: libraries = [], isLoading } = useLibraries()
   const { activeLibraryId } = useLibraryStore()
@@ -46,6 +47,7 @@ function AppHeader() {
       </nav>
       <div className={'ml-auto'} />
       {isLoading && <span className={'text-xs text-zinc-500'}>{'불러오는 중...'}</span>}
+      <PlaybackHelpButton />
       <button
         type="button"
         aria-haspopup="dialog"

@@ -56,6 +56,8 @@ describe('preload bridge', () => {
       api.library.delete('lib'),
       api.library.selectFolder(),
       api.library.importFolder('lib', 'C:/videos'),
+      api.library.selectFiles(),
+      api.library.importFiles('lib', ['C:/videos/one.mp4']),
       api.library.refresh('lib'),
       api.library.cancelWork('lib'),
       api.videos.search('lib', { sortBy: 'playCount' }),

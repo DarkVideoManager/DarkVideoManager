@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
-import { basename, extname, resolve, relative, isAbsolute } from 'path'
-import { stat, lstat } from 'node:fs/promises'
+import { basename, dirname, extname, join, resolve, relative, isAbsolute } from 'path'
+import { stat, lstat, readdir } from 'node:fs/promises'
 import type { Database } from 'better-sqlite3'
 import { BrowserWindow } from 'electron'
 import { Library, ImportProgress, ImportResult, ProbeData } from '@shared/types'
@@ -30,6 +30,7 @@ import { generateThumbnails } from '../ffmpeg/thumbnail'
 import { thumbnailQueue, isAbortError } from '../ffmpeg/queue'
 import { IPC } from '@shared/ipc'
 import { createLogger } from '../infra/logger'
+import { isVideoFile } from '../infra/fs'
 
 const log = createLogger('LibraryService')
 
@@ -467,4 +468,79 @@ export function importFolder(
 }
 export function refreshLibrary(libraryId: string, win: BrowserWindow): Promise<ImportResult> {
   return withLibraryWork(libraryId, (signal) => runFolderWork(libraryId, undefined, win, signal))
+}
+
+/** Import exactly the selected files, without scanning or registering their parent folders. */
+export function importFiles(
+  libraryId: string,
+  filePaths: string[],
+  win: BrowserWindow,
+): Promise<ImportResult> {
+  return withLibraryWork(libraryId, async (signal) => {
+    const db = getDatabase(libraryId)
+    if (!db) throw new Error('라이브러리가 열려 있지 않습니다')
+    const emit = createEmitter(libraryId, win)
+    const result: ImportResult = { added: 0, skipped: 0, removed: 0, errors: [] }
+    const requested = [...new Map(filePaths.map((file) => [pathKey(file), resolve(file)])).values()]
+    const files: string[] = []
+    try {
+      for (const [index, file] of requested.entries()) {
+        throwIfWorkCancelled(signal)
+        emit({
+          phase: 'scanning',
+          total: requested.length,
+          current: index + 1,
+          currentFile: basename(file),
+          errors: result.errors,
+        })
+        try {
+          if (!isVideoFile(file) || !(await stat(file)).isFile())
+            throw new Error('지원하는 영상 파일을 선택해 주세요.')
+          files.push(file)
+        } catch (error) {
+          result.errors.push(basename(file) + ': ' + (error as Error).message)
+        }
+        await yieldLibraryWork(signal)
+      }
+      const sidecars: Sidecars = new Map()
+      // Read only immediate siblings for sidecar matching; never walk the whole folder tree.
+      for (const folder of new Set(files.map(dirname))) {
+        throwIfWorkCancelled(signal)
+        const entries = await readdir(folder, { withFileTypes: true })
+        const videoKeys = new Set(
+          entries
+            .filter((entry) => entry.isFile() && isVideoFile(entry.name))
+            .map((entry) => subtitleVideoKey(join(folder, entry.name))),
+        )
+        const selectedKeys = new Set(
+          files.filter((file) => dirname(file) === folder).map(subtitleVideoKey),
+        )
+        for (const entry of entries) {
+          if (!entry.isFile() || !subtitleExtensions.has(extname(entry.name).toLowerCase()))
+            continue
+          const match = matchSidecarSubtitle(join(folder, entry.name), videoKeys)
+          if (!match || !selectedKeys.has(match.videoKey)) continue
+          const related = sidecars.get(match.videoKey) ?? []
+          related.push(match.subtitle)
+          sidecars.set(match.videoKey, related)
+        }
+        await yieldLibraryWork(signal)
+      }
+      await importScannedFiles(db, files, sidecars, signal, result, emit)
+      await generateLibraryThumbnails(libraryId, files, db, win, signal, result, emit)
+      throwIfWorkCancelled(signal)
+      emit({ phase: 'done', total: files.length, current: files.length, errors: result.errors })
+      return result
+    } catch (error) {
+      if (!isAbortError(error) && !signal.aborted) throw error
+      result.cancelled = true
+      emit({
+        phase: 'cancelled',
+        total: files.length,
+        current: result.added + result.skipped,
+        errors: result.errors,
+      })
+      return result
+    }
+  })
 }

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import VideoPlayer from '../components/player/VideoPlayer'
 import DetailPanel from '../components/library/DetailPanel'
+import PlaybackHelpButton from '../components/player/PlaybackHelpButton'
 function PlayerPage() {
   const { libraryId, videoId } = useParams()
   const navigate = useNavigate()
@@ -22,7 +23,12 @@ function PlayerPage() {
   })
   React.useEffect(() => {
     function handleKeyDown(event) {
-      if (event.key === 'Escape' && !nativeLaunchPending) {
+      if (
+        event.key === 'Escape' &&
+        !nativeLaunchPending &&
+        !event.defaultPrevented &&
+        !document.querySelector('[aria-modal="true"]')
+      ) {
         navigate(-1)
       }
     }
@@ -62,14 +68,15 @@ function PlayerPage() {
   return (
     <div className={'flex h-screen overflow-hidden bg-zinc-950'}>
       <div className={'relative min-h-0 min-w-0 flex-1'}>
-        <button
-          onClick={() => setIsMaximized((value) => !value)}
-          className={
-            'absolute left-3 top-3 z-10 rounded bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80'
-          }
-        >
-          {isMaximized ? '상세 보기' : '플레이어 최대화'}
-        </button>
+        <div className="absolute left-3 top-3 z-30 flex gap-2">
+          <button
+            onClick={() => setIsMaximized((value) => !value)}
+            className={'rounded bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80'}
+          >
+            {isMaximized ? '상세 보기' : '플레이어 최대화'}
+          </button>
+          <PlaybackHelpButton className="rounded bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80" />
+        </div>
         <VideoPlayer
           video={video}
           libraryId={libraryId}

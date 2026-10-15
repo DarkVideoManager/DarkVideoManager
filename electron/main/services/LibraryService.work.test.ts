@@ -14,6 +14,8 @@ vi.mock('../ffmpeg/thumbnail', () => ({ generateThumbnails: vi.fn() }))
 import {
   createLibrary,
   importFolder,
+  importFiles,
+  listLibraries,
   refreshLibrary,
   closeLibrary,
   deleteLibrary,
@@ -74,6 +76,89 @@ function makeLibrary() {
   const db = getDatabase(library.id)!
   return { library, db, directory, repository: new VideoRepository(db) }
 }
+
+describe('selected video file imports', () => {
+  it('imports only selected files and matching sidecars without scanning or registering folders', async () => {
+    const { library, repository, db } = makeLibrary()
+    const outside = join(root, 'outside')
+    mkdirSync(outside)
+    const selected = movie(outside, 'selected')
+    movie(outside, 'selected.other')
+    const nested = join(outside, 'nested')
+    mkdirSync(nested)
+    movie(nested, 'unselected')
+    writeFileSync(join(outside, 'selected.ai.ko.srt'), '1\n00:00:01,000 --> 00:00:02,000\nHello\n')
+    writeFileSync(join(outside, 'selected.other.srt'), '1\n00:00:01,000 --> 00:00:02,000\nOther\n')
+    const scan = vi.spyOn(FsScanner.prototype, 'scan')
+    const result = await importFiles(library.id, [selected, selected], win)
+    expect(result).toEqual({ added: 1, skipped: 0, removed: 0, errors: [] })
+    expect(scan).not.toHaveBeenCalled()
+    expect(probeVideo).toHaveBeenCalledTimes(1)
+    expect(generateThumbnails).toHaveBeenCalledTimes(1)
+    expect(repository.count()).toBe(1)
+    const video = repository.findByPath(selected)!
+    expect(new SubtitleRepository(db).findByVideoId(video.id)).toMatchObject([
+      { filePath: join(outside, 'selected.ai.ko.srt'), lang: 'ko' },
+    ])
+    expect(listLibraries().find((entry) => entry.id === library.id)?.folderPaths).toEqual([
+      library.folderPath,
+    ])
+    repository.updateMeta(video.id, { rating: 5, memo: 'preserved' })
+    expect(await importFiles(library.id, [selected], win)).toMatchObject({
+      added: 0,
+      skipped: 1,
+      errors: [],
+    })
+    expect(probeVideo).toHaveBeenCalledTimes(1)
+    expect(repository.findById(video.id)).toMatchObject({ rating: 5, memo: 'preserved' })
+    unlinkSync(selected)
+    expect(await refreshLibrary(library.id, win)).toMatchObject({ removed: 0, errors: [] })
+    expect(repository.findById(video.id)?.removalMode).toBeUndefined()
+    expect(events.at(-1)?.phase).toBe('done')
+  })
+
+  it('rejects unsupported files, directories and missing paths while adding valid selections', async () => {
+    const { library, directory, repository } = makeLibrary()
+    const valid = movie(directory, 'valid')
+    const text = join(directory, 'notes.txt')
+    writeFileSync(text, 'not a video')
+    const fakeVideoDirectory = join(directory, 'folder.mp4')
+    mkdirSync(fakeVideoDirectory)
+    const result = await importFiles(
+      library.id,
+      [text, fakeVideoDirectory, join(directory, 'missing.mp4'), valid],
+      win,
+    )
+    expect(result).toMatchObject({ added: 1, skipped: 0, removed: 0 })
+    expect(result.errors).toHaveLength(3)
+    expect(repository.count()).toBe(1)
+    expect(probeVideo).toHaveBeenCalledExactlyOnceWith(valid, expect.any(AbortSignal))
+  })
+
+  it('cancels a selected-file probe and releases the library without importing other siblings', async () => {
+    const { library, directory, repository } = makeLibrary()
+    const selected = movie(directory, 'selected')
+    movie(directory, 'untouched')
+    let started!: () => void
+    const didStart = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    vi.mocked(probeVideo).mockImplementation(async (_file, signal) => {
+      started()
+      return new Promise((_resolve, reject) =>
+        signal!.addEventListener('abort', () => reject(createAbortError()), { once: true }),
+      )
+    })
+    const work = importFiles(library.id, [selected], win)
+    await didStart
+    expect(cancelLibraryWork(library.id)).toBe(true)
+    expect(await work).toMatchObject({ cancelled: true, added: 0, errors: [] })
+    expect(repository.count()).toBe(0)
+    expect(generateThumbnails).not.toHaveBeenCalled()
+    expect(isLibraryBusy(library.id)).toBe(false)
+    expect(events.at(-1)?.phase).toBe('cancelled')
+  })
+})
 
 describe('cancellable folder work', () => {
   it('scans overlapping refresh roots once and handles an odd number of thumbnail jobs', async () => {

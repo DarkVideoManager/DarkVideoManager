@@ -86,6 +86,10 @@ const api = {
       ipcRenderer.invoke(IPC.LIBRARY.SELECT_FOLDER),
     importFolder: (libraryId: string, folderPath: string): Promise<Result<ImportResult, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.IMPORT_FOLDER, libraryId, folderPath),
+    selectFiles: (): Promise<Result<string[] | null, string>> =>
+      ipcRenderer.invoke(IPC.LIBRARY.SELECT_FILES),
+    importFiles: (libraryId: string, filePaths: string[]): Promise<Result<ImportResult, string>> =>
+      ipcRenderer.invoke(IPC.LIBRARY.IMPORT_FILES, libraryId, filePaths),
     refresh: (libraryId: string): Promise<Result<ImportResult, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.REFRESH, libraryId),
     cancelWork: (libraryId: string): Promise<Result<boolean, string>> =>
