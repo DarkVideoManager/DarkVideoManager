@@ -163,6 +163,8 @@ export const IPC_SCHEMAS = {
   [IPC.LIBRARY.CREATE]: z.tuple([z.string().min(1), FilePathZ]),
   [IPC.LIBRARY.CLOSE]: LibraryIdArgsZ,
   [IPC.LIBRARY.IMPORT_FOLDER]: z.tuple([IdZ, FilePathZ]),
+  [IPC.LIBRARY.IMPORT_FILES]: z.tuple([IdZ, z.array(FilePathZ).min(1).max(1000)]),
+  [IPC.LIBRARY.SELECT_FILES]: EmptyArgsZ,
   [IPC.LIBRARY.REFRESH]: LibraryIdArgsZ,
   [IPC.LIBRARY.CANCEL_WORK]: LibraryIdArgsZ,
   [IPC.LIBRARY.SELECT_FOLDER]: EmptyArgsZ,

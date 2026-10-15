@@ -74,6 +74,12 @@ function LibraryPage() {
   const refreshWork = useLibraryWorkProgress(activeLibraryId)
   const [refreshMessage, setRefreshMessage] = React.useState(null)
   const [refreshError, setRefreshError] = React.useState(null)
+  const [refreshResult, setRefreshResult] = React.useState(null)
+  React.useEffect(() => {
+    setRefreshMessage(null)
+    setRefreshError(null)
+    setRefreshResult(null)
+  }, [activeLibraryId])
   const refreshLibrary = useMutation({
     mutationFn: async () => {
       if (!activeLibraryId) throw new Error('Library is not selected')
@@ -82,10 +88,13 @@ function LibraryPage() {
       return res.value
     },
     onSuccess: (result) => {
+      setRefreshResult(result)
       setRefreshMessage(
         result.cancelled
           ? '목록 업데이트가 취소되었습니다. 처리된 항목은 반영되었습니다.'
-          : '목록 업데이트가 완료되었습니다.',
+          : result.errors.length
+            ? '목록 업데이트 결과를 확인해 주세요. 일부 항목을 처리하지 못했습니다.'
+            : '목록 업데이트가 완료되었습니다.',
       )
       if (!activeLibraryId) return
       qc2.invalidateQueries({
@@ -229,6 +238,7 @@ function LibraryPage() {
     if (refreshLibrary.isPending) return
     setRefreshMessage(null)
     setRefreshError(null)
+    setRefreshResult(null)
     refreshWork.begin('scanning')
     refreshLibrary.mutate()
   }
@@ -532,7 +542,14 @@ ${error.message}`)
             {refreshLibrary.isPending ? '목록 갱신 중...' : '목록 업데이트'}
           </button>
           <button
-            onClick={() => setShowImport(true)}
+            onClick={() => setShowImport('files')}
+            disabled={refreshLibrary.isPending}
+            className={'rounded bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500'}
+          >
+            영상 파일 추가
+          </button>
+          <button
+            onClick={() => setShowImport('folder')}
             disabled={refreshLibrary.isPending}
             className={'rounded bg-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600'}
           >
@@ -551,6 +568,25 @@ ${error.message}`)
           query={query}
           onChange={handleMetadataFiltersChange}
         />
+        <details className="border-b border-zinc-800 px-4 py-2 text-xs text-zinc-400">
+          <summary className="w-fit cursor-pointer text-zinc-300">영상 추가·폴더 갱신 안내</summary>
+          <div className="mt-2 space-y-1 leading-relaxed">
+            <p>영상 한 개만 추가하려면 영상 파일 추가를 누르세요. 선택한 파일만 처리합니다.</p>
+            <p>
+              폴더 가져오기는 폴더와 하위 폴더를 갱신 대상으로 등록합니다. 새 파일이 생기면 목록
+              업데이트를 눌러 수동 반영하세요. 폴더 자동 감시는 지원하지 않습니다.
+            </p>
+            <p>
+              목록 업데이트는 등록 폴더를 검색하여 새 영상을 추가하고 사라진 영상을 제거한 항목으로
+              옮깁니다. 기존 영상의 정보와 썸네일은 다시 만들지 않습니다. 썸네일이 없는 영상은
+              생성을 다시 시도합니다.
+            </p>
+            <p>
+              파일 추가로만 등록한 영상의 폴더는 갱신 대상으로 추가되지 않습니다. 진행 단계와 완료
+              후 추가·기존·제거·오류 수를 아래에서 확인할 수 있습니다.
+            </p>
+          </div>
+        </details>
         {refreshWork.progress && (
           <div className="px-4">
             <WorkProgress work={refreshWork} isWorking={refreshLibrary.isPending} />
@@ -560,6 +596,22 @@ ${error.message}`)
           <p role="status" className="px-4 py-2 text-xs text-indigo-200">
             {refreshMessage}
           </p>
+        )}
+        {refreshResult && (
+          <p className="px-4 pb-2 text-xs text-zinc-400">
+            추가 {refreshResult.added}개 · 기존 {refreshResult.skipped}개 · 제거{' '}
+            {refreshResult.removed}개 · 오류 {refreshResult.errors.length}개
+          </p>
+        )}
+        {refreshResult?.errors.length > 0 && (
+          <ul
+            role="alert"
+            className="max-h-32 overflow-y-auto break-words px-4 pb-2 text-xs text-amber-300"
+          >
+            {refreshResult.errors.map((message, index) => (
+              <li key={index}>{message}</li>
+            ))}
+          </ul>
         )}
         {refreshError && (
           <p role="alert" className="px-4 py-2 text-xs text-red-300">
@@ -665,6 +717,7 @@ ${error.message}`)
         <ImportDialog
           libraryId={activeLibraryId}
           thumbnailJobs={thumbnailJobs}
+          mode={showImport}
           onClose={() => setShowImport(false)}
         />
       )}

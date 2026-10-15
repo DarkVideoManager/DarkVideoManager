@@ -753,6 +753,7 @@ function VideoPlayer({
   )
   const handleKeyDown = React.useCallback(
     (event) => {
+      if (event.defaultPrevented || document.querySelector('[aria-modal="true"]')) return
       const isShiftKey =
         event.code === 'ShiftLeft' || event.code === 'ShiftRight' || event.key === 'Shift'
       const isCtrlKey =
