@@ -6,6 +6,18 @@ A local-first video library manager for Windows, built with Electron, React and 
 
 [브라우저 데모](https://dark-video-manager.vercel.app/) · [기능 요청](https://github.com/DarkVideoManager/DarkVideoManager/issues)
 
+## v0.3.0 업데이트
+
+**Windows 10/11 x64**: [설치형 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/DarkVideoManager-Setup-0.3.0-x64.exe) · [포터블 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/DarkVideoManager-Portable-0.3.0-x64.exe) · [릴리스와 변경 내역](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.0)
+
+- **라이브러리 정리**: 카테고리·태그 편집과 필터, Stash 후보 확인 후 메타데이터 적용, 파일명 정리와 정확한 중복 후보 확인
+- **재생 편의**: 숫자로 재생 위치 이동, 탐색 간격 설정, 인앱 전체화면·확대와 재생 정보, 자막 작업의 원본 위치 열기
+- **자막과 화면 보호**: GPU 인식 장치 표시, 설치·모델 선택·결과 확인 안내, 로컬 추천, 대체 썸네일과 긴급 탈출
+
+[최종 공식 CI](https://github.com/DarkVideoManager/DarkVideoManager/actions/runs/38745766261)에서 앱 단위·통합 테스트 **594개 통과·선택 검사 1개 건너뜀**, 브라우저 E2E **164/164**, 공개·배포 도구 검사 **40/40**을 확인했습니다.
+
+별도 패키지 검사에서는 **Radeon RX 9060 XT / Vulkan / base 모델**로 약 12초 영어 합성 영상의 원어 자막 생성을 완료했습니다. 번역·다른 GPU·장시간 영상의 품질을 검증한 결과는 아닙니다. 설치형·포터블 내용 비교, 실제 포터블 실행과 미검증 환경은 [v0.3.0 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md)에 있습니다.
+
 ## 주요 기능
 
 - 폴더 가져오기와 검색·정렬, 라이브러리별 SQLite 데이터베이스
@@ -26,16 +38,28 @@ AI 작업 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 
 
 ## 사용자 설치
 
-지원 환경은 **Windows 10/11 x64**입니다. [공식 최신 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 다음 파일 중 하나를 내려받습니다.
-
-- `DarkVideoManager-Setup-<버전>-x64.exe`: 실행 후 설치 안내를 따릅니다.
-- `DarkVideoManager-Portable-<버전>-x64.exe`: 설치 없이 실행합니다.
+지원 환경은 **Windows 10/11 x64**입니다. 위 v0.3.0 다운로드에서 `Setup`은 설치 안내를 따라 설치하고, `Portable`은 설치 없이 실행합니다. 이후 버전은 [공식 최신 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 확인할 수 있습니다.
 
 업데이트 전에는 트레이에서도 앱을 완전히 종료하세요. 릴리스의 **Source code** 및 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다. 코드에서 직접 실행하려면 아래 소스 빌드 방법을 따릅니다.
 
-배포 파일의 SHA-256과 검증 범위는 같은 릴리스의 `SHA256SUMS.txt`와 `VERIFICATION.md`에서 확인합니다. V3 등 보안 프로그램이 실행을 차단하면 [다운로드 검증·차단 제보 안내](docs/download-verification.md)에 따라 파일 출처, 해시와 탐지 기록을 확인해 주세요.
+v0.3.0 파일의 SHA-256과 검증 범위는 [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/SHA256SUMS.txt)와 [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md)에서 확인합니다. 다른 버전에는 해당 릴리스의 자료를 사용하세요. **v0.3.0 설치형·포터블은 코드 서명이 없습니다(`NotSigned`).** V3 등 보안 프로그램이 실행을 차단하면 [다운로드 검증·차단 제보 안내](docs/download-verification.md)에 따라 파일 출처, 해시와 탐지 기록을 확인해 주세요. 깨끗한 Windows에서 설치 마법사를 실행하는 검사는 수행하지 않았습니다.
 
 일반 영상 관리·재생·하이라이트에는 API 키가 필요하지 않습니다. 재생 가능 여부는 코덱에 따라 다르며, mpv·VLC·FFplay를 별도 설치해 외부 플레이어로 사용할 수 있습니다.
+
+## 최근 이슈 처리와 지원 범위
+
+2026-10-16 KST 기준으로 아래 이슈를 종료했습니다. **종료 상태는 요청한 모든 기능의 구현이나 모든 환경의 호환성 검증을 뜻하지 않습니다.**
+
+| 이슈                                                                                                                                                              | 완료한 조치와 현재 범위                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#12 GPU 사용 확인](https://github.com/DarkVideoManager/DarkVideoManager/issues/12)                                                                               | 자막 작업의 실제 인식 장치 표시와 위 GPU 검사를 완료했습니다. 오디오 추출 등 CPU 작업은 남아 있으며, 모든 GPU의 성능을 검증한 것은 아닙니다.                                                                         |
+| [#13 V3 실행 차단](https://github.com/DarkVideoManager/DarkVideoManager/issues/13)                                                                                | 공식 파일 해시·서명 확인과 탐지 기록 제출 절차를 마련했습니다. 원 제보의 파일·탐지 정보가 없어 차단 원인과 오탐 여부는 미확인입니다. 차단 해제 완료를 뜻하지 않습니다.                                               |
+| [#22 메타데이터 분류](https://github.com/DarkVideoManager/DarkVideoManager/issues/22)                                                                             | [Stash에서 직접 조회·검토한 제목·메모·태그를 선택 적용](docs/METADATA_IMPORT.md)하는 1차 범위를 구현했습니다. 자동 일괄 분류·표지 다운로드·다른 제공자 연동은 없으며, 실제 Stash 서버 연결은 별도 검증이 필요합니다. |
+| [#24 스트리밍](https://github.com/DarkVideoManager/DarkVideoManager/issues/24) · [#25 모바일·NAS](https://github.com/DarkVideoManager/DarkVideoManager/issues/25) | 수동 대안과 도입 조건을 문서화하고 이번 범위의 기능 개발은 채택하지 않았습니다. URL·라이브 자막, Android 앱, NAS 인증·FTP 연결은 지원하지 않습니다.                                                                  |
+| [#26 macOS·ARM](https://github.com/DarkVideoManager/DarkVideoManager/issues/26)                                                                                   | 지원 안내와 이식 검토를 완료했습니다. 배포본은 Windows x64이며 macOS·ARM64 배포본이 없고 Windows ARM에서의 x64 실행은 미검증입니다.                                                                                  |
+| [#27 NVIDIA VSR·SVP](https://github.com/DarkVideoManager/DarkVideoManager/issues/27)                                                                              | 기능 차이와 외부 플레이어 검증 조건을 정리했습니다. 직접 연동·자동 활성화 및 실제 RTX·SVP 환경 검증은 완료하지 않았습니다.                                                                                           |
+
+새 플랫폼·연동의 구현 일정은 정해지지 않았습니다. 수동 대안과 도입 조건은 [플랫폼·네트워크 재생 안내](docs/platform-and-playback-scope.md)를 참고하세요.
 
 ## 영상 분류와 검색
 
@@ -66,7 +90,7 @@ AI 작업 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 
 
 라이브러리에서 영상 선택 → **정보 → AI 자막 생성**에서 모델·언어·한국어 번역 여부를 정하고 **자막 생성 시작**을 누릅니다. 모델 목록에는 `large-v2`와 `large-v3`가 있으며 기본값은 `base`입니다. 영상을 재생하는 것만으로 생성되지 않습니다. 완료된 SRT는 영상 옆에 저장되며 플레이어의 **자막 선택**에서 확인합니다.
 
-음성 인식은 Vulkan 지원 GPU와 그래픽 드라이버가 필요합니다. 모델은 처음 사용할 때 인터넷으로 다운로드하며, 준비된 모델로 원어 자막을 만들 때 영상과 음성은 로컬에서 처리합니다.
+새 음성 인식 작업은 Vulkan 지원 GPU와 그래픽 드라이버가 필요하며 CPU로 자동 전환하지 않습니다. 모델은 처음 사용할 때 인터넷으로 다운로드하며, 준비된 모델로 원어 자막을 만들 때 영상과 음성은 로컬에서 처리합니다. 실제 인식 장치는 자막 작업 목록에서 확인하며, 오디오 추출·음성 구간 감지와 번역의 처리 장치는 음성 인식 GPU와 구분합니다.
 
 앱의 **자막 생성 → 자막 환경 자동 설치**에서 음성 인식 모델, WSL Ubuntu의 전용 Python 환경, Ollama와 `qwen3:8b` 번역 모델을 준비할 수 있습니다. Windows에서 관리자 승인이나 재시작을 요구하면 안내에 따라 진행한 뒤 설치를 이어갑니다. 처음 설치할 때는 인터넷 연결과 약 15 GB 이상의 여유 공간을 권장합니다.
 

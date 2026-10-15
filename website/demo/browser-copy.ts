@@ -26,7 +26,15 @@ export function browserCopy(code: string, id: string): string | undefined {
       ['음성 인식 모델', '모델 설정 체험'],
       ['자동 감지</option>', '자동 감지 체험 · 영어</option>'],
       [
-        '음성 인식은 내 PC에서 처리합니다. 모델은 처음 사용할 때 다운로드하며, 한국어 번역은 인식한 텍스트를 공식 Google Cloud Translation으로 전송합니다. 자막 생성 탭에서 API 키와 월 한도를 설정할 수 있습니다. 키가 없거나 한도에 도달하거나 연결에 실패하면 PC의 Ollama를 사용합니다.',
+        '대형 모델이 없으면 약 3.1GB를 다운로드하며 실행 시 더 많은 메모리가 필요합니다. 먼저 짧은 영상으로 확인하세요.',
+        '대형 모델을 고르는 설정 체험입니다. 모델을 내려받지 않으며 예시 자막과 속도는 같습니다.',
+      ],
+      [
+        '선택한 모델이 없으면 처음 생성할 때 다운로드합니다. 기본 base부터 짧은 영상으로 확인할 수 있습니다.',
+        '모델을 고르는 설정 체험입니다. 다운로드 없이 준비된 예시 자막을 사용합니다.',
+      ],
+      [
+        '음성 인식은 내 PC에서 처리합니다. Google Cloud 사용은 기본으로 꺼져 있으며, 자막 생성 탭에서 사용을 켜고 API 키를 저장한 경우 인식한 텍스트를 전송합니다. 사용을 끄거나 키·한도가 없거나 요청에 실패하면 PC의 Ollama를 사용합니다.',
         '이 브라우저에서는 AI 실행 대신 수작업 예시 자막으로 과정을 재현합니다. 모델 선택은 설정 체험이며, 결과와 속도는 같습니다. 프로그램 설치·API 키·외부 전송은 필요 없습니다.',
       ],
       [
@@ -50,6 +58,26 @@ export function browserCopy(code: string, id: string): string | undefined {
       ],
       ['삭제 후 재생성', '교체 체험 시작'],
     ]
+  } else if (path.endsWith('/src/renderer/components/library/SubtitleGuidance.jsx')) {
+    edits = [
+      ['개인정보 처리 · 공식 배포 확인', 'Windows 앱 안내 · 개인정보와 공식 배포'],
+      ['처음 자막 만들기 · 모델·언어·비용', 'Windows 앱 안내 · 자막·모델·비용'],
+      ['설치 전 확인 · 권한 승인 · Ubuntu 초기 설정', 'Windows 앱 안내 · 설치와 Ubuntu 초기 설정'],
+      [
+        '</summary>',
+        '</summary><p className="text-indigo-200">아래는 Windows 앱의 안내입니다. 브라우저 체험에서는 프로그램 설치·모델 다운로드·실제 AI 인식이나 번역·외부 전송을 실행하지 않습니다.</p>',
+      ],
+    ]
+  } else if (path.endsWith('/src/renderer/components/library/SubtitleProcessingStatus.jsx')) {
+    edits = [
+      ['처리 장치 기록 없음', '브라우저 시뮬레이션'],
+      ['실제 처리 장치 확인 전', '브라우저 시뮬레이션'],
+      ['음성 인식: {asr}', '체험 처리: {asr}'],
+      [
+        '음성 추출·음성 구간 감지는 CPU를 사용할 수 있습니다. 번역은 음성 인식과 별도 단계입니다.',
+        '실제 음성 인식이나 번역을 실행하지 않습니다. 준비된 장면 설명으로 생성 과정을 체험합니다.',
+      ],
+    ]
   } else if (path.endsWith('/src/renderer/pages/SubtitleQueuePage.jsx')) {
     edits = [
       [
@@ -58,13 +86,12 @@ export function browserCopy(code: string, id: string): string | undefined {
       ],
       [
         '대기·진행·일시정지 작업이 있으면 ESC 또는 창 닫기(X)로 닫아도 트레이에 남습니다. 트레이 아이콘을 두 번 클릭하면 다시 열립니다.',
-        '생성 중에도 영상 재생·하이라이트·썸네일 저장을 체험할 수 있습니다. ESC를 누르면 영상 목록으로 돌아갑니다.',
+        '생성 중에도 영상 재생·하이라이트·썸네일 저장을 체험할 수 있습니다. Esc로 체험 화면을 가리고 화면 다시 열기로 돌아옵니다.',
       ],
       [
         '트레이 메뉴의 완전히 종료를 사용하면 미완료 큐를 보관합니다. 다음 실행에서 재개를 누르면 이어갑니다. 작업을 삭제해도 이미 저장된 자막 파일은 보존합니다.',
         '새로고침하거나 브라우저를 다시 열면 진행하던 작업은 일시정지 상태로 복원됩니다. 재개를 눌러 이어가세요. 작업을 삭제해도 저장된 자막은 유지됩니다.',
       ],
-      ['창을 닫지 못했습니다:', '영상 목록으로 이동하지 못했습니다:'],
       [
         '<div className="flex flex-wrap items-center gap-2">',
         `<div className="flex flex-wrap items-center gap-2">
@@ -75,8 +102,8 @@ export function browserCopy(code: string, id: string): string | undefined {
     code = `import { browserPlayerKey, ignoreBrowserPlayerKey, announceBrowserPlayerKey } from '@demo-keyboard'\n${code}`
     edits = [
       [
-        'if (isTextEditingTarget(target) || subtitleNavigationTarget?.contains(target)) {',
-        'if (isTextEditingTarget(target) || ignoreBrowserPlayerKey(event, subtitleNavigationTarget)) {',
+        'isTextEditingTarget(target) || subtitleNavigationTarget?.contains(target)',
+        'isTextEditingTarget(target) || ignoreBrowserPlayerKey(event, subtitleNavigationTarget)',
       ],
       ['const key = event.key.toLowerCase()', 'const key = browserPlayerKey(event)'],
       [
