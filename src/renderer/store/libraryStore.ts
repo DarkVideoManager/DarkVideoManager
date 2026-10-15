@@ -3,7 +3,9 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Library, SearchQuery } from '@shared/types'
 
 type SortPreference = Pick<SearchQuery, 'sortBy' | 'sortDir'>
+type MetadataFilters = Pick<SearchQuery, 'category' | 'tag'>
 const DEFAULT_SORT: SortPreference = { sortBy: 'createdAt', sortDir: 'desc' }
+const DEFAULT_METADATA_FILTERS: MetadataFilters = {}
 
 interface LibraryState {
   activeLibraryId: string | null
@@ -12,6 +14,7 @@ interface LibraryState {
   sortPreferencesByLibraryId: Record<string, SortPreference>
   searchTextByLibraryId: Record<string, string>
   withoutSubtitlesByLibraryId: Record<string, boolean>
+  metadataFiltersByLibraryId: Record<string, MetadataFilters>
   scrollTopByLibraryId: Record<string, number>
   playerVolume: number
   setActiveLibrary: (library: Library | null) => void
@@ -23,6 +26,8 @@ interface LibraryState {
   getSearchText: (id: string | null) => string
   setWithoutSubtitles: (id: string, value: boolean) => void
   getWithoutSubtitles: (id: string | null) => boolean
+  setMetadataFilters: (id: string, value: MetadataFilters) => void
+  getMetadataFilters: (id: string | null) => MetadataFilters
   setScrollTop: (id: string, value: number) => void
   getScrollTop: (id: string | null) => number
   setPlayerVolume: (value: number) => void
@@ -37,6 +42,7 @@ export const useLibraryStore = create<LibraryState>()(
       sortPreferencesByLibraryId: {},
       searchTextByLibraryId: {},
       withoutSubtitlesByLibraryId: {},
+      metadataFiltersByLibraryId: {},
       scrollTopByLibraryId: {},
       playerVolume: 1,
       setActiveLibrary: (library) => set({ activeLibraryId: library?.id ?? null }),
@@ -58,6 +64,14 @@ export const useLibraryStore = create<LibraryState>()(
           withoutSubtitlesByLibraryId: { ...state.withoutSubtitlesByLibraryId, [id]: value },
         })),
       getWithoutSubtitles: (id) => (id ? (get().withoutSubtitlesByLibraryId[id] ?? false) : false),
+      setMetadataFilters: (id, value) =>
+        set((state) => ({
+          metadataFiltersByLibraryId: { ...state.metadataFiltersByLibraryId, [id]: value },
+        })),
+      getMetadataFilters: (id) =>
+        id
+          ? (get().metadataFiltersByLibraryId[id] ?? DEFAULT_METADATA_FILTERS)
+          : DEFAULT_METADATA_FILTERS,
       setScrollTop: (id, value) =>
         set((state) => ({
           scrollTopByLibraryId: { ...state.scrollTopByLibraryId, [id]: Math.max(0, value) },
@@ -72,6 +86,7 @@ export const useLibraryStore = create<LibraryState>()(
         sortPreferencesByLibraryId: state.sortPreferencesByLibraryId,
         searchTextByLibraryId: state.searchTextByLibraryId,
         withoutSubtitlesByLibraryId: state.withoutSubtitlesByLibraryId,
+        metadataFiltersByLibraryId: state.metadataFiltersByLibraryId,
         scrollTopByLibraryId: state.scrollTopByLibraryId,
         playerVolume: state.playerVolume,
       }),

@@ -57,6 +57,7 @@ function CsvImportDialog({ libraryId, onClose }) {
       await Promise.all([
         qc2.invalidateQueries({ queryKey: ['videos', libraryId] }),
         qc2.invalidateQueries({ queryKey: ['video', libraryId] }),
+        qc2.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] }),
         qc2.invalidateQueries({ queryKey: ['highlights', libraryId] }),
       ])
     } catch (error) {
