@@ -124,6 +124,25 @@ test('controls help fits a small window, keeps focus, and returns to settings on
   expect(dimensions.height).toBeLessThanOrEqual(540)
   expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight)
   await expect(help.getByRole('cell', { name: '현재 화면을 대표 썸네일로 지정' })).toBeAttached()
+  await expect(help.getByRole('row').filter({ hasText: 'A / D 또는' })).toContainText(
+    '설정한 간격만큼',
+  )
+  await expect(help.getByRole('row').filter({ hasText: '0–9' })).toContainText('0–90%')
+  await expect(help.getByRole('row').filter({ hasText: 'Alt + Enter' })).toContainText(
+    '전체화면 전환',
+  )
+  await expect(help.getByRole('row').filter({ hasText: '+ / -' })).toContainText('100–400%')
+  await expect(
+    help.getByRole('row').filter({ has: page.getByRole('cell', { name: 'I', exact: true }) }),
+  ).toContainText('재생 정보')
+  await expect(help.getByRole('region', { name: '음량과 화면 크기' })).toContainText(
+    'Tab은 버튼 사이의',
+  )
+  await expect(help.getByRole('region', { name: '관련 설정 위치' })).toContainText('1–600초')
+  await expect(help.getByRole('region', { name: '관련 설정 위치' })).toContainText('VLC·ffplay')
+  await expect(help).not.toContainText(
+    '인앱 전체 화면 전환과 자유로운 키 재지정 설정은 현재 제공하지 않습니다',
+  )
   await page.screenshot({ path: test.info().outputPath('controls-help-900x600-top.png') })
   await help.getByRole('region', { name: '음량과 화면 크기' }).scrollIntoViewIfNeeded()
   await page.screenshot({ path: test.info().outputPath('controls-help-900x600-bottom.png') })
