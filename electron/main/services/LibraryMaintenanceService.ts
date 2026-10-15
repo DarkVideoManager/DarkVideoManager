@@ -101,11 +101,11 @@ function assertUnused(libraryId: string, video: VideoRow): void {
       (job) =>
         job.libraryId === libraryId &&
         job.videoId === video.id &&
-        !['completed', 'cancelled', 'failed'].includes(job.phase),
+        !['completed', 'cancelled'].includes(job.phase),
     )
   )
     throw new Error(
-      '대기·일시정지 상태를 포함한 자막 작업이 있습니다. 완료하거나 큐에서 삭제해 주세요.',
+      '대기·일시정지·실패 상태를 포함한 자막 작업이 있습니다. 재개해 완료하거나 큐에서 삭제해 주세요.',
     )
   if (
     listPlaybackConversionJobs().some(
