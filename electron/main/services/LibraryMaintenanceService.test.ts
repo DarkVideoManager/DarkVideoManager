@@ -471,6 +471,35 @@ describe('filename cleanup preview and confirmed changes', () => {
     expect(existsSync(original)).toBe(true)
   })
 
+  it.each(['completed', 'deleted'])(
+    'preserves a failed subtitle job source until the job is %s',
+    async (resolution) => {
+      const original = movie('one')
+      const plan = await preview()
+      // A failed queue entry still owns its resumable checkpoint and saved source path.
+      state.subtitleJobs = [{ libraryId, videoId: 'one', phase: 'failed' }]
+      expect((await preview()).rows[0].error).toContain('실패')
+      const blocked = await applyFilenameCleanup(libraryId, plan.id, ['one'])
+      expect(blocked.items[0]).toMatchObject({
+        status: 'failed',
+        message: expect.stringContaining('자막 작업'),
+      })
+      expect(readFileSync(original, 'utf8')).toBe('video fixture')
+      expect(existsSync(join(directory, 'one.mp4'))).toBe(false)
+      expect(repository.findById('one')?.filePath).toBe(original)
+      expect(state.subtitleJobs[0].phase).toBe('failed')
+
+      state.subtitleJobs =
+        resolution === 'deleted' ? [] : [{ libraryId, videoId: 'one', phase: 'completed' }]
+      const ready = await preview()
+      expect(ready.rows[0].error).toBeUndefined()
+      expect((await applyFilenameCleanup(libraryId, ready.id, ['one'])).items[0].status).toBe(
+        'renamed',
+      )
+      expect(readFileSync(join(directory, 'one.mp4'), 'utf8')).toBe('video fixture')
+    },
+  )
+
   it('rejects other library work and its cancellation cannot cancel unrelated work', async () => {
     await withLibraryWork(libraryId, async (signal) => {
       expect(cancelLibraryMaintenance(libraryId)).toBe(false)
