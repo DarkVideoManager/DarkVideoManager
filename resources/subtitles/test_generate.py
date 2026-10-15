@@ -81,6 +81,9 @@ class SubtitleTests(unittest.TestCase):
         self.assertEqual(options, [{"source": "zh-CN", "target": "ko"}])
         self.assertEqual(result, [generate.Cue(1, 2, "안녕하세요"), generate.Cue(3, 4, "안녕")])
         self.assertEqual(source[0].text, "hello")
+        devices = [call.kwargs for call in emit.call_args_list if call.kwargs.get("type") == "processing_device"]
+        self.assertTrue(devices)
+        self.assertTrue(all(event == {"type": "processing_device", "translation": "cloud"} for event in devices))
 
     @patch.object(generate, "emit")
     def test_cloud_failure_switches_without_repeating_billed_request(self, emit):
@@ -118,6 +121,9 @@ class SubtitleTests(unittest.TestCase):
         self.assertEqual(local_calls, ["first", "second"])
         self.assertEqual(result, [generate.Cue(1, 2, "한국어 first"), generate.Cue(3, 4, "한국어 second")])
         self.assertTrue(any("로컬 Ollama" in call.kwargs.get("message", "") for call in emit.call_args_list))
+        devices = [call.kwargs for call in emit.call_args_list if call.kwargs.get("type") == "processing_device"]
+        self.assertTrue(devices)
+        self.assertTrue(all(event["translation"] == "ollama" for event in devices))
 
     def test_rejects_empty_nonstring_and_excessive_translation_results(self):
         for result in (None, "", "   ", ["text"], "x" * 501, "<think>reasoning</think>"):
@@ -129,6 +135,8 @@ class SubtitleTests(unittest.TestCase):
         source = [generate.Cue(0, 1, "안녕")]
         result = generate.translate_cues(source, "ko", lambda **kwargs: self.fail("unnecessary translation"))
         self.assertEqual(source, result)
+        self.assertIn({"type": "processing_device", "translation": "original-ko"},
+                      [call.kwargs for call in emit.call_args_list])
 
     @patch.object(generate, "emit")
     def test_translation_resume_skips_completed_cues_and_checkpoints_new_cues(self, emit):
@@ -358,6 +366,8 @@ class SubtitleTests(unittest.TestCase):
             self.assertEqual(text.count("first"), 1)
             self.assertIn("00:00:03,000 --> 00:00:04,500\nsecond", text)
             self.assertEqual(emit.call_args.kwargs["cueCount"], 2)
+            devices = [call.kwargs for call in emit.call_args_list if call.kwargs.get("type") == "processing_device"]
+            self.assertEqual(devices, [{"type": "processing_device", "asr_backend": "cpu-legacy"}] * 2)
 
     @patch.object(generate, "emit")
     def test_worker_resume_translation_skips_transcription_and_restores_staging(self, emit):

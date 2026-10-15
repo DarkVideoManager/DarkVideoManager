@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLibraries } from '../api/useLibraries'
 import SubtitleTranslationSettings from '../components/library/SubtitleTranslationSettings'
 import SubtitleEnvironmentSetup from '../components/library/SubtitleEnvironmentSetup'
+import SubtitleProcessingStatus from '../components/library/SubtitleProcessingStatus'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const transitionPhases = new Set(['pausing', 'removing'])
@@ -49,7 +50,7 @@ function QueueItem({ job, libraryName }) {
   const title = job.title || job.videoId
   const percent = Math.max(0, Math.min(100, Math.round(job.percent ?? 0)))
   const terminal = terminalPhases.has(job.phase)
-  const resumable = job.phase === 'paused' || job.phase === 'failed'
+  const resumable = job.storageError || job.phase === 'paused' || job.phase === 'failed'
   const busy = action.isPending || transitionPhases.has(job.phase)
   const options = job.options
   return (
@@ -88,6 +89,12 @@ function QueueItem({ job, libraryName }) {
         {job.message && (
           <p className="break-words text-xs leading-relaxed text-zinc-400">{job.message}</p>
         )}
+        <SubtitleProcessingStatus job={job} />
+        {job.storageError && (
+          <p role="alert" className="break-words text-xs leading-relaxed text-red-300">
+            {job.storageError}
+          </p>
+        )}
         {!!job.outputPaths?.length && (
           <ul aria-label="생성된 자막 파일" className="space-y-1 text-xs text-zinc-500">
             {job.outputPaths.map((path) => (
@@ -107,9 +114,11 @@ function QueueItem({ job, libraryName }) {
             >
               {action.isPending && action.variables === 'resume'
                 ? '재개 요청 중...'
-                : job.phase === 'failed'
-                  ? '재개 · 다시 시도'
-                  : '재개'}
+                : job.storageError
+                  ? '저장 다시 시도'
+                  : job.phase === 'failed'
+                    ? '재개 · 다시 시도'
+                    : '재개'}
             </button>
           ) : (
             !terminal && (
