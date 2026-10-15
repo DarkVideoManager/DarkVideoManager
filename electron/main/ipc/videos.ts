@@ -4,6 +4,7 @@ import { ok, err } from '@shared/result'
 import { SearchQuery, VideoMeta } from '@shared/types'
 import {
   searchVideos,
+  getVideoMetadataOptions,
   getVideo,
   updateVideoMeta,
   deleteVideo,
@@ -18,6 +19,9 @@ import { createLogger } from '../infra/logger'
 const log = createLogger('ipc:videos')
 
 export function registerVideoHandlers(): void {
+  registerIpcHandler(IPC.VIDEOS.METADATA_OPTIONS, (_event, libraryId, removed = false) =>
+    ok(getVideoMetadataOptions(libraryId, removed)),
+  )
   registerIpcHandler(IPC.VIDEOS.RESTORE, async (_event, libraryId, videoId) => {
     await restoreVideo(libraryId, videoId)
     return ok(null)

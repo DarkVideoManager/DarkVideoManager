@@ -9,7 +9,7 @@ import type { NativePlayerOptions, NativePlayerInfo } from '@shared/types'
 import { endPlayback } from './PlaybackService'
 import { getDatabase } from '../db/connection'
 import { VideoRepository } from '../db/repositories/VideoRepository'
-import { SearchQuery, SearchResult, Video, VideoMeta } from '@shared/types'
+import { SearchQuery, SearchResult, Video, VideoMeta, VideoMetadataOptions } from '@shared/types'
 import { purgeVideoPlaybackCache, beginPlaybackCacheLease, trimPlaybackCache } from './CacheService'
 import { createLogger } from '../infra/logger'
 
@@ -19,6 +19,12 @@ export function searchVideos(libraryId: string, query: SearchQuery): SearchResul
   const db = getDatabase(libraryId)
   if (!db) throw new Error('라이브러리가 열려 있지 않습니다')
   return new VideoRepository(db).search(query)
+}
+
+export function getVideoMetadataOptions(libraryId: string, removed = false): VideoMetadataOptions {
+  const db = getDatabase(libraryId)
+  if (!db) throw new Error('라이브러리가 열려 있지 않습니다')
+  return new VideoRepository(db).metadataOptions(removed)
 }
 
 export function getVideo(libraryId: string, videoId: string): Video | null {

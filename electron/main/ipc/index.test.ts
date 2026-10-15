@@ -79,6 +79,7 @@ vi.mock('../services/LibraryService', () => ({
 }))
 vi.mock('../services/VideoService', () => ({
   searchVideos: vi.fn(),
+  getVideoMetadataOptions: vi.fn(),
   getVideo: vi.fn(),
   updateVideoMeta: mocks.updateVideoMeta,
   deleteVideo: mocks.deleteVideo,

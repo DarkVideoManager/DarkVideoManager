@@ -8,6 +8,19 @@ import {
 import { videosApi } from '../api'
 import type { SearchQuery, VideoMeta } from '@shared/types'
 
+export function useVideoMetadataOptions(libraryId: string, removed = false, enabled = true) {
+  return useQuery({
+    queryKey: ['video-metadata-options', libraryId, removed],
+    queryFn: async () => {
+      const result = await window.api.videos.metadataOptions(libraryId, removed)
+      if (!result.ok) throw new Error(result.error)
+      return result.value
+    },
+    enabled: Boolean(libraryId) && enabled,
+    staleTime: 30_000,
+  })
+}
+
 export function useVideos(libraryId: string, query: SearchQuery, enabled = true) {
   const result = useInfiniteQuery({
     queryKey: ['videos', libraryId, query],
@@ -61,6 +74,9 @@ export function useUpdateVideoMeta(libraryId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['videos', libraryId] })
+      qc.invalidateQueries({ queryKey: ['video', libraryId] })
+      qc.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
+      qc.invalidateQueries({ queryKey: ['stats', libraryId] })
     },
   })
 }
@@ -72,6 +88,9 @@ export function useDeleteVideo(libraryId: string) {
       const res = await videosApi.delete(libraryId, videoId)
       if (!res.ok) throw new Error(res.error)
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['videos', libraryId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['videos', libraryId] })
+      qc.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
+    },
   })
 }

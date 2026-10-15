@@ -2,6 +2,14 @@ import type { WindowApi } from '../../../electron/preload'
 import { err, ok } from '../../shared/result'
 import type { Result } from '../../shared/result'
 import type { PlaybackConversionJob } from '../../shared/playbackConversion'
+import {
+  collectVideoMetadataOptions,
+  hasVideoTag,
+  normalizeVideoCategory,
+  normalizeVideoTag,
+  parseVideoSearch,
+  serializeVideoTags,
+} from '../../shared/videoMetadata'
 import type {
   Highlight,
   HighlightCreate,
@@ -293,13 +301,18 @@ function emitProgress(progress: ImportProgress): void {
 }
 
 function sortVideos(videos: Video[], query: SearchQuery): Video[] {
-  const filtered = query.q
-    ? videos.filter((video) =>
+  const { text, tags } = parseVideoSearch(query.q)
+  if (query.tag !== undefined && normalizeVideoTag(query.tag)) tags.push(query.tag)
+  const filtered = videos.filter(
+    (video) =>
+      (query.category === undefined ||
+        normalizeVideoCategory(video.category) === normalizeVideoCategory(query.category)) &&
+      tags.every((tag) => hasVideoTag(video.tags, tag)) &&
+      (!text ||
         `${video.fileName} ${video.title ?? ''} ${video.tags ?? ''}`
           .toLowerCase()
-          .includes(query.q!.toLowerCase()),
-      )
-    : videos
+          .includes(text.toLowerCase())),
+  )
   const sorted = [...filtered].sort((left, right) => {
     const leftValue = query.sortBy === 'rating' ? left.rating : left.fileName
     const rightValue = query.sortBy === 'rating' ? right.rating : right.fileName
@@ -586,6 +599,14 @@ export const mockApi: WindowApi = {
     cancelWork: async () => ok(true),
   },
   videos: {
+    metadataOptions: async (libraryId, removed = false) =>
+      ok(
+        collectVideoMetadataOptions(
+          (videosByLibrary.get(libraryId) ?? []).filter(
+            (video) => Boolean(video.removalMode) === removed,
+          ),
+        ),
+      ),
     search: async (libraryId, query) => {
       const videos = sortVideos(
         (videosByLibrary.get(libraryId) ?? []).filter(
@@ -620,6 +641,8 @@ export const mockApi: WindowApi = {
       const video = findVideo(libraryId, videoId)
       if (!video) return err('영상을 찾을 수 없습니다')
       Object.assign(video, meta, { updatedAt: new Date().toISOString() })
+      if (meta.tags !== undefined) video.tags = serializeVideoTags(meta.tags)
+      if (meta.category !== undefined) video.category = normalizeVideoCategory(meta.category)
       return ok(null)
     },
     delete: async (libraryId, videoId, mode = 'trash') => {
