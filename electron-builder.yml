@@ -65,7 +65,11 @@ win:
       arch:
         - x64
 
+portable:
+  artifactName: DarkVideoManager-Portable-${version}-${arch}.${ext}
+
 nsis:
+  artifactName: DarkVideoManager-Setup-${version}-${arch}.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   installerIcon: resources/icon.ico
