@@ -79,7 +79,7 @@
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
     "eslint": "^8.57.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.34.2",
     "eslint-plugin-react-hooks": "^4.6.2",
     "fengari": "^0.1.5",
