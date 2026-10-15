@@ -304,6 +304,25 @@ test('removed videos cannot start subtitle generation', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('shows unconfirmed device until engine evidence arrives and labels checkpoint evidence as a previous record', async ({
+  page,
+}) => {
+  const panel = await prepareControlledJobs(page)
+  await panel.getByRole('button', { name: '자막 생성 시작', exact: true }).click()
+  await expect(panel.getByLabel('자막 처리 장치')).toContainText('실제 처리 장치 확인 전')
+  await expect(panel.getByLabel('자막 처리 장치')).not.toContainText('Vulkan GPU')
+  await page.evaluate(() => {
+    const job = (window as unknown as SubtitleWindow).subtitleHarness.jobs['mock-video-1']!
+    job.processing = { asr: 'vulkan', device: 'Vulkan0', evidence: 'checkpoint' }
+  })
+  await expect(panel.getByLabel('자막 처리 장치')).toContainText(
+    'Vulkan GPU · Vulkan0 (이전 인식 기록)',
+  )
+  await expect(panel.getByLabel('자막 처리 장치')).toContainText(
+    '음성 추출·음성 구간 감지는 CPU를 사용할 수 있습니다.',
+  )
+})
+
 test('renders escaped subtitle text and numeric entities as plain text', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => {
