@@ -1,19 +1,32 @@
-import ffmpeg from 'fluent-ffmpeg'
-import { mkdirSync, rmSync, statSync } from 'fs'
-import { join } from 'path'
+import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { mkdirSync, renameSync, rmSync, statSync } from 'fs'
+import { dirname, join } from 'path'
 import { createLogger } from '../infra/logger'
-import { getFfmpegPath, getFfprobePath } from './ffmpegPath'
+import { getFfmpegPath } from './ffmpegPath'
 import { createAbortError, isAbortError } from './queue'
 
 const log = createLogger('thumbnail')
 
-let ffmpegPathSet = false
+export const THUMBNAIL_TIMEOUT_MS = 30_000
 
-function ensurePaths(): void {
-  if (ffmpegPathSet) return
-  ffmpeg.setFfmpegPath(getFfmpegPath())
-  ffmpeg.setFfprobePath(getFfprobePath())
-  ffmpegPathSet = true
+export class ThumbnailTimeoutError extends Error {
+  constructor() {
+    super('썸네일 추출 제한 시간(30초)을 초과했습니다.')
+    this.name = 'ThumbnailTimeoutError'
+  }
+}
+
+export function isThumbnailTimeoutError(error: unknown): error is ThumbnailTimeoutError {
+  return error instanceof Error && error.name === 'ThumbnailTimeoutError'
+}
+
+function removePartial(filePath: string): void {
+  try {
+    rmSync(filePath, { force: true })
+  } catch {
+    // Windows may still hold the file until the terminated process closes it.
+  }
 }
 
 const PERCENTAGES = [0.1, 0.3, 0.5, 0.7, 0.9] as const
@@ -33,7 +46,6 @@ export async function generateThumbnails(
   signal?: AbortSignal,
   onProgress?: ThumbnailProgressHandler,
 ): Promise<ThumbnailResult[]> {
-  ensurePaths()
   if (signal?.aborted) throw createAbortError()
   const safeDuration =
     durationSec && Number.isFinite(durationSec) && durationSec > 0 ? durationSec : 10
@@ -42,7 +54,10 @@ export async function generateThumbnails(
   const results: ThumbnailResult[] = []
 
   for (const [index, percentage] of PERCENTAGES.entries()) {
-    if (signal?.aborted) throw createAbortError()
+    if (signal?.aborted) {
+      for (const result of results) removePartial(result.filePath)
+      throw createAbortError()
+    }
     const timeSec = safeDuration * percentage
     const outputPath = join(outputDir, `${videoId}_${index}.jpg`)
 
@@ -50,12 +65,8 @@ export async function generateThumbnails(
       await extractFrame(videoPath, outputPath, timeSec, signal)
       results.push({ filePath: outputPath, timeSec })
     } catch (error) {
-      if (isAbortError(error)) {
-        try {
-          rmSync(outputPath, { force: true })
-        } catch {
-          // A partially written frame is best-effort cleanup.
-        }
+      if (isAbortError(error) || isThumbnailTimeoutError(error)) {
+        for (const result of results) removePartial(result.filePath)
         throw error
       }
       log.warn({ err: error, videoId, timeSec }, '썸네일 추출 실패')
@@ -74,64 +85,103 @@ function extractFrame(
   signal?: AbortSignal,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const command = ffmpeg(videoPath)
-      .seekInput(timeSec)
-      .frames(1)
-      .output(outputPath)
-      .outputOptions(['-q:v', '3', '-vf', 'scale=480:-2'])
-
-    let settled = false
-    const cleanup = () => {
-      signal?.removeEventListener('abort', abort)
-    }
-    const finish = (callback: () => void) => {
-      if (settled) return
-      settled = true
-      cleanup()
-      callback()
-    }
-    const abort = () => {
-      try {
-        command.kill('SIGTERM')
-      } catch {
-        // The process may have exited before the abort signal was delivered.
-      }
-      // Wait for the terminal event before deleting output files. Cancellation can
-      // arrive while fluent-ffmpeg is preparing a process that has not started yet.
-    }
-
-    command
-      .on('start', () => {
-        if (signal?.aborted) abort()
-      })
-      .on('end', () =>
-        finish(() => {
-          if (signal?.aborted) {
-            reject(createAbortError())
-            return
-          }
-          try {
-            if (statSync(outputPath).size === 0) throw new Error('Empty thumbnail')
-            resolve()
-          } catch (error) {
-            reject(error)
-          }
-        }),
-      )
-      .on('error', (error) => {
-        if (signal?.aborted) {
-          finish(() => reject(createAbortError()))
-          return
-        }
-        finish(() => reject(error))
-      })
-
-    if (signal) signal.addEventListener('abort', abort, { once: true })
     if (signal?.aborted) {
-      finish(() => reject(createAbortError()))
+      reject(createAbortError())
       return
     }
-    command.run()
+    // An aborted process can close after the caller starts another capture. Only
+    // publish a completed frame; late cleanup must never delete the next frame.
+    const partialPath = join(dirname(outputPath), `.frame-${randomUUID()}.jpg`)
+    const child = spawn(
+      getFfmpegPath(),
+      [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-nostdin',
+        '-y',
+        '-ss',
+        String(timeSec),
+        '-i',
+        videoPath,
+        '-map',
+        '0:V:0',
+        '-an',
+        '-sn',
+        '-dn',
+        '-frames:v',
+        '1',
+        '-q:v',
+        '3',
+        '-vf',
+        'scale=480:-2',
+        '-pix_fmt',
+        'yuvj420p',
+        partialPath,
+      ],
+      { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] },
+    )
+    let settled = false
+    let terminationError: Error | undefined
+    let stderr = ''
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', abort)
+      if (error) {
+        removePartial(partialPath)
+        reject(error)
+      } else {
+        resolve()
+      }
+    }
+    const kill = () => {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        // It may already have exited. The close handler still cleans its file.
+      }
+    }
+    const stop = (error: Error) => {
+      if (settled) return
+      terminationError = error
+      kill()
+      // Queue slots cannot depend on a process delivering a terminal event.
+      finish(error)
+    }
+    const abort = () => stop(createAbortError())
+    const timer = setTimeout(() => stop(new ThumbnailTimeoutError()), THUMBNAIL_TIMEOUT_MS)
+
+    child.stderr?.on('data', (data: Buffer) => {
+      stderr = (stderr + data.toString()).slice(-8192)
+    })
+    child.on('spawn', () => {
+      if (terminationError) kill()
+    })
+    child.on('error', (error) => finish(terminationError ?? error))
+    child.on('close', (code) => {
+      if (settled) {
+        removePartial(partialPath)
+        return
+      }
+      if (terminationError || signal?.aborted) {
+        finish(terminationError ?? createAbortError())
+      } else if (code !== 0) {
+        finish(new Error(`FFmpeg 썸네일 추출 실패 (${code}): ${stderr.trim()}`))
+      } else {
+        try {
+          if (statSync(partialPath).size === 0) throw new Error('Empty thumbnail')
+          renameSync(partialPath, outputPath)
+          finish()
+        } catch (error) {
+          finish(error instanceof Error ? error : new Error(String(error)))
+        }
+      }
+    })
+
+    if (signal) signal.addEventListener('abort', abort, { once: true })
+    if (signal?.aborted) abort()
   })
 }
 
@@ -142,18 +192,12 @@ export async function extractThumbnailAtTime(
   timeSec: number,
   signal?: AbortSignal,
 ): Promise<string> {
-  ensurePaths()
   if (signal?.aborted) throw createAbortError()
   mkdirSync(outputDir, { recursive: true })
   const outputPath = join(
     outputDir,
     videoId + '_' + Math.floor(timeSec * 1000) + '_' + Date.now() + '.jpg',
   )
-  try {
-    await extractFrame(videoPath, outputPath, Math.max(0, timeSec), signal)
-    return outputPath
-  } catch (error) {
-    rmSync(outputPath, { force: true })
-    throw error
-  }
+  await extractFrame(videoPath, outputPath, Math.max(0, timeSec), signal)
+  return outputPath
 }

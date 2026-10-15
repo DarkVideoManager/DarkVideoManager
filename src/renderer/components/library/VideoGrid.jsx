@@ -11,6 +11,7 @@ const EMPTY_SUBTITLE_JOBS = new Map()
 function VideoGrid({
   videos,
   subtitleJobs = EMPTY_SUBTITLE_JOBS,
+  thumbnailJobs,
   selectedVideoId,
   initialScrollTop = 0,
   onScrollTopChange,
@@ -116,6 +117,10 @@ function VideoGrid({
                       <VideoCard$1
                         video={video}
                         subtitleJob={subtitleJobs.get(video.id)}
+                        thumbnailJob={thumbnailJobs?.jobsByVideo.get(video.id)}
+                        onCancelThumbnail={() => thumbnailJobs?.cancelVideo(video.id)}
+                        thumbnailCancelError={thumbnailJobs?.cancelErrors.get(video.id)}
+                        isCancellingThumbnail={thumbnailJobs?.cancellingVideos.has(video.id)}
                         isSelected={selectedVideoId === video.id}
                         onClick={() => onVideoClick?.(video)}
                         onDoubleClick={() => onVideoDoubleClick?.(video)}

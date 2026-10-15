@@ -1,11 +1,13 @@
 import { execFile } from 'node:child_process'
-import { mkdtempSync, readdirSync, rmSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { getFfmpegPath } from './ffmpegPath'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ app: { isPackaged: false, getAppPath: () => process.cwd(), getPath: () => temporaryDirectory } }))
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: () => process.cwd(), getPath: () => temporaryDirectory },
+}))
 
 import { probeVideo } from './ffprobe'
 import { generateThumbnails } from './thumbnail'
@@ -88,5 +90,23 @@ describe('FFmpeg pipeline', () => {
       [4, 5],
       [5, 5],
     ])
+  }, 30_000)
+
+  it('decodes AV1 in software and generates five thumbnails with the shipped runtime', async () => {
+    // Original synthetic 64x64 blue clip: libaom-av1, 5 fps, 2 seconds, IVF.
+    // Embedded so CI does not need an AV1 encoder or a downloaded video fixture.
+    const av1 = Buffer.from(
+      'REtJRgAAIABBVjAxQABAAAUAAAABAAAACgAAAAAAAAAjAAAAAAAAAAAAAAASAAoKAAAAAq//m18gCDITEADaAAACgAAACgV4m4M6ijI1gE0AAAABAAAAAAAAABIAMhEgCeBAAAADbQAAAUAAEACZEDIRKATggAAgA20AAAFAADgAnMAyECgCgQAAQINtAAABQAA4AJwyETADxAAA0QbaAAACgABwAJzABQAAAAIAAAAAAAAAEgAaAbgUAAAAAwAAAAAAAAASADIQMAZIDgCBBtoAAAKAAHAAnAUAAAAEAAAAAAAAABIAGgGoJgAAAAUAAAAAAAAAEgAyECgGSAVYgINtAAABQAA4AJgyEDAKYAqxoQbaAAACgABwAJgFAAAABgAAAAAAAAASABoB6BQAAAAHAAAAAAAAABIAMhAwDkQboVkG2gAAAoAAcACYFAAAAAgAAAAAAAAAEgAyEDAQAhNwqQbaAAACgABwAJAVAAAACQAAAAAAAAASADIRMBIADmHRBtoAAAKAACAAq3A=',
+      'base64',
+    )
+    const av1Path = `${temporaryDirectory}/synthetic-av1.ivf`
+    writeFileSync(av1Path, av1)
+    const results = await generateThumbnails(av1Path, `${temporaryDirectory}/av1`, 'av1', 2)
+    expect(results).toHaveLength(5)
+    expect(await probeVideo(results[0].filePath)).toMatchObject({
+      codec: 'mjpeg',
+      width: 480,
+      height: 480,
+    })
   }, 30_000)
 })

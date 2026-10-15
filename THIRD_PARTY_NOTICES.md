@@ -16,7 +16,7 @@ In an installed application, `DarkVideoManager-LICENSE.txt`, `INDEX.md` and `DIS
 | --- | --- | --- |
 | JavaScript dependencies | `resources/legal/npm/` | Original package licenses and notices; versions follow the lockfile. |
 | Electron, Chromium, Node.js and bundled libraries | `LICENSE`, `LICENSES.chromium.html`, and `resources/legal/electron/` | Retain the notices from the exact Electron distribution. |
-| FFmpeg and FFprobe executables | `resources/legal/media/` | GPLv3 builds from the pinned FFmpeg/x264 sources. Publish the paired corresponding-source archive with every public executable release. |
+| FFmpeg and FFprobe executables | `resources/legal/media/` | GPLv3 builds from the pinned FFmpeg/x264/dav1d sources, including dav1d's BSD notice. Publish the paired corresponding-source archive with every public executable release. |
 | whisper.cpp, ggml, Vulkan headers, LLVM/MinGW and winpthreads runtime | `resources/subtitles/native/licenses/`, `resources/legal/subtitles/` | Optional native subtitle engine. Pinned source/build recipe: `scripts/setup-subtitles-gpu.ps1`. Vulkan driver/loader is provided by the user's graphics driver. |
 | Embedded Python and its bundled libraries | `resources/subtitles/native/python/LICENSE.txt`, `resources/legal/subtitles/Python-LICENSE.txt` | Original Python distribution license collection. |
 | certifi Mozilla public CA bundle | `resources/subtitles/certificates/`, `resources/legal/subtitle-certificates/` | Unmodified certifi 2026.7.22 data, MPL-2.0. Source URL and SHA256 receipt accompany the bundle; used for process-local HTTPS validation on Windows. |

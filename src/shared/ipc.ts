@@ -182,6 +182,8 @@ export const IPC_SCHEMAS = {
   [IPC.PLAYBACK.SEEK]: z.tuple([IdZ, IdZ, TimeZ]),
   [IPC.PLAYBACK.END]: z.tuple([IdZ, IdZ, z.number().finite().nonnegative()]),
   [IPC.THUMBNAILS.GET_FOR_VIDEO]: VideoArgsZ,
+  [IPC.THUMBNAILS.LIST_JOBS]: LibraryIdArgsZ,
+  [IPC.THUMBNAILS.CANCEL_FOR_VIDEO]: VideoArgsZ,
   [IPC.THUMBNAILS.SET_PRIMARY]: z.tuple([IdZ, IdZ, IdZ]),
   [IPC.THUMBNAILS.ENSURE_FOR_VIDEO]: z.tuple([IdZ, IdZ, z.boolean().optional()]),
   [IPC.THUMBNAILS.CAPTURE_AT_TIME]: z.tuple([IdZ, IdZ, TimeZ, z.boolean().optional()]),

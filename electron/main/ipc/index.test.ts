@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   captureThumbnailAtTime: vi.fn(),
   saveThumbnailImageCapture: vi.fn(),
   ensureThumbnailForVideo: vi.fn(),
+  listThumbnailJobs: vi.fn(),
+  cancelThumbnailJob: vi.fn(),
   refreshLibrary: vi.fn(),
   recordSeek: vi.fn(),
   listConversions: vi.fn(),
@@ -105,6 +107,10 @@ vi.mock('../services/ThumbnailService', () => ({
   captureThumbnailAtTime: mocks.captureThumbnailAtTime,
   saveThumbnailImageCapture: mocks.saveThumbnailImageCapture,
 }))
+vi.mock('../services/ThumbnailJobService', () => ({
+  listThumbnailJobs: mocks.listThumbnailJobs,
+  cancelThumbnailJob: mocks.cancelThumbnailJob,
+}))
 vi.mock('../services/HighlightService', () => ({
   listHighlights: vi.fn(),
   createHighlight: mocks.createHighlight,
@@ -150,6 +156,44 @@ beforeEach(() => {
 })
 
 describe('IPC dispatch', () => {
+  it('allows thumbnail status and per-video cancellation during an import', async () => {
+    mocks.listThumbnailJobs.mockReturnValue([{ videoId: 'video', phase: 'running' }])
+    mocks.cancelThumbnailJob.mockReturnValue(true)
+    await withLibraryWork('lib', async () => {
+      expect(await invoke(IPC.THUMBNAILS.LIST_JOBS, 'lib')).toEqual({
+        ok: true,
+        value: [{ videoId: 'video', phase: 'running' }],
+      })
+      expect(await invoke(IPC.THUMBNAILS.CANCEL_FOR_VIDEO, 'lib', 'video')).toEqual({
+        ok: true,
+        value: true,
+      })
+    })
+    expect(mocks.cancelThumbnailJob).toHaveBeenCalledWith('lib', 'video')
+    expect(await invoke(IPC.THUMBNAILS.CANCEL_FOR_VIDEO, 'lib', '')).toMatchObject({ ok: false })
+    expect(mocks.cancelThumbnailJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows another video to queue thumbnails while protecting the active video', async () => {
+    await withLibraryWork(
+      'lib',
+      async () => {
+        expect(await invoke(IPC.THUMBNAILS.ENSURE_FOR_VIDEO, 'lib', 'other')).toMatchObject({
+          ok: true,
+        })
+        expect(await invoke(IPC.THUMBNAILS.ENSURE_FOR_VIDEO, 'lib', 'video')).toMatchObject({
+          ok: false,
+        })
+        expect(await invoke(IPC.THUMBNAILS.SET_PRIMARY, 'lib', 'thumb', 'video')).toMatchObject({
+          ok: false,
+        })
+        expect(mocks.ensureThumbnailForVideo).toHaveBeenCalledTimes(1)
+        expect(mocks.setPrimaryThumbnail).not.toHaveBeenCalled()
+      },
+      'thumbnails',
+      'video',
+    )
+  })
   it('rejects subframes and unregistered windows before a privileged handler runs', async () => {
     const entry = mocks.handle.mock.calls.find(([name]) => name === IPC.VIDEOS.UPDATE_META)!
     const args = ['lib', 'video', { rating: 3 }]

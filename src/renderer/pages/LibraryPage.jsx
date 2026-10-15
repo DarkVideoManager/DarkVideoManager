@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useLibraryStore } from '../store/libraryStore'
 import { useVideos } from '../api/useVideos'
 import { useLibrarySubtitleJobs } from '../api/useLibrarySubtitleJobs'
+import { useThumbnailJobs } from '../api/useThumbnailJobs'
 import {
   useLibraries,
   useCreateLibrary,
@@ -47,6 +48,7 @@ function LibraryPage() {
   const initialScrollTop = getScrollTop(activeLibraryId)
   const isLibraryReady = !!activeLibraryId && openedLibraryId === activeLibraryId
   const subtitleJobs = useLibrarySubtitleJobs(activeLibraryId, isLibraryReady)
+  const thumbnailJobs = useThumbnailJobs(activeLibraryId, isLibraryReady)
   const visibleLibraries = [...libraries].sort((a2, b2) => {
     const aTime = a2.lastOpenedAt ?? a2.createdAt
     const bTime = b2.lastOpenedAt ?? b2.createdAt
@@ -134,6 +136,17 @@ function LibraryPage() {
       sortDir: query.sortDir ?? 'desc',
     })
   }, [activeLibraryId, query.sortBy, query.sortDir, setSortPreference])
+  React.useEffect(() => {
+    let thumbnailsStarted = false
+    return window.api.on.importProgress((progress) => {
+      if (!activeLibraryId || (progress.libraryId && progress.libraryId !== activeLibraryId)) return
+      if (progress.phase === 'thumbnails' && !thumbnailsStarted) {
+        void qc2.invalidateQueries({ queryKey: ['videos', activeLibraryId] })
+        void qc2.invalidateQueries({ queryKey: ['thumbnail-jobs', activeLibraryId] })
+      }
+      thumbnailsStarted = progress.phase === 'thumbnails'
+    })
+  }, [activeLibraryId, qc2])
   React.useEffect(() => {
     return window.api.on.thumbnailReady(({ videoId }) => {
       if (!activeLibraryId) return
@@ -538,6 +551,19 @@ ${error.message}`)
             </button>
           </div>
         )}
+        {thumbnailJobs.error && (
+          <div role="alert" className="flex items-center gap-3 px-4 py-2 text-xs text-amber-200">
+            <span>썸네일 진행 상태를 갱신하지 못했습니다.</span>
+            <button
+              type="button"
+              onClick={() => void thumbnailJobs.refetch()}
+              disabled={thumbnailJobs.isFetching}
+              className="underline disabled:opacity-50"
+            >
+              다시 확인
+            </button>
+          </div>
+        )}
         <VideoGrid
           key={`${activeLibraryId}-${Boolean(query.removed)}-${query.hasSubtitles === false}`}
           videos={data.videos.filter(
@@ -547,6 +573,7 @@ ${error.message}`)
           )}
           selectedVideoId={selectedVideoId}
           subtitleJobs={subtitleJobs.jobsByVideo}
+          thumbnailJobs={thumbnailJobs}
           initialScrollTop={initialScrollTop}
           onScrollTopChange={(value) => setScrollTop(activeLibraryId, value)}
           onVideoClick={handleVideoClick}
@@ -570,6 +597,7 @@ ${error.message}`)
             key={selectedVideo.id}
             video={selectedVideo}
             libraryId={activeLibraryId}
+            thumbnailJobs={thumbnailJobs}
             onClose={() => setSelectedVideoId(null)}
             onVideoDeleted={() => setSelectedVideoId(null)}
             onVideoRestored={() => setSelectedVideoId(null)}
@@ -586,7 +614,11 @@ ${error.message}`)
         )}
       </aside>
       {showImport && (
-        <ImportDialog libraryId={activeLibraryId} onClose={() => setShowImport(false)} />
+        <ImportDialog
+          libraryId={activeLibraryId}
+          thumbnailJobs={thumbnailJobs}
+          onClose={() => setShowImport(false)}
+        />
       )}
       {showCsvImport && (
         <CsvImportDialog libraryId={activeLibraryId} onClose={() => setShowCsvImport(false)} />
