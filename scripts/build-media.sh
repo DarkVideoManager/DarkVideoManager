@@ -68,14 +68,43 @@ if [[ ! -f "$prefix/lib/libx264.a" ]]; then
 fi
 export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig"
 export PKG_CONFIG_PATH=''
+if [[ ! -x "${directories[ninja]}/ninja" ]]; then
+  echo 'Building the pinned Ninja build tool...'
+  (cd "${directories[ninja]}"; python3 configure.py --bootstrap) >>"$log" 2>&1
+fi
+export PATH="${directories[ninja]}:$PATH"
+if [[ ! -f "$prefix/lib/libdav1d.a" ]]; then
+  echo 'Building the pinned dav1d AV1 software decoder...'
+  cat > "$build/dav1d-cross.ini" <<'CROSS'
+[binaries]
+c = 'x86_64-w64-mingw32-clang'
+ar = 'x86_64-w64-mingw32-ar'
+strip = 'x86_64-w64-mingw32-strip'
+windres = 'x86_64-w64-mingw32-windres'
+pkg-config = 'pkg-config'
+[host_machine]
+system = 'windows'
+cpu_family = 'x86_64'
+cpu = 'x86_64'
+endian = 'little'
+[properties]
+needs_exe_wrapper = true
+CROSS
+  (python3 "${directories[meson]}/meson.py" setup "$build/dav1d-build" "${directories[dav1d]}" \
+      --cross-file "$build/dav1d-cross.ini" --prefix "$prefix" --libdir lib \
+      --default-library static --buildtype release --wrap-mode nodownload \
+      -Denable_tools=false -Denable_tests=false -Denable_examples=false
+    ninja -C "$build/dav1d-build" -j"$jobs" install
+  ) >>"$log" 2>&1
+fi
 if [[ ! -f "$build/.ffmpeg-built" ]]; then
-  echo 'Building FFmpeg and FFprobe with the same sources and encoder...'
+  echo 'Building FFmpeg and FFprobe with x264 and the dav1d software decoder...'
   (cd "${directories[ffmpeg]}"
     ./configure --prefix=/dvm/media --arch=x86_64 --target-os=mingw32 --enable-cross-compile \
       --cross-prefix=x86_64-w64-mingw32- --cc=x86_64-w64-mingw32-clang --cxx=x86_64-w64-mingw32-clang++ \
       --pkg-config=pkg-config --pkg-config-flags=--static \
       --enable-static --disable-shared --disable-autodetect --disable-doc --disable-debug --disable-ffplay \
-      --enable-gpl --enable-version3 --enable-libx264 --disable-network \
+      --enable-gpl --enable-version3 --enable-libx264 --enable-libdav1d --disable-network \
       --extra-cflags=-I../prefix/include --extra-ldflags='-L../prefix/lib -static -Wl,--no-insert-timestamp' \
       --extra-version=DarkVideoManager
     make -j"$jobs" ffmpeg.exe ffprobe.exe
@@ -92,6 +121,7 @@ done
 cp "${directories[ffmpeg]}"/COPYING.* "$output/licenses/"
 cp "${directories[ffmpeg]}/LICENSE.md" "$output/licenses/FFmpeg-LICENSE.md"
 cp "${directories[x264]}/COPYING" "$output/licenses/x264-COPYING.txt"
+cp "${directories[dav1d]}/COPYING" "$output/licenses/dav1d-COPYING.txt"
 cp "${directories[toolchain]}/LICENSE.TXT" "$output/licenses/LLVM-MinGW-LICENSE.txt"
 for notice in "${directories[toolchain]}/x86_64-w64-mingw32/share/mingw32/"COPYING*; do
   cp "$notice" "$output/licenses/MinGW-$(basename "$notice")"
@@ -99,7 +129,7 @@ done
 for asset in "${assets[@]}"; do
   IFS='|' read -r id filename directory url sha <<< "$asset"
   # A compiler is a build tool; preserve its pinned download receipt and license.
-  # Archive the actual FFmpeg/x264 sources and assembler source used in this build.
+  # Preserve codec and build-tool sources, including dav1d, Meson, Ninja and NASM.
   if [[ "$id" != toolchain ]]; then cp "$downloads/$filename" "$output/source-materials/sources/"; fi
 done
 cp "$manifest" "$output/source-materials/resources/media-manifest.json"

@@ -16,7 +16,7 @@ Missing notices, unrecognized media license reports, incomplete optional native 
 
 ## Media executables and their corresponding source
 
-The release build uses the controlled source recipe in [media-build.md](media-build.md) and `resources/media-manifest.json`. It builds **FFmpeg and FFprobe 9.0.2 together**, with the pinned x264 encoder source. Autodetection of host libraries is disabled, and x264 is the only enabled external codec library. The configuration enables GPL and version 3; the resulting media executables are GPL-3.0-or-later. FFmpeg, x264, assembler sources, exact build scripts, dependency inventory, source hashes and original notices are preserved together.
+The release build uses the controlled source recipe in [media-build.md](media-build.md) and `resources/media-manifest.json`. It builds **FFmpeg and FFprobe 9.0.2 together**, with the pinned x264 encoder and dav1d 1.5.4 AV1 software decoder. Autodetection of host libraries is disabled; x264 and dav1d are the enabled external codec libraries. The configuration enables GPL and version 3; the resulting media executables are GPL-3.0-or-later. dav1d's BSD 2-Clause notice is retained in `dav1d-COPYING.txt`. Codec and build-tool sources, exact build scripts, dependency inventory, source hashes and original notices are preserved together.
 
 `scripts/finalize-media.cjs` creates these paired release artifacts:
 
@@ -25,7 +25,7 @@ The release build uses the controlled source recipe in [media-build.md](media-bu
 - `release/sources/dependencies.json`
 - `resources/legal/media-source-receipts.json`
 
-The source archive includes the actual unmodified FFmpeg and x264 archives used by the build, the NASM source, the build and finalization scripts, the pinned compiler download receipt, all media license texts and the dependency inventory. The cross compiler is a generally available build tool. The exact downloadable compiler archive and hash are specified; its LLVM and MinGW runtime notices are retained. No recovered native media executable is used in this recipe.
+The source archive includes the actual unmodified FFmpeg, x264 and dav1d archives used by the build, NASM/Meson/Ninja build-tool sources, the build and finalization scripts, the pinned compiler download receipt, all media license texts and the dependency inventory. The cross compiler is a generally available build tool. The exact downloadable compiler archive and hash are specified; its LLVM and MinGW runtime notices are retained. No recovered native media executable is used in this recipe.
 
 Receipts bind **each executable SHA256** to the SHA256 of its matching source archive, build instructions and dependency inventory. `node scripts/finalize-media.cjs --verify` verifies the current binaries, source files, recipe and notices after an artifact is copied or before packaging. `--check-release` independently compares receipts against the actual executables being packaged. A checksum does not itself establish legal completeness; the controlled recipe and its dependency inventory provide the reviewable source/build evidence.
 

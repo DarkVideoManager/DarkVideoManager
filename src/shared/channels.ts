@@ -50,6 +50,8 @@ export const IPC = {
     END: 'playback:end',
   },
   THUMBNAILS: {
+    LIST_JOBS: 'thumbnails:listJobs',
+    CANCEL_FOR_VIDEO: 'thumbnails:cancelForVideo',
     GET_FOR_VIDEO: 'thumbnails:getForVideo',
     SET_PRIMARY: 'thumbnails:setPrimary',
     ENSURE_FOR_VIDEO: 'thumbnails:ensureForVideo',

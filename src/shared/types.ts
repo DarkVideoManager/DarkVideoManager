@@ -45,6 +45,16 @@ export interface Thumbnail {
   createdAt: string
 }
 
+export interface ThumbnailJob {
+  libraryId: string
+  videoId: string
+  fileName: string
+  phase: 'queued' | 'running' | 'cancelling' | 'completed' | 'failed' | 'cancelled'
+  completed: number
+  total: number
+  error?: string
+}
+
 export interface Subtitle {
   id: string
   videoId: string

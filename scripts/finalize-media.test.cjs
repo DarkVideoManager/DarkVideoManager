@@ -15,7 +15,7 @@ const licenseNames = [
   'COPYING.GPLv2', 'COPYING.GPLv3', 'COPYING.LGPLv2.1', 'COPYING.LGPLv3',
   'FFmpeg-LICENSE.md', 'LLVM-MinGW-LICENSE.txt', 'MinGW-COPYING',
   'MinGW-COPYING.MinGW-w64-runtime.txt', 'MinGW-COPYING.MinGW-w64.txt',
-  'MinGW-COPYING.winpthreads.txt', 'MinGW-COPYING.winstorecompat.txt', 'x264-COPYING.txt',
+  'MinGW-COPYING.winpthreads.txt', 'MinGW-COPYING.winstorecompat.txt', 'x264-COPYING.txt', 'dav1d-COPYING.txt',
 ]
 const archivePath = 'release/sources/dvm-media-corresponding-source.tar.gz'
 const materialPath = 'resources/media/source-materials'
@@ -53,12 +53,12 @@ function fixture(t) {
   const packed = run(tarCommand, ['-czf', sourceArchive, '-C', file('fixture-source'), '.'], root)
   assert.equal(packed.status, 0, `Fixture tar creation failed: ${packed.stderr}`)
   const sourceBytes = fs.readFileSync(sourceArchive)
-  const assets = ['ffmpeg', 'x264', 'nasm'].map((id) => ({
+  const assets = ['ffmpeg', 'x264', 'dav1d', 'meson', 'ninja', 'nasm'].map((id) => ({
     id, filename: `${id}-fixture.tar.gz`, directory: `${id}-fixture`,
     url: `https://example.invalid/${id}-fixture.tar.gz`, sha256: hash(sourceBytes),
   }))
   const manifest = {
-    schemaVersion: 1, ffmpegVersion: 'fixture', x264Revision: 'fixture',
+    schemaVersion: 1, ffmpegVersion: 'fixture', x264Revision: 'fixture', dav1dVersion: 'fixture',
     assets: [...assets, {
       id: 'toolchain', filename: 'toolchain-fixture.tar.gz', directory: 'toolchain-fixture',
       url: 'https://example.invalid/toolchain-fixture.tar.gz', sha256: hash('toolchain fixture'),
@@ -127,6 +127,9 @@ test('complete media fixtures produce a verifiable, allowlisted source archive a
     assert.equal(receipt.dependencyInventorySha256, hash(fs.readFileSync(f.file(receipt.dependencyInventory))))
   }
   const inventoryText = fs.readFileSync(path.join(extracted, 'dependencies.json'), 'utf8')
+  const inventory = JSON.parse(inventoryText)
+  assert.deepEqual(inventory.configuredExternalLibraries, ['libx264', 'libdav1d'])
+  assert.equal(inventory.dav1dVersion, 'fixture')
   assert.equal(inventoryText.includes(f.root), false)
   assert.equal(inventoryText.includes(slash(f.root)), false)
   assert.deepEqual(fs.readdirSync(f.file('release/sources')).sort(), ['BUILD.md', 'dependencies.json', 'dvm-media-corresponding-source.tar.gz'].sort())
@@ -182,6 +185,8 @@ test('rejects a changed recipe receipt or unexpected dynamic runtime dependency'
   f.assertFails(f.finalize())
   f.write('resources/media/recipe-hash.txt', original)
   f.write('resources/media/ffmpeg-imports.txt', 'KERNEL32.dll\nlibwinpthread-1.dll\n')
+  f.assertFails(f.finalize())
+  f.write('resources/media/ffmpeg-imports.txt', 'KERNEL32.dll\nlibdav1d-7.dll\n')
   f.assertFails(f.finalize())
 })
 

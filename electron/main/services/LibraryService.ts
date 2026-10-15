@@ -5,7 +5,7 @@ import type { Database } from 'better-sqlite3'
 import { BrowserWindow } from 'electron'
 import { Library, ImportProgress, ImportResult, ProbeData } from '@shared/types'
 import { loadConfig, saveConfig, updateConfig } from '../infra/config'
-import { getLibDbPath, getThumbnailsDir } from '../infra/paths'
+import { getLibDbPath } from '../infra/paths'
 import { openDatabase, closeDatabase, getDatabase } from '../db/connection'
 import { runMigrations } from '../db/migrator'
 import { VideoRepository } from '../db/repositories/VideoRepository'
@@ -27,7 +27,8 @@ import {
 } from './LibraryWorkService'
 import { probeVideo } from '../ffmpeg/ffprobe'
 import { generateThumbnails } from '../ffmpeg/thumbnail'
-import { thumbnailQueue, isAbortError } from '../ffmpeg/queue'
+import { isAbortError } from '../ffmpeg/queue'
+import { clearThumbnailJobHistory, runThumbnailJob } from './ThumbnailJobService'
 import { IPC } from '@shared/ipc'
 import { createLogger } from '../infra/logger'
 
@@ -92,12 +93,14 @@ export function closeLibrary(libraryId: string): void {
   assertLibraryIdle(libraryId)
   finishPlaybackSessions(libraryId)
   closeDatabase(libraryId)
+  clearThumbnailJobHistory(libraryId)
 }
 
 export function deleteLibrary(libraryId: string): void {
   assertLibraryIdle(libraryId)
   finishPlaybackSessions(libraryId)
   closeDatabase(libraryId)
+  clearThumbnailJobHistory(libraryId)
   updateConfig((c) => ({
     ...c,
     libraries: c.libraries.filter((l) => l.id !== libraryId),
@@ -133,16 +136,19 @@ function uniqueRoots(roots: string[]): string[] {
 function createEmitter(libraryId: string, win: BrowserWindow): ProgressEmitter {
   let lastSentAt = 0
   let lastPhase: ImportProgress['phase'] | undefined
+  let lastFile: string | undefined
   return (progress) => {
     if (win.isDestroyed() || win.webContents.isDestroyed()) return
     const now = Date.now()
     if (
       progress.phase === lastPhase &&
+      progress.currentFile === lastFile &&
       progress.current !== progress.total &&
       now - lastSentAt < 100
     )
       return
     lastPhase = progress.phase
+    lastFile = progress.currentFile
     lastSentAt = now
     win.webContents.send(IPC.EVENTS.IMPORT_PROGRESS, {
       ...progress,
@@ -288,7 +294,7 @@ async function generateLibraryThumbnails(
 ): Promise<void> {
   const repository = new VideoRepository(db)
   const thumbnails = new ThumbnailRepository(db)
-  const directory = getThumbnailsDir(libraryId)
+  clearThumbnailJobHistory(libraryId)
   let next = 0,
     completed = 0
   emit({ phase: 'thumbnails', total: files.length, current: 0, errors: result.errors })
@@ -299,36 +305,58 @@ async function generateLibraryThumbnails(
       if (next >= files.length) return
       const filePath = files[next++]
       try {
-        await thumbnailQueue.add(async () => {
-          throwIfWorkCancelled(signal)
-          const video = repository.findByPath(filePath)
-          if (!video || video.removalMode || thumbnails.findByVideoId(video.id).length) return
-          const captures = await generateThumbnails(
-            filePath,
-            directory,
-            video.id,
-            video.durationSec,
-            signal,
-          )
-          throwIfWorkCancelled(signal)
-          if (repository.findById(video.id)?.removalMode) return
-          db.transaction(() => {
-            for (const [index, capture] of captures.entries())
-              thumbnails.insert({
-                id: randomUUID(),
-                videoId: video.id,
-                filePath: capture.filePath,
-                timeSec: capture.timeSec,
-                isPrimary: index === Math.floor(captures.length / 2),
+        throwIfWorkCancelled(signal)
+        const video = repository.findByPath(filePath)
+        if (video && !video.removalMode && !thumbnails.findByVideoId(video.id).length)
+          await runThumbnailJob(
+            {
+              libraryId,
+              videoId: video.id,
+              fileName: video.fileName,
+              total: 5,
+              signal,
+            },
+            async (work) => {
+              emit({
+                phase: 'thumbnails',
+                total: files.length,
+                current: completed,
+                currentFile: video.fileName,
+                errors: result.errors,
               })
-          })()
-          if (!win.isDestroyed() && !win.webContents.isDestroyed())
-            win.webContents.send(IPC.EVENTS.THUMBNAIL_READY, { videoId: video.id })
-        }, signal)
+              const captures = await generateThumbnails(
+                filePath,
+                work.outputDir,
+                video.id,
+                video.durationSec,
+                work.signal,
+                work.reportProgress,
+              )
+              throwIfWorkCancelled(work.signal)
+              if (!captures.length) throw new Error('동영상에서 썸네일을 추출하지 못했습니다.')
+              if (repository.findById(video.id)?.removalMode) return
+              db.transaction(() => {
+                for (const [index, capture] of captures.entries())
+                  thumbnails.insert({
+                    id: randomUUID(),
+                    videoId: video.id,
+                    filePath: capture.filePath,
+                    timeSec: capture.timeSec,
+                    isPrimary: index === Math.floor(captures.length / 2),
+                  })
+              })()
+              work.committed = true
+              if (!win.isDestroyed() && !win.webContents.isDestroyed())
+                win.webContents.send(IPC.EVENTS.THUMBNAIL_READY, { videoId: video.id })
+            },
+          )
       } catch (error) {
-        if (isAbortError(error) || signal.aborted) throw error
-        result.errors.push(basename(filePath) + ': ' + (error as Error).message)
-        log.warn({ filePath, err: error }, '썸네일 생성 실패')
+        if (signal.aborted) throw error
+        // A per-video cancellation skips this video while the import continues.
+        if (!isAbortError(error)) {
+          result.errors.push(basename(filePath) + ': ' + (error as Error).message)
+          log.warn({ filePath, err: error }, '썸네일 생성 실패')
+        }
       }
       completed++
       emit({

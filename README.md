@@ -10,6 +10,7 @@ A local-first video library manager for Windows, built with Electron, React and 
 
 - 폴더 가져오기와 검색·정렬, 라이브러리별 SQLite 데이터베이스
 - 썸네일 생성과 직접 캡처, 하이라이트 저장·시간 이동
+- 영상 카드·상세 화면·가져오기 창에서 썸네일 진행 상태 확인·개별 중단, 상세 화면에서 재시도
 - 이어보기, 재생 위치 탐색, AVI 등 호환 영상 변환 대기열
 - 별점·메모·태그, 시청 통계, 설정 백업·복원
 - Vulkan GPU로 AI 자막 생성, 작업 대기열·일시정지·재개
