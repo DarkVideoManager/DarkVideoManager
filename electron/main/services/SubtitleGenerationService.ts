@@ -9,17 +9,13 @@ import {
   rmSync,
   statSync,
   unlinkSync,
-  writeFileSync,
-  renameSync,
-  openSync,
-  closeSync,
-  fsyncSync,
 } from 'node:fs'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { basename, dirname, extname, join, relative } from 'node:path'
 import type { Subtitle, SubtitleGenerationJob, SubtitleGenerationOptions } from '@shared/types'
 import { SubtitleGenerationOptionsZ } from '@shared/ipc'
+import { SubtitleQueueStorageError, writeSubtitleQueueSnapshot } from './SubtitleQueueStorage'
 import { assertSubtitleEnvironmentIdle } from './SubtitleEnvironmentLock'
 import { getDatabase, openDatabase } from '../db/connection'
 import { runMigrations } from '../db/migrator'
@@ -49,6 +45,7 @@ interface QueueEntry {
   sourceSize: number
   sourceMtime: number
   audioReady: boolean
+  publishing?: string[]
   replacement?: SubtitleDeletionPlan
 }
 interface ActiveJob {
@@ -63,6 +60,7 @@ let active: ActiveJob | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let storageFile: string | undefined
 let stopping = false
+let storageFailure: SubtitleQueueStorageError | undefined
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const QueueFileZ = z.object({
   version: z.literal(1),
@@ -93,11 +91,21 @@ const QueueFileZ = z.object({
           percent: z.number().finite().min(0).max(100),
           message: z.string(),
           outputPaths: z.array(z.string()).optional(),
+          storageError: z.string().optional(),
+          processing: z
+            .object({
+              asr: z.enum(['unconfirmed', 'vulkan', 'cpu-legacy']),
+              device: z.string().max(100).optional(),
+              evidence: z.enum(['engine', 'checkpoint']).optional(),
+              translation: z.enum(['cloud', 'ollama', 'original-ko']).optional(),
+            })
+            .optional(),
         }),
         videoPath: z.string().min(1),
         sourceSize: z.number().nonnegative(),
         sourceMtime: z.number().finite(),
         audioReady: z.boolean(),
+        publishing: z.array(z.string()).min(1).max(2).optional(),
         replacement: SubtitleDeletionPlanZ.optional(),
       }),
     )
@@ -108,36 +116,72 @@ function snapshot(job: SubtitleGenerationJob): SubtitleGenerationJob {
   return {
     ...job,
     options: { ...job.options },
+    ...(job.processing ? { processing: { ...job.processing } } : {}),
     ...(job.outputPaths ? { outputPaths: [...job.outputPaths] } : {}),
   }
 }
 
 function persist(): void {
   if (!storageFile) return
-  mkdirSync(dirname(storageFile), { recursive: true })
-  const temporary = storageFile + '.tmp.' + randomUUID()
-  let fd: number | undefined
-  try {
-    fd = openSync(temporary, 'wx')
-    writeFileSync(fd, JSON.stringify({ version: 1, entries: [...entries.values()] }), 'utf8')
-    fsyncSync(fd)
-    closeSync(fd)
-    fd = undefined
-    renameSync(temporary, storageFile)
-  } finally {
-    if (fd !== undefined) closeSync(fd)
-    if (existsSync(temporary)) unlinkSync(temporary)
+  writeSubtitleQueueSnapshot(storageFile, { version: 1, entries: [...entries.values()] })
+}
+
+function blockForStorage(error: SubtitleQueueStorageError): void {
+  storageFailure = error
+  if (retryTimer) clearTimeout(retryTimer)
+  retryTimer = undefined
+  for (const { job } of entries.values()) {
+    job.storageError = error.message
+    if (!terminalPhases.has(job.phase)) {
+      job.phase = 'paused'
+      job.message =
+        '대기열 저장 실패로 일시정지했습니다. 진행 내용은 보관하며 자동으로 재시도하지 않습니다.'
+    }
   }
+  active?.controller.abort()
 }
 
 function changed(save = true): void {
-  if (save) persist()
+  let failure: SubtitleQueueStorageError | undefined
+  if (save) {
+    try {
+      persist()
+    } catch (error) {
+      failure =
+        error instanceof SubtitleQueueStorageError
+          ? error
+          : new SubtitleQueueStorageError(storageFile ?? 'subtitle-queue.json', error)
+      blockForStorage(failure)
+    }
+  }
   for (const listener of listeners) {
     try {
       listener()
     } catch (error) {
       log.warn({ err: error }, '자막 큐 상태 알림 실패')
     }
+  }
+  if (failure) throw failure
+}
+
+function retryStorage(): void {
+  for (const { job } of entries.values()) delete job.storageError
+  changed()
+  storageFailure = undefined
+}
+
+function removeQueueEntry(entry: QueueEntry): void {
+  entries.delete(entry.job.id)
+  try {
+    changed()
+  } catch (error) {
+    // Keep a visible retry control even when the last entry could not be removed durably.
+    entry.job.phase = 'cancelled'
+    entry.job.message = '작업을 중지했습니다. 대기열에서 삭제한 상태는 아직 저장하지 못했습니다.'
+    entries.set(entry.job.id, entry)
+    blockForStorage(error as SubtitleQueueStorageError)
+    changed(false)
+    throw error
   }
 }
 
@@ -176,7 +220,9 @@ export function initializeSubtitleQueue(): void {
   entries.clear()
   storageFile = file
   stopping = false
+  storageFailure = undefined
   for (const entry of restored) {
+    if (entry.job.processing?.evidence) entry.job.processing.evidence = 'checkpoint'
     if (entry.job.phase === 'removing') {
       cleanup(entry)
       continue
@@ -187,7 +233,13 @@ export function initializeSubtitleQueue(): void {
     }
     entries.set(entry.job.id, entry)
   }
-  if (restored.length) changed()
+  if (restored.length) {
+    try {
+      changed()
+    } catch (error) {
+      log.warn({ err: error }, '저장된 자막 대기열 상태 저장 실패')
+    }
+  }
 }
 
 export function onSubtitleQueueChanged(listener: () => void): () => void {
@@ -224,14 +276,15 @@ export function cancelSubtitleGeneration(libraryId: string, videoId: string): bo
       job.libraryId === libraryId && job.videoId === videoId && !terminalPhases.has(job.phase),
   )
   if (!entry) return false
+  if (storageFailure) retryStorage()
   if (active?.entry === entry) {
     active.action = 'cancel'
     active.controller.abort()
   } else {
-    cleanup(entry)
     entry.job.phase = 'cancelled'
     entry.job.message = '자막 생성을 취소했습니다.'
     changed()
+    cleanup(entry)
   }
   return true
 }
@@ -253,6 +306,7 @@ export function publishGeneratedSubtitles(
   language: string,
   translated: boolean,
   publishedOriginal?: string,
+  beforePublish?: (paths: string[]) => void,
 ): string[] {
   const db = getDatabase(libraryId)
   if (!db) throw new Error('라이브러리가 열려 있지 않습니다.')
@@ -278,9 +332,10 @@ export function publishGeneratedSubtitles(
     repository.findByVideoId(videoId).some((sub) => sub.filePath === publishedOriginal) &&
     readFileSync(publishedOriginal).equals(readFileSync(original))
   ) {
-    if (!translated) return []
+    if (!translated) return [publishedOriginal]
     const koreanPath = publishedOriginal.replace(/\.srt$/i, '.ko.srt')
     if (!existsSync(koreanPath) && !otherStems.has(basename(koreanPath, '.srt').toLowerCase())) {
+      beforePublish?.([publishedOriginal, koreanPath])
       copyFileSync(korean, koreanPath, constants.COPYFILE_EXCL)
       try {
         repository.insert({
@@ -292,7 +347,7 @@ export function publishGeneratedSubtitles(
           encoding: 'UTF-8',
           isEmbedded: false,
         })
-        return [koreanPath]
+        return [publishedOriginal, koreanPath]
       } catch (error) {
         unlinkSync(koreanPath)
         throw error
@@ -303,7 +358,7 @@ export function publishGeneratedSubtitles(
       repository.findByVideoId(videoId).some((sub) => sub.filePath === koreanPath) &&
       readFileSync(koreanPath).equals(readFileSync(korean))
     )
-      return []
+      return [publishedOriginal, koreanPath]
   }
   for (let number = 1; number <= 10_000; number++) {
     const base = `${stem}.ai${number === 1 ? '' : '.' + number}`
@@ -317,6 +372,7 @@ export function publishGeneratedSubtitles(
       continue
     const created: string[] = []
     try {
+      beforePublish?.(paths)
       paths.forEach((path, index) => {
         copyFileSync(index === 0 ? original : korean, path, constants.COPYFILE_EXCL)
         created.push(path)
@@ -389,6 +445,8 @@ function enqueueSubtitleGeneration(
   assertSubtitleEnvironmentIdle()
   initializeSubtitleQueue()
   if (stopping) throw new Error('앱을 종료하고 있습니다.')
+  if (storageFailure && entries.size === 0) retryStorage()
+  if (storageFailure) throw storageFailure
   const options = SubtitleGenerationOptionsZ.parse(input)
   if (
     [...entries.values()].some(
@@ -405,10 +463,12 @@ function enqueueSubtitleGeneration(
     ? prepareSubtitleDeletion(libraryId, videoId, replacementIds)
     : undefined
   // Keep all unfinished tasks, but bound the history and total queue size.
+  const previousEntries = [...entries]
+  const retired: QueueEntry[] = []
   for (const [id, entry] of entries) {
     if (entries.size < 100) break
     if (terminalPhases.has(entry.job.phase)) {
-      cleanup(entry)
+      retired.push(entry)
       entries.delete(id)
     }
   }
@@ -424,6 +484,7 @@ function enqueueSubtitleGeneration(
       createdAt: new Date().toISOString(),
       phase: 'queued',
       percent: 0,
+      processing: { asr: 'unconfirmed' },
       message: replacement
         ? '자막 재생성 대기 중입니다. 차례가 오면 기존 자막을 휴지통으로 이동합니다.'
         : '자막 생성 대기 중입니다.',
@@ -438,8 +499,18 @@ function enqueueSubtitleGeneration(
   try {
     changed()
   } catch (error) {
-    entries.delete(entry.job.id)
+    entries.clear()
+    for (const [id, previous] of previousEntries) entries.set(id, previous)
+    blockForStorage(error as SubtitleQueueStorageError)
+    changed(false)
     throw error
+  }
+  for (const previous of retired) {
+    try {
+      cleanup(previous)
+    } catch (error) {
+      log.warn({ err: error, jobId: previous.job.id }, '이전 자막 작업 임시 파일 정리 실패')
+    }
   }
   pump()
   return snapshot(entry.job)
@@ -456,7 +527,7 @@ export async function regenerateSubtitles(
 }
 
 function pump(): void {
-  if (stopping || active) return
+  if (stopping || active || storageFailure) return
   if (retryTimer) clearTimeout(retryTimer)
   retryTimer = undefined
   const pending = [...entries.values()].filter(({ job }) => job.phase === 'queued')
@@ -482,10 +553,13 @@ async function execute(running: ActiveJob): Promise<void> {
   const job = entry.job
   const signal = controller.signal
   const update = (patch: Partial<SubtitleGenerationJob>) => {
-    if (running.action || signal.aborted) return
+    if (running.action || signal.aborted || storageFailure) return
     const phaseChanged = patch.phase !== undefined && patch.phase !== job.phase
+    const processingChanged =
+      patch.processing !== undefined &&
+      JSON.stringify(patch.processing) !== JSON.stringify(job.processing)
     Object.assign(job, patch)
-    changed(phaseChanged)
+    changed(phaseChanged || processingChanged)
   }
   try {
     changed()
@@ -523,17 +597,18 @@ async function execute(running: ActiveJob): Promise<void> {
               throwIfWorkCancelled(signal)
               if (!engine.available) throw new Error(engine.message)
               // Superseded failed jobs must not republish an old transcription later.
-              for (const [id, previous] of entries) {
-                if (
-                  id === job.id ||
-                  previous.job.libraryId !== job.libraryId ||
-                  previous.job.videoId !== job.videoId
-                )
-                  continue
-                cleanup(previous)
-                entries.delete(id)
-              }
+              const superseded = [...entries.values()].filter(
+                (previous) =>
+                  previous.job.id !== job.id &&
+                  previous.job.libraryId === job.libraryId &&
+                  previous.job.videoId === job.videoId,
+              )
+              for (const previous of superseded) previous.job.phase = 'removing'
               changed()
+              for (const previous of superseded) {
+                cleanup(previous)
+                removeQueueEntry(previous)
+              }
               update({
                 phase: 'preparing',
                 percent: 0,
@@ -574,7 +649,7 @@ async function execute(running: ActiveJob): Promise<void> {
           )
           throwIfWorkCancelled(signal)
           update({ phase: 'saving', percent: 0, message: '자막 파일을 저장하고 있습니다.' })
-          const publishedOriginal = job.outputPaths?.find((path) =>
+          const publishedOriginal = (job.outputPaths ?? entry.publishing)?.find((path) =>
             /\.ai(?:\.[1-9]\d*)?\.srt$/i.test(path),
           )
           const outputPaths = publishGeneratedSubtitles(
@@ -585,6 +660,12 @@ async function execute(running: ActiveJob): Promise<void> {
             result.language,
             result.translated,
             publishedOriginal,
+            (paths) => {
+              // Persist publication intent before creating sidecars, so a crash after the DB
+              // commit can recognize this job's byte-identical outputs on explicit resume.
+              entry.publishing = paths
+              changed()
+            },
           )
           // Publication is synchronous and cannot be interrupted between files and DB commit.
           Object.assign(job, {
@@ -599,6 +680,7 @@ async function execute(running: ActiveJob): Promise<void> {
               ...new Set([...(job.outputPaths ?? []).filter(existsSync), ...outputPaths]),
             ],
           })
+          delete entry.publishing
         } finally {
           librarySignal.removeEventListener('abort', abort)
         }
@@ -606,7 +688,7 @@ async function execute(running: ActiveJob): Promise<void> {
       'subtitles',
     )
   } catch (error) {
-    if (!running.action) {
+    if (!running.action && !storageFailure) {
       job.phase = isAbortError(error) ? 'cancelled' : 'failed'
       job.message = isAbortError(error)
         ? '자막 생성을 취소했습니다.'
@@ -615,35 +697,40 @@ async function execute(running: ActiveJob): Promise<void> {
     if (!isAbortError(error)) log.warn({ err: error, jobId: job.id }, '자막 생성 실패')
   } finally {
     try {
-      if (running.action === 'remove') {
-        cleanup(entry)
-        entries.delete(job.id)
-      } else if (running.action === 'pause') {
-        job.phase = 'paused'
-        job.message = entry.replacement?.targets.some(
-          (target) => !entry.replacement!.completedIds.includes(target.id),
-        )
-          ? '일시정지했습니다. 재개 시 남은 기존 자막 삭제부터 이어갑니다.'
-          : entry.audioReady
-            ? '일시정지했습니다. 완료된 자막 구간부터 이어서 처리합니다.'
-            : '일시정지했습니다. 재개 시 음성 추출부터 처리합니다.'
-      } else if (running.action === 'cancel') {
-        cleanup(entry)
-        job.phase = 'cancelled'
-        job.message = '자막 생성을 취소했습니다.'
-      } else if (job.phase === 'completed' || job.phase === 'cancelled') {
-        cleanup(entry)
+      if (!storageFailure) {
+        if (running.action === 'remove') {
+          changed()
+          cleanup(entry)
+          removeQueueEntry(entry)
+        } else if (running.action === 'pause') {
+          job.phase = 'paused'
+          job.message = entry.replacement?.targets.some(
+            (target) => !entry.replacement!.completedIds.includes(target.id),
+          )
+            ? '일시정지했습니다. 재개 시 남은 기존 자막 삭제부터 이어갑니다.'
+            : entry.audioReady
+              ? '일시정지했습니다. 완료된 자막 구간부터 이어서 처리합니다.'
+              : '일시정지했습니다. 재개 시 음성 추출부터 처리합니다.'
+        } else if (running.action === 'cancel') {
+          job.phase = 'cancelled'
+          job.message = '자막 생성을 취소했습니다.'
+        }
+        if (running.action !== 'remove') {
+          // Commit completion before removing recovery files. A storage failure retains checkpoints.
+          changed()
+          if (job.phase === 'completed' || job.phase === 'cancelled') cleanup(entry)
+        }
       }
-      // Failed jobs retain checkpoints for explicit retry; completed outputs are never removed.
-      changed()
     } catch (error) {
-      job.phase = 'failed'
-      job.message = `대기열 저장 또는 임시 파일 정리에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`
+      if (!storageFailure) {
+        job.phase = 'failed'
+        job.message = `임시 파일 정리에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`
+      }
       log.warn({ err: error }, '자막 작업 정리 실패')
       changed(false)
     } finally {
       if (active === running) active = undefined
-      if (!stopping) setImmediate(pump)
+      if (!stopping && !storageFailure) setImmediate(pump)
     }
   }
 }
@@ -668,6 +755,7 @@ export async function pauseSubtitleJob(jobId: string): Promise<boolean> {
     }
     await running.done
     if (saveError) throw saveError
+    if (storageFailure) throw storageFailure
   } else {
     entry.job.phase = 'paused'
     entry.job.message = '대기 중인 작업을 일시정지했습니다.'
@@ -681,6 +769,17 @@ export function resumeSubtitleJob(jobId: string): boolean {
   initializeSubtitleQueue()
   if (stopping) throw new Error('앱을 종료하고 있습니다.')
   const entry = entries.get(jobId)
+  if (entry?.job.storageError && active?.entry !== entry) {
+    retryStorage()
+    if (entry.job.phase === 'completed' || entry.job.phase === 'cancelled') {
+      try {
+        cleanup(entry)
+      } catch (error) {
+        log.warn({ err: error, jobId }, '저장 복구 후 임시 파일 정리 실패')
+      }
+      return true
+    }
+  }
   if (
     !entry ||
     !['paused', 'failed', 'cancelled'].includes(entry.job.phase) ||
@@ -715,6 +814,10 @@ export async function removeSubtitleJob(jobId: string): Promise<boolean> {
   initializeSubtitleQueue()
   const entry = entries.get(jobId)
   if (!entry) return false
+  if (storageFailure) {
+    if (active) await active.done
+    retryStorage()
+  }
   if (active?.entry === entry) {
     const running = active
     running.action = 'remove'
@@ -730,11 +833,14 @@ export async function removeSubtitleJob(jobId: string): Promise<boolean> {
     }
     await running.done
     if (saveError) throw saveError
+    if (storageFailure) throw storageFailure
     return !entries.has(jobId)
   }
-  cleanup(entry)
-  entries.delete(jobId)
+  entry.job.phase = 'removing'
+  entry.job.message = '대기열에서 삭제하고 있습니다.'
   changed()
+  cleanup(entry)
+  removeQueueEntry(entry)
   pump()
   return true
 }
@@ -755,5 +861,5 @@ export async function shutdownSubtitleQueue(): Promise<void> {
     running.controller.abort()
     await running.done
   }
-  changed()
+  if (!storageFailure) changed()
 }

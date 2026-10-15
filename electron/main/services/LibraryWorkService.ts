@@ -4,6 +4,7 @@ export type LibraryWorkKind = 'exclusive' | 'subtitles' | 'thumbnails'
 
 interface ActiveWork {
   kind: LibraryWorkKind
+  resourceKey?: string
   controller: AbortController
   finished: Promise<void>
 }
@@ -15,10 +16,11 @@ let shuttingDown = false
 export function assertLibraryWorkAllowed(
   libraryId: string,
   kind: LibraryWorkKind = 'exclusive',
+  resourceKey?: string,
 ): void {
   if (shuttingDown || draining > 0)
     throw new Error('앱을 종료하고 있습니다. 작업이 정리될 때까지 기다려 주세요.')
-  if (isLibraryWorkBlocked(libraryId, kind))
+  if (isLibraryWorkBlocked(libraryId, kind, resourceKey))
     throw new Error(
       '이 라이브러리에서 다른 작업이 진행 중입니다. 완료하거나 취소한 뒤 다시 시도하세요.',
     )
@@ -27,16 +29,21 @@ export function assertLibraryWorkAllowed(
 export function isLibraryWorkBlocked(
   libraryId: string,
   kind: LibraryWorkKind = 'exclusive',
+  resourceKey?: string,
 ): boolean {
   if (shuttingDown || draining > 0) return true
-  // Subtitle and thumbnail jobs write separate outputs. Keep each kind serial,
-  // and retain exclusive access for imports, removal and library closure.
+  // Different videos may queue thumbnail work together. Unscoped mutations and
+  // same-video writes remain serialized; imports and closure stay exclusive.
   for (const active of activeWork.get(libraryId) ?? []) {
     if (
       active.controller.signal.aborted ||
       kind === 'exclusive' ||
       active.kind === 'exclusive' ||
-      active.kind === kind
+      (active.kind === kind &&
+        (kind !== 'thumbnails' ||
+          !resourceKey ||
+          !active.resourceKey ||
+          active.resourceKey === resourceKey))
     )
       return true
   }
@@ -47,12 +54,14 @@ export async function withLibraryWork<T>(
   libraryId: string,
   work: (signal: AbortSignal) => Promise<T>,
   kind: LibraryWorkKind = 'exclusive',
+  resourceKey?: string,
 ): Promise<T> {
-  assertLibraryWorkAllowed(libraryId, kind)
+  assertLibraryWorkAllowed(libraryId, kind, resourceKey)
   const controller = new AbortController()
   let finish!: () => void
   const active = {
     kind,
+    resourceKey,
     controller,
     finished: new Promise<void>((resolve) => {
       finish = resolve

@@ -3,7 +3,7 @@ import hashlib
 import io
 import json
 import os
-from contextlib import redirect_stderr
+from contextlib import nullcontext, redirect_stderr
 from pathlib import Path
 import subprocess
 import sys
@@ -18,6 +18,19 @@ import whisper_vulkan as vulkan
 
 
 class VulkanTests(unittest.TestCase):
+    def test_large_v2_cli_and_pinned_model_manifest(self):
+        model = vulkan.read_manifest()["models"]["large-v2"]
+        self.assertEqual(model["filename"], "ggml-large-v2.bin")
+        self.assertEqual(model["size"], 3094623691)
+        self.assertEqual(model["sha256"], "9a423fe4d40c82774b6af34115b8b935f34152246eb19e80e376071d3f999487")
+        self.assertIn("/5359861c739e955e79d9a303bcbc70fb988958b1/", model["url"])
+        with patch.object(sys, "argv", ["generate.py", "--model", "large-v2", "--backend", "vulkan"]), \
+             patch.object(generate, "cancel_on_stdin_close", return_value=nullcontext(None)), \
+             patch.object(generate, "run") as run:
+            self.assertEqual(generate.main(), 0)
+            self.assertEqual(run.call_args.args[0].model, "large-v2")
+            self.assertEqual(run.call_args.args[0].backend, "vulkan")
+
     def audio(self, path, seconds=2):
         with wave.open(str(path), "wb") as output:
             output.setnchannels(1)
@@ -163,6 +176,7 @@ class VulkanTests(unittest.TestCase):
             audio = self.audio(output / "audio.wav", 12)
             options = {**generate.VULKAN_TRANSCRIPTION_OPTIONS, "chunk_seconds": 4, "right_context_seconds": 1}
             requests, saved = [], []
+            events = Mock()
             def fake_cli(executable, model, vad, chunk, destination, language, options, report):
                 requests.append(language)
                 report(50, "Vulkan0")
@@ -179,13 +193,17 @@ class VulkanTests(unittest.TestCase):
                  patch.object(vulkan, "ensure_model", return_value=Path("model")), \
                  patch.object(vulkan, "run_cli", side_effect=fake_cli):
                 vulkan.transcribe(audio, output, self.args(output), 12, 0, None,
-                                  lambda *values: saved.append(values), Mock(), options)
+                                  lambda *values: saved.append(values), events, options)
             self.assertEqual(requests, [None, None, "en"])
             self.assertEqual([item[1] for item in saved], [4, 8, 12])
             self.assertEqual([item[2] for item in saved], [None, "en", "en"])
             self.assertEqual(saved[1][0], [{"start": 5, "end": 6, "text": "hello"}])
             self.assertEqual(saved[2][0], [{"start": 9, "end": 10, "text": "hello"}])
             self.assertEqual(list(output.glob("vulkan-*")), [])
+            device_events = [call.kwargs for call in events.call_args_list
+                             if call.kwargs.get("type") == "processing_device"]
+            self.assertEqual(device_events, [{"type": "processing_device", "asr_backend": "vulkan",
+                                              "asr_device": "Vulkan0"}])
 
     def test_cli_json_uses_millisecond_offsets_and_validates_shape(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,5 +1,7 @@
 // Dependency-free channel names are shared with the sandboxed preload.
 export const IPC = {
+  PRIVACY: { GET: 'privacy:get', SAVE: 'privacy:save', EXIT: 'privacy:exit' },
+  DISCOVERY: { QUERY: 'discovery:query', FAVORITE: 'discovery:favorite', TAGS: 'discovery:tags' },
   APP: {
     QUIT: 'app:quit',
     CLAIM_GITHUB_STAR_PROMPT: 'app:claimGitHubStarPrompt',
@@ -17,12 +19,26 @@ export const IPC = {
     PREVIEW: 'dataImport:preview',
     IMPORT: 'dataImport:import',
   },
+  METADATA_IMPORT: {
+    GET_SETTINGS: 'metadataImport:getSettings',
+    UPDATE_SETTINGS: 'metadataImport:updateSettings',
+    SEARCH: 'metadataImport:search',
+    APPLY: 'metadataImport:apply',
+  },
+  MAINTENANCE: {
+    PREVIEW_NAMES: 'maintenance:previewNames',
+    APPLY_NAMES: 'maintenance:applyNames',
+    FIND_DUPLICATES: 'maintenance:findDuplicates',
+    CANCEL: 'maintenance:cancel',
+  },
   LIBRARY: {
     LIST: 'library:list',
     OPEN: 'library:open',
     CREATE: 'library:create',
     CLOSE: 'library:close',
     IMPORT_FOLDER: 'library:importFolder',
+    IMPORT_FILES: 'library:importFiles',
+    SELECT_FILES: 'library:selectFiles',
     REFRESH: 'library:refresh',
     CANCEL_WORK: 'library:cancelWork',
     SELECT_FOLDER: 'library:selectFolder',
@@ -30,7 +46,9 @@ export const IPC = {
   },
   VIDEOS: {
     SEARCH: 'videos:search',
+    METADATA_OPTIONS: 'videos:metadataOptions',
     GET: 'videos:get',
+    REVEAL_SOURCE: 'videos:revealSource',
     GET_PLAYBACK_SOURCE: 'videos:getPlaybackSource',
     GET_NATIVE_PLAYER_INFO: 'videos:getNativePlayerInfo',
     OPEN_IN_NATIVE_PLAYER: 'videos:openInNativePlayer',
@@ -50,6 +68,8 @@ export const IPC = {
     END: 'playback:end',
   },
   THUMBNAILS: {
+    LIST_JOBS: 'thumbnails:listJobs',
+    CANCEL_FOR_VIDEO: 'thumbnails:cancelForVideo',
     GET_FOR_VIDEO: 'thumbnails:getForVideo',
     SET_PRIMARY: 'thumbnails:setPrimary',
     ENSURE_FOR_VIDEO: 'thumbnails:ensureForVideo',

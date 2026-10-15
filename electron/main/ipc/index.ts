@@ -9,15 +9,19 @@ import { registerPlaybackHandlers } from './playback'
 import { registerStatsHandlers } from './stats'
 import { registerThumbnailHandlers } from './thumbnails'
 import { registerVideoHandlers } from './videos'
+import { registerMetadataImportHandlers } from './metadataImport'
 import { registerAppHandlers } from './app'
 import { registerDataImportHandlers } from './dataImport'
 import { registerSubtitleGenerationHandlers } from './subtitleGeneration'
+import { registerDiscoveryHandlers } from './discovery'
+import { registerMaintenanceHandlers } from './maintenance'
 
 const log = createLogger('ipc:index')
 const mutationWorkKinds = new Map<string, LibraryWorkKind>([
   [IPC.LIBRARY.CLOSE, 'exclusive'],
   [IPC.LIBRARY.DELETE, 'exclusive'],
   [IPC.VIDEOS.UPDATE_META, 'exclusive'],
+  [IPC.METADATA_IMPORT.APPLY, 'exclusive'],
   [IPC.VIDEOS.DELETE, 'exclusive'],
   [IPC.VIDEOS.RESTORE, 'exclusive'],
   [IPC.HIGHLIGHTS.CREATE, 'thumbnails'],
@@ -51,7 +55,23 @@ export function registerIpcHandler<C extends InvokeChannel>(
     try {
       const libraryId = parsed.data[0]
       const workKind = mutationWorkKinds.get(channel)
-      if (workKind && typeof libraryId === 'string' && isLibraryWorkBlocked(libraryId, workKind))
+      const thumbnailVideoId =
+        channel === IPC.THUMBNAILS.SET_PRIMARY
+          ? parsed.data[2]
+          : channel === IPC.THUMBNAILS.ENSURE_FOR_VIDEO ||
+              channel === IPC.THUMBNAILS.CAPTURE_AT_TIME ||
+              channel === IPC.THUMBNAILS.SAVE_IMAGE_CAPTURE
+            ? parsed.data[1]
+            : undefined
+      if (
+        workKind &&
+        typeof libraryId === 'string' &&
+        isLibraryWorkBlocked(
+          libraryId,
+          workKind,
+          typeof thumbnailVideoId === 'string' ? thumbnailVideoId : undefined,
+        )
+      )
         return {
           ok: false,
           error: '진행 중인 라이브러리 작업을 완료하거나 취소한 뒤 다시 시도하세요.',
@@ -65,14 +85,17 @@ export function registerIpcHandler<C extends InvokeChannel>(
 }
 
 export function registerAllHandlers(): void {
+  registerDiscoveryHandlers()
   registerAppHandlers()
   registerDataImportHandlers()
   registerLibraryHandlers()
   registerVideoHandlers()
+  registerMetadataImportHandlers()
   registerPlaybackHandlers()
   registerThumbnailHandlers()
   registerHighlightHandlers()
   registerStatsHandlers()
   registerSubtitleGenerationHandlers()
+  registerMaintenanceHandlers()
   log.info('모든 IPC 핸들러 등록 완료')
 }

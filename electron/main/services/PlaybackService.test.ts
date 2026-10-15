@@ -19,6 +19,7 @@ import {
   endPlayback,
   finishPlaybackSessions,
 } from './PlaybackService'
+import { isSourceFileInUse } from './SourceFileUsage'
 
 const libraryId = 'seek-history-test'
 const videoId = 'video-test'
@@ -49,6 +50,19 @@ afterEach(() => {
 })
 
 describe('explicit playback seek accounting', () => {
+  it('releases the closed source and session even when persisting history fails', () => {
+    const first = startPlayback(libraryId, videoId)
+    expect(isSourceFileInUse('/synthetic.mp4')).toBe(true)
+    const update = vi
+      .spyOn(PlayHistoryRepository.prototype, 'update')
+      .mockImplementationOnce(() => {
+        throw new Error('database is unavailable')
+      })
+    expect(() => endPlayback(libraryId, videoId, 2)).toThrow('database is unavailable')
+    expect(isSourceFileInUse('/synthetic.mp4')).toBe(false)
+    update.mockRestore()
+    expect(startPlayback(libraryId, videoId)).not.toBe(first)
+  })
   it('persists small paused seeks without increasing watched time or starting another session', () => {
     const session = startPlayback(libraryId, videoId)
     vi.advanceTimersByTime(4000)

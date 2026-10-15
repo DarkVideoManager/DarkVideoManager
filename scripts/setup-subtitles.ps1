@@ -2,7 +2,7 @@
 param(
     [ValidateNotNullOrEmpty()]
     [string]$Distribution = 'Ubuntu-24.04',
-    [ValidateSet('tiny', 'base', 'small', 'medium', 'large-v3')]
+    [ValidateSet('tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3')]
     [string]$Model = 'base',
     [switch]$SkipModelDownload
 )

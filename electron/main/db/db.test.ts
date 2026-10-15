@@ -42,7 +42,7 @@ function insertVideo(id = 'video-1'): void {
 
 describe('SQLite migrations and connection', () => {
   it('applies contiguous migrations and enables required tables', () => {
-    expect(getSchemaVersion(db)).toBe(5)
+    expect(getSchemaVersion(db)).toBe(6)
     expect(
       db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'highlights'")
@@ -70,7 +70,7 @@ describe('SQLite migrations and connection', () => {
         .prepare('INSERT INTO videos(id,file_path,file_name,memo) VALUES(?,?,?,?)')
         .run('wal-video', '/wal.mp4', 'wal.mp4', 'latest committed memo')
       runMigrations(old, dbPath)
-      expect(getSchemaVersion(old)).toBe(5)
+      expect(getSchemaVersion(old)).toBe(6)
       const backupFile = readdirSync(temporaryDirectory).find((name) =>
         name.startsWith('old.db.bak.'),
       )!

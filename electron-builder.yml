@@ -8,11 +8,11 @@ directories:
 
 files:
   - out/**/*
-  - "!out/**/*.map"
-  - "!out/**/*.tsbuildinfo"
-  - "!**/.env"
-  - "!**/.env.*"
-  - "!**/coverage/**"
+  - '!out/**/*.map'
+  - '!out/**/*.tsbuildinfo'
+  - '!**/.env'
+  - '!**/.env.*'
+  - '!**/coverage/**'
 
 extraResources:
   - from: resources/icon.ico
@@ -20,23 +20,24 @@ extraResources:
   - from: resources/subtitles
     to: subtitles
     filter:
-      - "generate.py"
-      - "whisper_vulkan.py"
-      - "setup_environment.py"
-      - "setup_models.py"
-      - "download_tls.py"
-      - "certificates/**/*"
-      - "gpu-models.json"
-      - "native/**/*"
-      - "!**/__pycache__/**"
-      - "!**/*.pyc"
-      - "!**/*.pyo"
+      - 'generate.py'
+      - 'atomic_output.py'
+      - 'whisper_vulkan.py'
+      - 'setup_environment.py'
+      - 'setup_models.py'
+      - 'download_tls.py'
+      - 'certificates/**/*'
+      - 'gpu-models.json'
+      - 'native/**/*'
+      - '!**/__pycache__/**'
+      - '!**/*.pyc'
+      - '!**/*.pyo'
   - from: resources/media/win32-x64
     to: media/win32-x64
     filter:
-      - "*.exe"
-      - "*.json"
-      - "*.txt"
+      - '*.exe'
+      - '*.json'
+      - '*.txt'
   - from: resources/legal/generated
     to: legal
   - from: LICENSE
@@ -46,7 +47,7 @@ extraResources:
   - from: electron/main/db/migrations
     to: migrations
     filter:
-      - "*.sql"
+      - '*.sql'
 
 asar: true
 # better-sqlite3 ships the Windows x64 Node-API binary in its pinned npm package.
@@ -64,7 +65,11 @@ win:
       arch:
         - x64
 
+portable:
+  artifactName: DarkVideoManager-Portable-${version}-${arch}.${ext}
+
 nsis:
+  artifactName: DarkVideoManager-Setup-${version}-${arch}.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   installerIcon: resources/icon.ico

@@ -26,6 +26,7 @@ export interface Video {
   rating: number
   memo: string
   tags: string
+  category?: string
   createdAt: string
   updatedAt: string
   lastPlayedAt?: string
@@ -45,6 +46,16 @@ export interface Thumbnail {
   createdAt: string
 }
 
+export interface ThumbnailJob {
+  libraryId: string
+  videoId: string
+  fileName: string
+  phase: 'queued' | 'running' | 'cancelling' | 'completed' | 'failed' | 'cancelled'
+  completed: number
+  total: number
+  error?: string
+}
+
 export interface Subtitle {
   id: string
   videoId: string
@@ -57,7 +68,7 @@ export interface Subtitle {
 }
 
 export interface SubtitleGenerationOptions {
-  model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
+  model: 'tiny' | 'base' | 'small' | 'medium' | 'large-v2' | 'large-v3'
   language: 'auto' | 'ja' | 'en' | 'ko' | 'zh'
   translateToKorean: boolean
 }
@@ -81,6 +92,8 @@ export interface SubtitleSetupStatus {
   components: SubtitleSetupComponent[]
   updatedAt: string
   canCancel: boolean
+  currentComponent?: SubtitleSetupComponent['id']
+  stepStartedAt?: string
 }
 
 export interface CloudTranslationSettings {
@@ -125,6 +138,13 @@ export interface SubtitleGenerationJob {
   percent: number
   message: string
   outputPaths?: string[]
+  storageError?: string
+  processing?: {
+    asr: 'unconfirmed' | 'vulkan' | 'cpu-legacy'
+    device?: string
+    evidence?: 'engine' | 'checkpoint'
+    translation?: 'cloud' | 'ollama' | 'original-ko'
+  }
 }
 
 export interface Highlight {
@@ -242,6 +262,8 @@ export interface ImportResult {
 export interface SearchQuery {
   removed?: boolean
   q?: string
+  category?: string
+  tag?: string
   rating?: number
   hasSubtitles?: boolean
   sortBy?:
@@ -270,9 +292,15 @@ export interface VideoMeta {
   rating?: number
   memo?: string
   tags?: string
+  category?: string
   lastPlayedAt?: string
   playCount?: number
   playTimeSec?: number
+}
+
+export interface VideoMetadataOptions {
+  categories: string[]
+  tags: string[]
 }
 
 export interface CsvImportOptions {
@@ -324,15 +352,19 @@ export interface NativePlayerActionEvent extends VideoEvent {
 }
 
 export interface Config {
+  privacySettings?: import('./privacy').PrivacySettings
+  discoveryPreferences?: Record<string, import('./discovery').DiscoveryPreferences>
   libraries: Library[]
   lastActiveLibraryId?: string
   cacheLimitGb?: number
+  seekStepSec?: number
   nativePlayer?: NativePlayerInfo | null
   githubStarPromptShown?: boolean
 }
 
 export interface AppSettings {
   cacheLimitGb: number
+  seekStepSec: number
   nativePlayer?: NativePlayerInfo | null
 }
 /** Chromium capabilities, not the decoder selected for an individual video. */

@@ -88,6 +88,20 @@ describe('IPC contracts', () => {
     ).toBe(false)
   })
 
+  it('accepts large-v2 for generation and regeneration without widening model input', () => {
+    const options = { model: 'large-v2', language: 'auto', translateToKorean: true }
+    expect(IPC_SCHEMAS[IPC.SUBTITLES.GENERATE].parse(['lib', 'video', options])[2]).toEqual(options)
+    expect(
+      IPC_SCHEMAS[IPC.SUBTITLES.REGENERATE].parse(['lib', 'video', ['subtitle'], options])[3],
+    ).toEqual(options)
+    for (const model of ['large', 'large-v2.en', '../large-v2']) {
+      expect(
+        IPC_SCHEMAS[IPC.SUBTITLES.GENERATE].safeParse(['lib', 'video', { ...options, model }])
+          .success,
+      ).toBe(false)
+    }
+  })
+
   it('accepts explicit seek positions and rejects invalid positional inputs', () => {
     const seek = IPC_SCHEMAS[IPC.PLAYBACK.SEEK]
     expect(seek.safeParse(['library', 'video', 0]).success).toBe(true)
@@ -113,6 +127,15 @@ describe('IPC contracts', () => {
     ).toBe(true)
   })
 
+  it('accepts only supported integer seek intervals in settings updates', () => {
+    for (const seekStepSec of [1, 5, 30, 600]) {
+      expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ seekStepSec }]).success).toBe(true)
+    }
+    for (const seekStepSec of [0, -1, 1.5, 601, NaN, Infinity, '10', null]) {
+      expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ seekStepSec }]).success).toBe(false)
+    }
+  })
+
   it('rejects unknown search fields and invalid ranges', () => {
     expect(IPC_SCHEMAS[IPC.APP.UPDATE_SETTINGS].safeParse([{ cacheLimitGb: 10 }]).success).toBe(
       true,
@@ -129,6 +152,13 @@ describe('IPC contracts', () => {
     expect(SearchQueryZ.safeParse({ sortBy: 'playCount' }).success).toBe(true)
     expect(SearchQueryZ.safeParse({ sortBy: 'playTimeSec' }).success).toBe(true)
     expect(VideoMetaZ.safeParse({ tags: 'travel, family' }).success).toBe(true)
+    expect(VideoMetaZ.safeParse({ category: '', tags: '#선수명' }).success).toBe(true)
+    expect(SearchQueryZ.safeParse({ category: '', tag: '#선수명' }).success).toBe(true)
+    expect(SearchQueryZ.safeParse({ category: 3 }).success).toBe(false)
+    expect(SearchQueryZ.safeParse({ tag: ['선수명'] }).success).toBe(false)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.METADATA_OPTIONS].safeParse(['lib']).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.METADATA_OPTIONS].safeParse(['lib', true]).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.VIDEOS.METADATA_OPTIONS].safeParse(['lib', 'false']).success).toBe(false)
   })
 
   it('accepts optional boolean subtitle filters without coercing other values', () => {

@@ -21,6 +21,7 @@ vi.mock('./SubtitleRuntime', () => ({
 vi.mock('../ffmpeg/thumbnail', () => ({
   extractThumbnailAtTime: state.extractThumbnail,
   generateThumbnails: vi.fn(),
+  isThumbnailTimeoutError: (error: Error) => error.name === 'ThumbnailTimeoutError',
 }))
 vi.mock('../ffmpeg/ffprobe', () => ({ probeVideo: vi.fn() }))
 

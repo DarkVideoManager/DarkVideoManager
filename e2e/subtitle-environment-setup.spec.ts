@@ -130,10 +130,12 @@ test('offers global setup without a library, polls progress and preserves the jo
   await prepareSetup(page)
   await page.getByRole('link', { name: '자막 생성', exact: true }).click()
   const panel = setupPanel(page)
-  await expect(panel.getByRole('listitem')).toHaveCount(6)
+  await expect(
+    panel.getByRole('list', { name: '자막 환경 준비 상태' }).getByRole('listitem'),
+  ).toHaveCount(6)
   await expect(panel).toContainText('15GB')
   await expect(panel).toContainText('관리자 승인')
-  await expect(panel).toContainText('Ubuntu의 초기 설정')
+  await expect(panel).toContainText('Ubuntu 계정은 보통 앱이 준비합니다.')
   expect(await page.evaluate(() => (window as unknown as SetupWindow).setupHarness.starts)).toBe(0)
   await panel.getByRole('button', { name: '자막 환경 자동 설치', exact: true }).click()
   await expect(
@@ -293,4 +295,78 @@ test('disables cancellation during Windows preparation and explains restart cont
   await expect(panel.getByRole('button', { name: '설치 취소', exact: true })).toHaveCount(0)
   await panel.getByRole('button', { name: '설치 이어서 진행', exact: true }).click()
   await expect(panel.getByRole('button', { name: '설치 취소', exact: true })).toBeEnabled()
+})
+
+test('shows elapsed time for the current step and guidance when progress stops updating', async ({
+  page,
+}) => {
+  await prepareSetup(page)
+  await page.evaluate(() => {
+    const state = (window as unknown as SetupWindow).setupHarness
+    state.status = {
+      ...state.status,
+      phase: 'installing',
+      message: 'Windows 권한 승인 창을 확인해 주세요.',
+      currentComponent: 'wsl',
+      stepStartedAt: new Date(Date.now() - 6 * 60_000).toISOString(),
+      updatedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+      canCancel: false,
+      components: state.status.components.map((component) => ({
+        ...component,
+        state:
+          component.id === 'wsl'
+            ? 'installing'
+            : ['whisper', 'speechModel'].includes(component.id)
+              ? 'ready'
+              : 'checking',
+      })),
+    }
+  })
+  await page.getByRole('link', { name: '자막 생성', exact: true }).click()
+  const panel = setupPanel(page)
+  await expect(panel.getByLabel('설치 단계 경과')).toContainText(
+    '현재 단계: Windows 자막 실행 환경',
+  )
+  await expect(panel.getByLabel('설치 단계 경과')).toContainText(/경과 (?:[6-9]|\d{2,})분/)
+  await expect(panel).toContainText('동안 새 진행 안내가 없습니다.')
+  await expect(panel.getByRole('listitem').filter({ hasText: '자막 처리 도구' })).toContainText(
+    '대기 중',
+  )
+  await expect(panel.getByRole('button', { name: '설치 취소', exact: true })).toBeDisabled()
+  await page.evaluate(() => {
+    const state = (window as unknown as SetupWindow).setupHarness
+    state.status.updatedAt = new Date().toISOString()
+    state.status.message = 'Windows 설치 진행 상태를 확인했습니다.'
+  })
+  await expect(panel).not.toContainText('동안 새 진행 안내가 없습니다.')
+  await expect(panel.getByLabel('설치 단계 경과')).toContainText(/경과 (?:[6-9]|\d{2,})분/)
+})
+
+test('keeps a failed step distinct from unchecked components and a confirmed restart', async ({
+  page,
+}) => {
+  await prepareSetup(page)
+  await page.evaluate(() => {
+    const state = (window as unknown as SetupWindow).setupHarness
+    state.status.phase = 'failed'
+    state.status.message = 'Windows 가상화 설정을 확인한 뒤 환경 다시 확인을 눌러 주세요.'
+    state.status.components = state.status.components.map((component) => ({
+      ...component,
+      state:
+        component.id === 'wsl'
+          ? 'failed'
+          : ['whisper', 'speechModel'].includes(component.id)
+            ? 'ready'
+            : 'checking',
+    }))
+  })
+  await page.getByRole('link', { name: '자막 생성', exact: true }).click()
+  const panel = setupPanel(page)
+  await expect(panel.getByRole('alert')).toContainText('Windows 가상화 설정')
+  await expect(panel.getByRole('listitem').filter({ hasText: '자막 처리 도구' })).toContainText(
+    '확인 전',
+  )
+  await expect(panel.getByText('Windows 재시작 필요', { exact: true })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: '설치 다시 시도', exact: true })).toBeEnabled()
+  await expect(panel.getByRole('button', { name: '환경 다시 확인', exact: true })).toBeEnabled()
 })

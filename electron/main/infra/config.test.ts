@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  chmodSync,
   fsyncSync,
   mkdirSync,
   mkdtempSync,
@@ -57,6 +58,7 @@ beforeEach(async () => {
   takeConfigRecoveryNotice()
 })
 afterEach(() => {
+  vi.restoreAllMocks()
   const target = resolve(directory)
   if (
     !target.startsWith(resolve(tmpdir()) + sep) ||
@@ -67,6 +69,147 @@ afterEach(() => {
 })
 
 describe('safe configuration persistence', () => {
+  it('does not rotate or reformat an unchanged valid registry', () => {
+    const original = '\uFEFF' + JSON.stringify(example())
+    writeFileSync(state.path, original)
+    vi.mocked(renameSync).mockClear()
+    vi.mocked(fsyncSync).mockClear()
+    saveConfig(loadConfig())
+    expect(raw()).toBe(original)
+    expect(existsSync(backupPath())).toBe(false)
+    expect(renameSync).not.toHaveBeenCalled()
+    expect(fsyncSync).not.toHaveBeenCalled()
+  })
+
+  it('can save when an equivalent valid backup cannot be replaced', () => {
+    saveConfig(example())
+    const backup = JSON.stringify(example())
+    writeFileSync(backupPath(), backup)
+    vi.mocked(renameSync).mockImplementation((from, to) => {
+      if (to === backupPath()) {
+        throw Object.assign(new Error('locked backup'), { code: 'EPERM' })
+      }
+      realFs.renameSync(from, to)
+    })
+    const changed = example()
+    changed.libraries[0].name = 'Changed'
+    saveConfig(changed)
+    expect(parsed()).toEqual(changed)
+    expect(raw(backupPath())).toBe(backup)
+    expect(readdirSync(directory).filter((name) => name.includes('.tmp.'))).toEqual([])
+  })
+
+  it.each(['EPERM', 'EACCES', 'EBUSY'])(
+    'retries a temporary %s on backup and primary replacement without deleting either target',
+    (code) => {
+      saveConfig(example())
+      const current = example()
+      current.libraries[0].name = 'Current'
+      saveConfig(current)
+      const attempts = new Map<string, number>()
+      const wait = vi.spyOn(Atomics, 'wait').mockReturnValue('timed-out')
+      vi.mocked(renameSync).mockImplementation((from, to) => {
+        const target = String(to)
+        const attempt = (attempts.get(target) ?? 0) + 1
+        attempts.set(target, attempt)
+        expect(parsed()).toEqual(current)
+        if (attempt <= 2) throw Object.assign(new Error('temporary sharing violation'), { code })
+        realFs.renameSync(from, to)
+      })
+      const changed = example()
+      changed.libraries[0].name = 'Changed'
+      saveConfig(changed)
+      expect(attempts.get(backupPath())).toBe(3)
+      expect(attempts.get(state.path)).toBe(3)
+      expect(wait).toHaveBeenCalledTimes(4)
+      expect(parsed()).toEqual(changed)
+      expect(parsed(backupPath())).toEqual(current)
+      expect(readdirSync(directory).filter((name) => name.includes('.tmp.'))).toEqual([])
+    },
+  )
+
+  it.each(['backup', 'primary'])(
+    'reports a persistent %s lock and preserves the saved configuration',
+    (target) => {
+      saveConfig(example())
+      const current = example()
+      current.libraries[0].name = 'Current'
+      saveConfig(current)
+      const before = raw(),
+        backup = raw(backupPath())
+      const lockedPath = target === 'backup' ? backupPath() : state.path
+      const failure = Object.assign(new Error('persistent sharing violation'), { code: 'EPERM' })
+      const wait = vi.spyOn(Atomics, 'wait').mockReturnValue('timed-out')
+      vi.mocked(renameSync).mockImplementation((from, to) => {
+        if (to === lockedPath) throw failure
+        realFs.renameSync(from, to)
+      })
+      let caught: Error | undefined
+      try {
+        saveConfig({ libraries: [] })
+      } catch (error) {
+        caught = error as Error
+      }
+      expect(caught?.message).toContain(lockedPath)
+      expect(caught?.message).toContain('읽기 전용')
+      expect(caught?.message).toContain('EPERM')
+      expect(caught?.cause).toBe(failure)
+      expect(wait).toHaveBeenCalledTimes(5)
+      expect(raw()).toBe(before)
+      expect(raw(backupPath())).toBe(target === 'backup' ? backup : before)
+      expect(readdirSync(directory).filter((name) => name.includes('.tmp.'))).toEqual([])
+      vi.mocked(renameSync).mockImplementation(realFs.renameSync)
+      saveConfig({ libraries: [] })
+      expect(parsed()).toEqual({ libraries: [] })
+      expect(parsed(backupPath())).toEqual(current)
+    },
+  )
+
+  it.skipIf(process.platform !== 'win32').each(['backup', 'primary'])(
+    'preserves both valid files when the Windows %s file is read-only',
+    (target) => {
+      saveConfig(example())
+      const current = example()
+      current.libraries[0].name = 'Current'
+      saveConfig(current)
+      const before = raw(),
+        backup = raw(backupPath())
+      const lockedPath = target === 'backup' ? backupPath() : state.path
+      chmodSync(lockedPath, 0o444)
+      try {
+        expect(() => saveConfig({ libraries: [] })).toThrow('읽기 전용')
+        expect(raw()).toBe(before)
+        expect(raw(backupPath())).toBe(target === 'backup' ? backup : before)
+        expect(readdirSync(directory).filter((name) => name.includes('.tmp.'))).toEqual([])
+      } finally {
+        chmodSync(lockedPath, 0o600)
+      }
+      saveConfig({ libraries: [] })
+      expect(parsed()).toEqual({ libraries: [] })
+      expect(parsed(backupPath())).toEqual(current)
+    },
+  )
+
+  it('keeps the seek interval across reloads while accepting older configurations', () => {
+    saveConfig(example())
+    expect(loadConfig().seekStepSec).toBeUndefined()
+    updateConfig((current) => ({ ...current, seekStepSec: 15 }))
+    expect(loadConfig()).toMatchObject({ ...example(), seekStepSec: 15 })
+    updateConfig((current) => ({ ...current, cacheLimitGb: 20 }))
+    expect(loadConfig().seekStepSec).toBe(15)
+  })
+
+  it.each([0, -1, 1.5, 601, Number.NaN, Infinity])(
+    'rejects invalid seek interval %s without changing the saved configuration',
+    (seekStepSec) => {
+      saveConfig({ ...example(), seekStepSec: 10 })
+      const before = raw()
+      expect(() => updateConfig((current) => ({ ...current, seekStepSec }))).toThrow('설정 구조')
+      expect(raw()).toBe(before)
+      expect(loadConfig().seekStepSec).toBe(10)
+    },
+  )
+
   it('allows only a fresh installation to start with an independent empty registry', () => {
     const first = loadConfig()
     first.libraries.push(example().libraries[0])

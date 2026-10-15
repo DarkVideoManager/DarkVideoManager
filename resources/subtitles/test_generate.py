@@ -1,5 +1,6 @@
 """Fast contract tests; no model downloads or translation requests."""
 import os
+import errno
 import json
 import queue
 from contextlib import nullcontext
@@ -15,6 +16,7 @@ import wave
 from unittest.mock import Mock, patch
 
 import generate
+import atomic_output
 
 
 class SubtitleTests(unittest.TestCase):
@@ -81,6 +83,9 @@ class SubtitleTests(unittest.TestCase):
         self.assertEqual(options, [{"source": "zh-CN", "target": "ko"}])
         self.assertEqual(result, [generate.Cue(1, 2, "안녕하세요"), generate.Cue(3, 4, "안녕")])
         self.assertEqual(source[0].text, "hello")
+        devices = [call.kwargs for call in emit.call_args_list if call.kwargs.get("type") == "processing_device"]
+        self.assertTrue(devices)
+        self.assertTrue(all(event == {"type": "processing_device", "translation": "cloud"} for event in devices))
 
     @patch.object(generate, "emit")
     def test_cloud_failure_switches_without_repeating_billed_request(self, emit):
@@ -118,6 +123,9 @@ class SubtitleTests(unittest.TestCase):
         self.assertEqual(local_calls, ["first", "second"])
         self.assertEqual(result, [generate.Cue(1, 2, "한국어 first"), generate.Cue(3, 4, "한국어 second")])
         self.assertTrue(any("로컬 Ollama" in call.kwargs.get("message", "") for call in emit.call_args_list))
+        devices = [call.kwargs for call in emit.call_args_list if call.kwargs.get("type") == "processing_device"]
+        self.assertTrue(devices)
+        self.assertTrue(all(event["translation"] == "ollama" for event in devices))
 
     def test_rejects_empty_nonstring_and_excessive_translation_results(self):
         for result in (None, "", "   ", ["text"], "x" * 501, "<think>reasoning</think>"):
@@ -129,6 +137,8 @@ class SubtitleTests(unittest.TestCase):
         source = [generate.Cue(0, 1, "안녕")]
         result = generate.translate_cues(source, "ko", lambda **kwargs: self.fail("unnecessary translation"))
         self.assertEqual(source, result)
+        self.assertIn({"type": "processing_device", "translation": "original-ko"},
+                      [call.kwargs for call in emit.call_args_list])
 
     @patch.object(generate, "emit")
     def test_translation_resume_skips_completed_cues_and_checkpoints_new_cues(self, emit):
@@ -358,6 +368,8 @@ class SubtitleTests(unittest.TestCase):
             self.assertEqual(text.count("first"), 1)
             self.assertIn("00:00:03,000 --> 00:00:04,500\nsecond", text)
             self.assertEqual(emit.call_args.kwargs["cueCount"], 2)
+            devices = [call.kwargs for call in emit.call_args_list if call.kwargs.get("type") == "processing_device"]
+            self.assertEqual(devices, [{"type": "processing_device", "asr_backend": "cpu-legacy"}] * 2)
 
     @patch.object(generate, "emit")
     def test_worker_resume_translation_skips_transcription_and_restores_staging(self, emit):
@@ -436,6 +448,37 @@ class SubtitleTests(unittest.TestCase):
             with patch.object(generate.os, "replace", side_effect=OSError("interrupted")), self.assertRaises(OSError):
                 generate.save_checkpoint(output, {"valid": 2})
             self.assertEqual(json.loads((output / "checkpoint.json").read_text()), {"valid": 1})
+            self.assertEqual(sorted(path.name for path in output.iterdir()), ["checkpoint.json"])
+
+    def test_wsl_fallback_updates_checkpoint_and_staged_subtitle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            generate.save_checkpoint(output, {"translated": []})
+            generate.save_srt([generate.Cue(0, 1, "first")], output / "original.srt")
+            native_replace = os.replace
+            error = IsADirectoryError(errno.EISDIR, "Is a directory")
+            with patch.object(atomic_output.os, "replace", side_effect=error), \
+                 patch.object(atomic_output, "_is_wsl", return_value=True), \
+                 patch.object(atomic_output, "_replace_in_windows", side_effect=native_replace) as fallback:
+                generate.save_checkpoint(output, {"translated": ["번역 완료"]})
+                generate.save_srt([generate.Cue(0, 1, "continued")], output / "original.srt", replace_staged=True)
+            self.assertEqual(fallback.call_count, 2)
+            self.assertEqual(json.loads((output / "checkpoint.json").read_text(encoding="utf-8")),
+                             {"translated": ["번역 완료"]})
+            self.assertIn("continued", (output / "original.srt").read_text(encoding="utf-8"))
+            self.assertEqual(sorted(path.name for path in output.iterdir()), ["checkpoint.json", "original.srt"])
+
+    def test_wsl_fallback_failure_preserves_checkpoint_and_cleans_temporary_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            generate.save_checkpoint(output, {"valid": 1})
+            before = (output / "checkpoint.json").read_bytes()
+            with patch.object(atomic_output.os, "replace", side_effect=IsADirectoryError(errno.EISDIR, "Is a directory")), \
+                 patch.object(atomic_output, "_is_wsl", return_value=True), \
+                 patch.object(atomic_output, "_replace_in_windows", side_effect=OSError("native failure")), \
+                 self.assertRaisesRegex(OSError, "Windows에서 저장하지 못했습니다"):
+                generate.save_checkpoint(output, {"valid": 2})
+            self.assertEqual((output / "checkpoint.json").read_bytes(), before)
             self.assertEqual(sorted(path.name for path in output.iterdir()), ["checkpoint.json"])
 
     def test_resume_decoder_slices_at_saved_sample_boundary(self):

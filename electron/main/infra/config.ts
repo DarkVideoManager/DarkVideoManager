@@ -13,12 +13,17 @@ import { randomUUID } from 'node:crypto'
 import { basename, dirname, join } from 'node:path'
 import { z } from 'zod'
 import type { Config } from '@shared/types'
+import { SeekStepSecZ } from '@shared/playerSettings'
 import { getConfigPath } from './paths'
+import { PrivacySettingsZ } from '@shared/privacy'
+import { DiscoveryPreferencesZ } from '@shared/discovery'
 
 // passthrough keeps settings added by later versions instead of silently dropping them.
 const NonemptyString = z.string().min(1)
 const ConfigSchema = z
   .object({
+    privacySettings: PrivacySettingsZ.optional(),
+    discoveryPreferences: z.record(z.string().min(1), DiscoveryPreferencesZ).optional(),
     libraries: z
       .array(
         z
@@ -39,6 +44,7 @@ const ConfigSchema = z
       ),
     lastActiveLibraryId: NonemptyString.optional(),
     cacheLimitGb: z.number().finite().min(1).max(1000).optional(),
+    seekStepSec: SeekStepSecZ.optional(),
     githubStarPromptShown: z.boolean().optional(),
     nativePlayer: z
       .object({ name: z.enum(['mpv', 'ffplay', 'vlc']), path: NonemptyString })
@@ -52,6 +58,34 @@ type Candidate =
   | { kind: 'missing' }
   | { kind: 'invalid'; reason: string }
 let recoveryNotice: string | undefined
+const renameRetryDelays = [10, 25, 50, 100, 200]
+const renameRetryWait = new Int32Array(new SharedArrayBuffer(4))
+
+function replaceFile(temporaryPath: string, filePath: string): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      renameSync(temporaryPath, filePath)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY') throw error
+      // Windows can briefly deny replacement while antivirus or another reader
+      // holds the destination. Keep the old file intact throughout every retry.
+      const delay = renameRetryDelays[attempt]
+      if (delay === undefined) {
+        throw new Error(
+          '설정 파일을 저장할 수 없습니다 (' +
+            code +
+            '): ' +
+            filePath +
+            '. 파일과 폴더의 쓰기 권한·읽기 전용 속성을 확인하고, 이 파일을 사용 중인 다른 프로그램을 닫은 뒤 다시 시도해 주세요. 기존 설정 파일은 삭제하지 않았습니다.',
+          { cause: error },
+        )
+      }
+      Atomics.wait(renameRetryWait, 0, 0, delay)
+    }
+  }
+}
 
 function validateConfig(value: unknown): Config {
   const result = ConfigSchema.safeParse(value)
@@ -88,7 +122,7 @@ function writeAtomic(filePath: string, content: string): void {
     fsyncSync(descriptor)
     closeSync(descriptor)
     descriptor = undefined
-    renameSync(temporaryPath, filePath)
+    replaceFile(temporaryPath, filePath)
   } finally {
     if (descriptor !== undefined) closeSync(descriptor)
     try {
@@ -170,10 +204,21 @@ export function saveConfig(config: Config): void {
   validateConfig(JSON.parse(content))
   const filePath = getConfigPath()
   const current = readCurrent(filePath)
+  // Library creation first ensures that the registry exists. Re-saving an
+  // existing registry must not needlessly replace a backup that may be open.
+  if (current.raw !== undefined && JSON.stringify(current.config, null, 2) === content) return
   if (current.raw !== undefined) {
     const backupPath = filePath + '.bak'
-    if (readCandidate(backupPath).kind === 'invalid') preserveCorrupt(backupPath)
-    writeAtomic(backupPath, current.raw)
+    const backup = readCandidate(backupPath)
+    if (backup.kind === 'invalid') preserveCorrupt(backupPath)
+    // An equivalent valid backup already protects the version being replaced.
+    // In particular, the first library need not replace the empty backup again.
+    if (
+      backup.kind !== 'valid' ||
+      JSON.stringify(backup.config) !== JSON.stringify(current.config)
+    ) {
+      writeAtomic(backupPath, current.raw)
+    }
   }
   writeAtomic(filePath, content)
 }

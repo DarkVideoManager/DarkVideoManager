@@ -1,7 +1,26 @@
 import type { WindowApi } from '../../../electron/preload'
+import { DEFAULT_SEEK_STEP_SEC, SeekStepSecZ } from '../../shared/playerSettings'
+
+import { DEFAULT_PRIVACY_SETTINGS, PrivacySettingsZ } from '../../shared/privacy'
+import { discoverVideos, type DiscoveryPreferences } from '../../shared/discovery'
+import {
+  importedMetadata,
+  MetadataApplyZ,
+  MetadataSearchZ,
+  StashSettingsPatchZ,
+  type StashSettings,
+} from '../../shared/metadataImport'
 import { err, ok } from '../../shared/result'
 import type { Result } from '../../shared/result'
 import type { PlaybackConversionJob } from '../../shared/playbackConversion'
+import {
+  collectVideoMetadataOptions,
+  hasVideoTag,
+  normalizeVideoCategory,
+  normalizeVideoTag,
+  parseVideoSearch,
+  serializeVideoTags,
+} from '../../shared/videoMetadata'
 import type {
   Highlight,
   HighlightCreate,
@@ -12,6 +31,7 @@ import type {
   SearchQuery,
   Video,
   Thumbnail,
+  ThumbnailJob,
   CsvImportPreview,
   Subtitle,
   SubtitleGenerationJob,
@@ -21,6 +41,7 @@ import type {
 
 const MOCK_LIBRARY_ID = 'mock-library'
 const MOCK_NOW = '2026-01-01T00:00:00.000Z'
+let mockStashSettings: StashSettings = { enabled: false, serverUrl: '', hasApiKey: false }
 
 const mockSubtitleSetup = (): SubtitleSetupStatus => ({
   phase: 'ready',
@@ -81,6 +102,46 @@ const videosByLibrary = new Map<string, Video[]>([
 
 const highlightsByVideo = new Map<string, Highlight[]>()
 const thumbnailsByVideo = new Map<string, Thumbnail[]>()
+interface MockThumbnailState {
+  job: ThumbnailJob
+  timer?: ReturnType<typeof setTimeout>
+  result: Promise<Result<boolean, string>>
+  finish: (result: Result<boolean, string>) => void
+}
+const thumbnailJobs = new Map<string, MockThumbnailState>()
+
+function ensureMockThumbnails(libraryId: string, videoId: string, force = false) {
+  const key = `${libraryId}:${videoId}`
+  const existing = thumbnailJobs.get(key)
+  if (existing && ['queued', 'running', 'cancelling'].includes(existing.job.phase))
+    return existing.result
+  const video = findVideo(libraryId, videoId)
+  if (!video || video.removalMode) return Promise.resolve(err('영상을 찾을 수 없습니다.'))
+  if (!force && thumbnailsByVideo.get(videoId)?.length) return Promise.resolve(ok(true))
+  let finish!: MockThumbnailState['finish']
+  const result = new Promise<Result<boolean, string>>((resolve) => {
+    finish = resolve
+  })
+  const state: MockThumbnailState = {
+    job: { libraryId, videoId, fileName: video.fileName, phase: 'queued', completed: 0, total: 3 },
+    result,
+    finish,
+  }
+  thumbnailJobs.set(key, state)
+  const advance = () => {
+    if (state.job.phase === 'queued') state.job.phase = 'running'
+    else state.job.completed += 1
+    if (state.job.completed === state.job.total) {
+      state.job.phase = 'completed'
+      state.timer = undefined
+      void captureMock(libraryId, videoId, 10).then(() => finish(ok(true)))
+      return
+    }
+    state.timer = setTimeout(advance, 400)
+  }
+  state.timer = setTimeout(advance, 100)
+  return result
+}
 const subtitlesByVideo = new Map<string, Subtitle[]>()
 interface MockSubtitleState {
   job: SubtitleGenerationJob
@@ -107,6 +168,7 @@ const progressListeners = new Set<(progress: ImportProgress) => void>()
 const thumbnailListeners = new Set<(data: { videoId: string }) => void>()
 const mockSettings = {
   cacheLimitGb: 10,
+  seekStepSec: DEFAULT_SEEK_STEP_SEC,
   nativePlayer: null as import('../../shared/types').NativePlayerInfo | null,
 }
 let mockCacheBytes = 512 * 1024 * 1024
@@ -252,13 +314,18 @@ function emitProgress(progress: ImportProgress): void {
 }
 
 function sortVideos(videos: Video[], query: SearchQuery): Video[] {
-  const filtered = query.q
-    ? videos.filter((video) =>
+  const { text, tags } = parseVideoSearch(query.q)
+  if (query.tag !== undefined && normalizeVideoTag(query.tag)) tags.push(query.tag)
+  const filtered = videos.filter(
+    (video) =>
+      (query.category === undefined ||
+        normalizeVideoCategory(video.category) === normalizeVideoCategory(query.category)) &&
+      tags.every((tag) => hasVideoTag(video.tags, tag)) &&
+      (!text ||
         `${video.fileName} ${video.title ?? ''} ${video.tags ?? ''}`
           .toLowerCase()
-          .includes(query.q!.toLowerCase()),
-      )
-    : videos
+          .includes(text.toLowerCase())),
+  )
   const sorted = [...filtered].sort((left, right) => {
     const leftValue = query.sortBy === 'rating' ? left.rating : left.fileName
     const rightValue = query.sortBy === 'rating' ? right.rating : right.fileName
@@ -485,7 +552,121 @@ function mockStats(libraryId: string, requestedDays = 30): LibraryStats {
   }
 }
 
+let mockPrivacy = { ...DEFAULT_PRIVACY_SETTINGS }
+const mockDiscovery = new Map<string, DiscoveryPreferences>()
 export const mockApi: WindowApi = {
+  privacy: {
+    get: async () => ok({ ...mockPrivacy }),
+    save: async (settings) => {
+      mockPrivacy = PrivacySettingsZ.parse(settings)
+      return ok({ ...mockPrivacy })
+    },
+    exit: async () => ok(mockPrivacy.exitAction),
+  },
+  discovery: {
+    query: async (libraryId, query) =>
+      ok(
+        discoverVideos(
+          videosByLibrary.get(libraryId) ?? [],
+          mockDiscovery.get(libraryId) ?? { favoriteVideoIds: [], preferredTags: [] },
+          query,
+        ),
+      ),
+    favorite: async (libraryId, videoId, favorite) => {
+      const previous = mockDiscovery.get(libraryId) ?? { favoriteVideoIds: [], preferredTags: [] }
+      const ids = new Set(previous.favoriteVideoIds)
+      if (favorite) ids.add(videoId)
+      else ids.delete(videoId)
+      const value = { ...previous, favoriteVideoIds: [...ids] }
+      mockDiscovery.set(libraryId, value)
+      return ok(value)
+    },
+    tags: async (libraryId, preferredTags) => {
+      const value = {
+        favoriteVideoIds: mockDiscovery.get(libraryId)?.favoriteVideoIds ?? [],
+        preferredTags,
+      }
+      mockDiscovery.set(libraryId, value)
+      return ok(value)
+    },
+  },
+  metadataImport: {
+    getSettings: async () => ok({ ...mockStashSettings }),
+    updateSettings: async (input) => {
+      const parsed = StashSettingsPatchZ.safeParse(input)
+      if (!parsed.success) return err('Stash 설정을 확인하세요.')
+      const patch = parsed.data
+      mockStashSettings = {
+        enabled: patch.enabled,
+        serverUrl: patch.serverUrl,
+        hasApiKey:
+          Boolean(patch.apiKey?.trim()) ||
+          (mockStashSettings.serverUrl === patch.serverUrl &&
+            !patch.removeApiKey &&
+            mockStashSettings.hasApiKey),
+      }
+      return ok({ ...mockStashSettings })
+    },
+    search: async (query, mode = 'text') => {
+      if (!MetadataSearchZ.safeParse(query).success) return err('검색어를 확인하세요.')
+      if (!mockStashSettings.enabled || !mockStashSettings.serverUrl)
+        return err('Stash 연결을 설정하고 사용을 켜주세요.')
+      if (mode === 'code' && query.trim() !== 'DEMO-001') return ok({ total: 0, candidates: [] })
+      return ok({
+        total: 1,
+        candidates: [
+          {
+            id: 'demo-scene',
+            title: '예시 영상 제목',
+            description: 'Stash 메타데이터 미리보기 예시입니다.',
+            tags: ['예시', '인터뷰'],
+            people: ['예시 인물'],
+            studio: '예시 스튜디오',
+            date: '2026-01-01',
+            code: 'DEMO-001',
+          },
+        ],
+      })
+    },
+    apply: async (libraryId, videoId, input) => {
+      const parsed = MetadataApplyZ.safeParse(input)
+      if (!parsed.success) return err('적용할 항목을 확인하세요.')
+      const video = findVideo(libraryId, videoId)
+      if (!video || video.removalMode) return err('영상을 찾을 수 없습니다.')
+      const before = importedMetadata(video)
+      const { patch, expected } = parsed.data
+      if (
+        (['title', 'memo', 'tags'] as const).some(
+          (key) => patch[key] !== undefined && before[key] !== expected[key],
+        )
+      )
+        return err(
+          '선택한 항목이 미리보기 이후 변경되었습니다. 닫고 다시 열어 현재 값을 확인하세요.',
+        )
+      const after = {
+        ...before,
+        ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+      }
+      Object.assign(video, after, {
+        title: after.title ?? undefined,
+        updatedAt: new Date().toISOString(),
+      })
+      return ok({ before, after })
+    },
+  },
+  maintenance: {
+    previewNames: async (libraryId) =>
+      ok({
+        id: crypto.randomUUID(),
+        libraryId,
+        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        rows: [],
+        truncated: false,
+      }),
+    applyNames: async () => err('브라우저 데모에서는 실제 파일명을 변경하지 않습니다.'),
+    findDuplicates: async () => ok({ groups: [], checkedFiles: 0, skipped: [], cancelled: false }),
+    cancel: async () => ok(false),
+  },
   app: {
     getAccelerationInfo: async () =>
       ok({ videoDecodeStatus: 'enabled', gpuCompositingStatus: 'enabled' }),
@@ -498,6 +679,8 @@ export const mockApi: WindowApi = {
     quit: async () => ok(null),
     getSettings: async () => ok({ ...mockSettings }),
     updateSettings: async (patch) => {
+      if (patch.seekStepSec !== undefined && !SeekStepSecZ.safeParse(patch.seekStepSec).success)
+        return err('탐색 간격은 1~600초의 정수로 입력하세요.')
       Object.assign(mockSettings, patch)
       return ok({ ...mockSettings })
     },
@@ -541,10 +724,20 @@ export const mockApi: WindowApi = {
     },
     selectFolder: async () => ok('/mock/videos'),
     importFolder: mockImport,
+    selectFiles: async () => ok(['/mock/videos/sample.mp4']),
+    importFiles: mockImport,
     refresh: async () => ok({ added: 0, skipped: 1, removed: 0, errors: [] }),
     cancelWork: async () => ok(true),
   },
   videos: {
+    metadataOptions: async (libraryId, removed = false) =>
+      ok(
+        collectVideoMetadataOptions(
+          (videosByLibrary.get(libraryId) ?? []).filter(
+            (video) => Boolean(video.removalMode) === removed,
+          ),
+        ),
+      ),
     search: async (libraryId, query) => {
       const videos = sortVideos(
         (videosByLibrary.get(libraryId) ?? []).filter(
@@ -566,6 +759,8 @@ export const mockApi: WindowApi = {
       })
     },
     get: async (libraryId, videoId) => ok(findVideo(libraryId, videoId) ?? null),
+    revealSource: async (libraryId, videoId) =>
+      findVideo(libraryId, videoId) ? ok(null) : err('원본 영상을 찾을 수 없습니다.'),
     getPlaybackSource: async (libraryId, videoId) => {
       await new Promise((resolve) => setTimeout(resolve, 50))
       return ok(findVideo(libraryId, videoId)?.filePath ?? '/mock/videos/sample.mp4')
@@ -579,6 +774,8 @@ export const mockApi: WindowApi = {
       const video = findVideo(libraryId, videoId)
       if (!video) return err('영상을 찾을 수 없습니다')
       Object.assign(video, meta, { updatedAt: new Date().toISOString() })
+      if (meta.tags !== undefined) video.tags = serializeVideoTags(meta.tags)
+      if (meta.category !== undefined) video.category = normalizeVideoCategory(meta.category)
       return ok(null)
     },
     delete: async (libraryId, videoId, mode = 'trash') => {
@@ -624,7 +821,22 @@ export const mockApi: WindowApi = {
   thumbnails: {
     getForVideo: async (_libraryId, videoId) => ok(thumbnailsByVideo.get(videoId) ?? []),
     setPrimary: async () => ok(null),
-    ensureForVideo: async () => ok(true),
+    ensureForVideo: ensureMockThumbnails,
+    listJobs: async (libraryId) =>
+      ok(
+        [...thumbnailJobs.values()]
+          .filter(({ job }) => job.libraryId === libraryId)
+          .map(({ job }) => ({ ...job })),
+      ),
+    cancelForVideo: async (libraryId, videoId) => {
+      const state = thumbnailJobs.get(`${libraryId}:${videoId}`)
+      if (!state || !['queued', 'running', 'cancelling'].includes(state.job.phase)) return ok(false)
+      if (state.timer !== undefined) clearTimeout(state.timer)
+      state.timer = undefined
+      state.job = { ...state.job, phase: 'cancelled', error: '요청에 따라 작업을 취소했습니다.' }
+      state.finish(ok(false))
+      return ok(true)
+    },
     captureAtTime: captureMock,
     saveImageCapture: async (libraryId, videoId, timeSec, _dataUrl, makePrimary) =>
       captureMock(libraryId, videoId, timeSec, makePrimary),

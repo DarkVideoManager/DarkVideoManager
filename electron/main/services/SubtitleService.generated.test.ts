@@ -10,7 +10,13 @@ vi.mock('../infra/logger', () => ({
   createLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }),
 }))
 vi.mock('../ffmpeg/ffprobe', () => ({ probeVideo: vi.fn(async () => ({ durationSec: 10 })) }))
-vi.mock('../ffmpeg/thumbnail', () => ({ generateThumbnails: vi.fn(async () => []) }))
+vi.mock('../ffmpeg/thumbnail', () => ({
+  generateThumbnails: vi.fn(async (_file: string, output: string, id: string) => {
+    const filePath = join(output, id + '.jpg')
+    writeFileSync(filePath, 'frame')
+    return [{ filePath, timeSec: 1 }]
+  }),
+}))
 
 import { createLibrary, importFolder, refreshLibrary } from './LibraryService'
 import { syncSidecarSubtitlesForVideo } from './SubtitleService'

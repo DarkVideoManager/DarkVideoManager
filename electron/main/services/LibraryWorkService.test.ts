@@ -14,6 +14,29 @@ import {
 afterEach(() => cancelAllLibraryWork())
 
 describe('library work lifecycle', () => {
+  it('allows different thumbnail videos but blocks same-video, unscoped and exclusive work', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const first = withLibraryWork('scoped', () => held, 'thumbnails', 'first')
+    const second = withLibraryWork('scoped', () => held, 'thumbnails', 'second')
+    try {
+      expect(isLibraryWorkBlocked('scoped', 'thumbnails', 'third')).toBe(false)
+      expect(isLibraryWorkBlocked('scoped', 'thumbnails', 'first')).toBe(true)
+      expect(isLibraryWorkBlocked('scoped', 'thumbnails')).toBe(true)
+      expect(isLibraryWorkBlocked('scoped')).toBe(true)
+      await expect(withLibraryWork('scoped', async () => 1, 'thumbnails', 'first')).rejects.toThrow(
+        '다른 작업',
+      )
+      await expect(withLibraryWork('scoped', async () => 1)).rejects.toThrow('다른 작업')
+    } finally {
+      release()
+      await Promise.all([first, second])
+    }
+    expect(isLibraryBusy('scoped')).toBe(false)
+  })
+
   it('drains cancellation cleanup before allowing more jobs', async () => {
     let releaseCleanup!: () => void
     const cleanup = new Promise<void>((resolve) => {
