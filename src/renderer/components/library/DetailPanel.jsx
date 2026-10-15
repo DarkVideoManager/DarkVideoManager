@@ -2,8 +2,10 @@
 import * as React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { thumbnailsApi } from '../../api'
+import { useThumbnailJobs } from '../../api/useThumbnailJobs'
 import { toLocalMediaUrl } from '../../utils/media'
 import SubtitleGenerationPanel from './SubtitleGenerationPanel'
+import ThumbnailJobStatus, { isThumbnailJobActive } from './ThumbnailJobStatus'
 const STAR_COUNT = 5
 function StarRating({ value, onChange }) {
   const [hovered, setHovered] = React.useState(0)
@@ -80,6 +82,7 @@ function DetailPanel({
   initialTab = 'info',
   showPlaybackShortcuts = false,
   subtitleNavigationRef,
+  thumbnailJobs: sharedThumbnailJobs,
 }) {
   const [tab, setTab] = React.useState(initialTab)
   const [memo2, setMemo] = React.useState(video.memo ?? '')
@@ -91,6 +94,10 @@ function DetailPanel({
   const isRemoved = Boolean(video.removalMode)
   const memoTimerRef = React.useRef(null)
   const qc2 = useQueryClient()
+  const localThumbnailJobs = useThumbnailJobs(libraryId, !sharedThumbnailJobs)
+  const thumbnailJobs = sharedThumbnailJobs ?? localThumbnailJobs
+  const thumbnailJob = thumbnailJobs.jobsByVideo.get(video.id)
+  const isThumbnailActive = isThumbnailJobActive(thumbnailJob)
   const { data: highlights = [] } = useQuery({
     queryKey: ['highlights', libraryId, video.id],
     queryFn: async () => {
@@ -253,10 +260,14 @@ function DetailPanel({
         queryKey: ['videos', libraryId],
       })
     },
-    onError: (error) =>
-      setActionError(
-        `썸네일을 생성하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
-      ),
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      // A cancelled long-running ensure request rejects while its job becomes
+      // cancelled. Keep that state visible without also presenting it as failure.
+      if (message === '작업이 취소되었습니다.') return
+      setActionError(`썸네일을 생성하지 못했습니다: ${message}`)
+    },
+    onSettled: () => qc2.invalidateQueries({ queryKey: ['thumbnail-jobs', libraryId] }),
   })
   React.useEffect(() => {
     setMemo(video.memo ?? '')
@@ -416,14 +427,26 @@ function DetailPanel({
               </div>
               <button
                 onClick={() => ensureThumbnail.mutate()}
-                disabled={isRemoved || ensureThumbnail.isPending}
+                disabled={isRemoved || ensureThumbnail.isPending || isThumbnailActive}
                 className={
                   'rounded bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-40'
                 }
               >
-                {ensureThumbnail.isPending ? '작업 중...' : '다시 생성'}
+                {ensureThumbnail.isPending || isThumbnailActive ? '작업 중...' : '다시 생성'}
               </button>
             </div>
+            <ThumbnailJobStatus
+              job={thumbnailJob}
+              label="선택한 영상 썸네일 작업"
+              onCancel={() => thumbnailJobs.cancelVideo(video.id)}
+              isCancelling={thumbnailJobs.cancellingVideos.has(video.id)}
+              cancelError={thumbnailJobs.cancelErrors.get(video.id)}
+            />
+            {!sharedThumbnailJobs && thumbnailJobs.error && (
+              <p role="alert" className="text-xs text-amber-200">
+                썸네일 진행 상태를 갱신하지 못했습니다.
+              </p>
+            )}
             <SubtitleGenerationPanel
               key={`${libraryId}:${video.id}`}
               libraryId={libraryId}

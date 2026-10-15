@@ -16,6 +16,7 @@ vi.mock('../ffmpeg/ffprobe', () => ({
 }))
 vi.mock('../ffmpeg/thumbnail', () => ({
   generateThumbnails: vi.fn(async () => []),
+  isThumbnailTimeoutError: (error: Error) => error.name === 'ThumbnailTimeoutError',
   extractThumbnailAtTime: vi.fn(async () => {
     throw new Error('synthetic extraction failure')
   }),
@@ -247,7 +248,9 @@ describe('restored library and metadata features', () => {
       timeSec: 0,
       isPrimary: true,
     })
-    expect(await ensureThumbnailForVideo(library.id, video.id, win.webContents, true)).toBe(false)
+    await expect(
+      ensureThumbnailForVideo(library.id, video.id, win.webContents, true),
+    ).rejects.toThrow('추출하지 못했습니다')
     expect(thumbnails.findByVideoId(video.id)).toMatchObject([{ id: 'saved', isPrimary: true }])
   })
 

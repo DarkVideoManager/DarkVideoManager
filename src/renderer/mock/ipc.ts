@@ -12,6 +12,7 @@ import type {
   SearchQuery,
   Video,
   Thumbnail,
+  ThumbnailJob,
   CsvImportPreview,
   Subtitle,
   SubtitleGenerationJob,
@@ -81,6 +82,46 @@ const videosByLibrary = new Map<string, Video[]>([
 
 const highlightsByVideo = new Map<string, Highlight[]>()
 const thumbnailsByVideo = new Map<string, Thumbnail[]>()
+interface MockThumbnailState {
+  job: ThumbnailJob
+  timer?: ReturnType<typeof setTimeout>
+  result: Promise<Result<boolean, string>>
+  finish: (result: Result<boolean, string>) => void
+}
+const thumbnailJobs = new Map<string, MockThumbnailState>()
+
+function ensureMockThumbnails(libraryId: string, videoId: string, force = false) {
+  const key = `${libraryId}:${videoId}`
+  const existing = thumbnailJobs.get(key)
+  if (existing && ['queued', 'running', 'cancelling'].includes(existing.job.phase))
+    return existing.result
+  const video = findVideo(libraryId, videoId)
+  if (!video || video.removalMode) return Promise.resolve(err('영상을 찾을 수 없습니다.'))
+  if (!force && thumbnailsByVideo.get(videoId)?.length) return Promise.resolve(ok(true))
+  let finish!: MockThumbnailState['finish']
+  const result = new Promise<Result<boolean, string>>((resolve) => {
+    finish = resolve
+  })
+  const state: MockThumbnailState = {
+    job: { libraryId, videoId, fileName: video.fileName, phase: 'queued', completed: 0, total: 3 },
+    result,
+    finish,
+  }
+  thumbnailJobs.set(key, state)
+  const advance = () => {
+    if (state.job.phase === 'queued') state.job.phase = 'running'
+    else state.job.completed += 1
+    if (state.job.completed === state.job.total) {
+      state.job.phase = 'completed'
+      state.timer = undefined
+      void captureMock(libraryId, videoId, 10).then(() => finish(ok(true)))
+      return
+    }
+    state.timer = setTimeout(advance, 400)
+  }
+  state.timer = setTimeout(advance, 100)
+  return result
+}
 const subtitlesByVideo = new Map<string, Subtitle[]>()
 interface MockSubtitleState {
   job: SubtitleGenerationJob
@@ -624,7 +665,22 @@ export const mockApi: WindowApi = {
   thumbnails: {
     getForVideo: async (_libraryId, videoId) => ok(thumbnailsByVideo.get(videoId) ?? []),
     setPrimary: async () => ok(null),
-    ensureForVideo: async () => ok(true),
+    ensureForVideo: ensureMockThumbnails,
+    listJobs: async (libraryId) =>
+      ok(
+        [...thumbnailJobs.values()]
+          .filter(({ job }) => job.libraryId === libraryId)
+          .map(({ job }) => ({ ...job })),
+      ),
+    cancelForVideo: async (libraryId, videoId) => {
+      const state = thumbnailJobs.get(`${libraryId}:${videoId}`)
+      if (!state || !['queued', 'running', 'cancelling'].includes(state.job.phase)) return ok(false)
+      if (state.timer !== undefined) clearTimeout(state.timer)
+      state.timer = undefined
+      state.job = { ...state.job, phase: 'cancelled', error: '요청에 따라 작업을 취소했습니다.' }
+      state.finish(ok(false))
+      return ok(true)
+    },
     captureAtTime: captureMock,
     saveImageCapture: async (libraryId, videoId, timeSec, _dataUrl, makePrimary) =>
       captureMock(libraryId, videoId, timeSec, makePrimary),

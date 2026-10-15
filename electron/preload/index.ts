@@ -4,6 +4,7 @@ import type {
   Library,
   Video,
   Thumbnail,
+  ThumbnailJob,
   Subtitle,
   SubtitleEngineInfo,
   SubtitleSetupStatus,
@@ -154,6 +155,10 @@ const api = {
       ipcRenderer.invoke(IPC.PLAYBACK.END, libraryId, videoId, positionSec),
   },
   thumbnails: {
+    listJobs: (libraryId: string): Promise<Result<ThumbnailJob[], string>> =>
+      ipcRenderer.invoke(IPC.THUMBNAILS.LIST_JOBS, libraryId),
+    cancelForVideo: (libraryId: string, videoId: string): Promise<Result<boolean, string>> =>
+      ipcRenderer.invoke(IPC.THUMBNAILS.CANCEL_FOR_VIDEO, libraryId, videoId),
     getForVideo: (libraryId: string, videoId: string): Promise<Result<Thumbnail[], string>> =>
       ipcRenderer.invoke(IPC.THUMBNAILS.GET_FOR_VIDEO, libraryId, videoId),
     setPrimary: (

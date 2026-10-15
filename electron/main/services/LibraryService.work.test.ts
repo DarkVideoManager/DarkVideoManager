@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync, unlinkSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, unlinkSync, rmSync, existsSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,9 +33,12 @@ import { updateConfig } from '../infra/config'
 import { probeVideo } from '../ffmpeg/ffprobe'
 import { generateThumbnails } from '../ffmpeg/thumbnail'
 import { createAbortError, thumbnailQueue } from '../ffmpeg/queue'
+import { cancelThumbnailJob, listThumbnailJobs } from './ThumbnailJobService'
+import { ThumbnailRepository } from '../db/repositories/ThumbnailRepository'
 
 let root: string
-const events: Array<{ libraryId?: string; phase: string }> = []
+const events: Array<{ libraryId?: string; phase: string; currentFile?: string; current?: number }> =
+  []
 const win = {
   isDestroyed: () => false,
   webContents: {
@@ -50,7 +53,13 @@ beforeEach(() => {
   state.userData = join(root, 'data')
   mkdirSync(state.userData)
   vi.mocked(probeVideo).mockReset().mockResolvedValue({ durationSec: 10 })
-  vi.mocked(generateThumbnails).mockReset().mockResolvedValue([])
+  vi.mocked(generateThumbnails)
+    .mockReset()
+    .mockImplementation(async (_file, output, id) => {
+      const filePath = join(output, id + '.jpg')
+      writeFileSync(filePath, 'frame')
+      return [{ filePath, timeSec: 1 }]
+    })
   events.length = 0
 })
 afterEach(() => {
@@ -76,6 +85,77 @@ function makeLibrary() {
 }
 
 describe('cancellable folder work', () => {
+  it('announces the running file and skips a cancelled video while later videos finish', async () => {
+    const { library, directory, repository, db } = makeLibrary()
+    movie(directory, 'first')
+    movie(directory, 'second')
+    movie(directory, 'third')
+    let started!: () => void
+    const didStart = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    let cancelledOutput = ''
+    vi.mocked(generateThumbnails).mockImplementation(
+      async (file, output, id, _duration, signal, onProgress) => {
+        expect(
+          events.some(
+            (event) =>
+              event.phase === 'thumbnails' && event.currentFile === file.split(/[\\/]/).at(-1),
+          ),
+        ).toBe(true)
+        const filePath = join(output, id + '.jpg')
+        writeFileSync(filePath, 'frame')
+        if (file.endsWith('first.mp4')) {
+          cancelledOutput = output
+          started()
+          await new Promise<void>((_resolve, reject) =>
+            signal!.addEventListener('abort', () => reject(createAbortError()), { once: true }),
+          )
+        }
+        onProgress?.(5, 5)
+        return [{ filePath, timeSec: 1 }]
+      },
+    )
+    const work = importFolder(library.id, directory, win)
+    await didStart
+    const first = repository.findByPath(join(directory, 'first.mp4'))!
+    expect(cancelThumbnailJob(library.id, first.id)).toBe(true)
+    expect(await work).toMatchObject({ added: 3, errors: [] })
+    expect(existsSync(cancelledOutput)).toBe(false)
+    expect(new ThumbnailRepository(db).findByVideoId(first.id)).toEqual([])
+    expect(listThumbnailJobs(library.id).find((job) => job.videoId === first.id)?.phase).toBe(
+      'cancelled',
+    )
+    expect(listThumbnailJobs(library.id).filter((job) => job.phase === 'completed')).toHaveLength(2)
+    expect(events.at(-1)?.phase).toBe('done')
+    expect(isLibraryBusy(library.id)).toBe(false)
+  })
+
+  it('reports empty extraction as a failed video and lets remaining thumbnails finish', async () => {
+    const { library, directory } = makeLibrary()
+    movie(directory, 'broken')
+    movie(directory, 'healthy')
+    let failedOutput = ''
+    vi.mocked(generateThumbnails).mockImplementation(async (file, output, id) => {
+      const filePath = join(output, id + '.jpg')
+      writeFileSync(filePath, 'frame')
+      if (file.endsWith('broken.mp4')) {
+        failedOutput = output
+        return []
+      }
+      return [{ filePath, timeSec: 1 }]
+    })
+    const result = await importFolder(library.id, directory, win)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain('broken.mp4')
+    expect(result.cancelled).toBeUndefined()
+    expect(existsSync(failedOutput)).toBe(false)
+    expect(listThumbnailJobs(library.id)).toMatchObject([
+      { fileName: 'broken.mp4', phase: 'failed' },
+      { fileName: 'healthy.mp4', phase: 'completed' },
+    ])
+  })
+
   it('scans overlapping refresh roots once and handles an odd number of thumbnail jobs', async () => {
     const { library, directory, repository } = makeLibrary()
     const nested = join(directory, 'nested')

@@ -1,6 +1,7 @@
 // Restored application logic from the packaged 0.1.0 release; vendor code is imported from npm.
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import ThumbnailJobStatus, { isThumbnailJobActive } from './ThumbnailJobStatus'
 
 export function useLibraryWorkProgress(libraryId) {
   const [progress, setProgress] = React.useState(null)
@@ -113,7 +114,7 @@ export function WorkProgress({ work, isWorking, protectDialog = false }) {
   )
 }
 
-function ImportDialog({ libraryId, onClose }) {
+function ImportDialog({ libraryId, thumbnailJobs, onClose }) {
   const qc = useQueryClient()
   const [folderPath, setFolderPath] = React.useState(null)
   const work = useLibraryWorkProgress(libraryId)
@@ -185,6 +186,41 @@ function ImportDialog({ libraryId, onClose }) {
           </button>
         </div>
         <WorkProgress work={work} isWorking={isImporting} protectDialog />
+        {isImporting && work.progress?.phase === 'thumbnails' && thumbnailJobs && (
+          <section aria-label="가져오기 썸네일 작업" className="mb-3 space-y-2">
+            <p className="text-xs text-zinc-400">
+              영상별 진행 상태를 확인하고 필요한 작업만 취소할 수 있습니다.
+            </p>
+            {thumbnailJobs.error && (
+              <p role="alert" className="text-xs text-amber-200">
+                썸네일 진행 상태를 갱신하지 못했습니다.
+              </p>
+            )}
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {[...thumbnailJobs.jobsByVideo.values()]
+                .filter(
+                  (job) =>
+                    isThumbnailJobActive(job) ||
+                    job.phase === 'failed' ||
+                    job.phase === 'cancelled',
+                )
+                .map((job) => (
+                  <div key={job.videoId}>
+                    <p className="mb-1 truncate text-xs text-zinc-300" title={job.fileName}>
+                      {job.fileName}
+                    </p>
+                    <ThumbnailJobStatus
+                      job={job}
+                      label={`${job.fileName} 가져오기 썸네일 작업`}
+                      onCancel={() => thumbnailJobs.cancelVideo(job.videoId)}
+                      isCancelling={thumbnailJobs.cancellingVideos.has(job.videoId)}
+                      cancelError={thumbnailJobs.cancelErrors.get(job.videoId)}
+                    />
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
         {done && (
           <p role="status" className="mb-3 text-xs text-green-400">
             가져오기 완료 (추가 {result?.added ?? 0}개, 건너뜀 {result?.skipped ?? 0}개)
