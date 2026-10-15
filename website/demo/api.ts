@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import type { WindowApi } from '../../electron/preload'
 import { err, ok, type Result } from '../../src/shared/result'
+import {
+  collectVideoMetadataOptions,
+  hasVideoTag,
+  normalizeVideoCategory,
+  parseVideoSearch,
+  serializeVideoTags,
+} from '../../src/shared/videoMetadata'
 import type {
   Highlight,
   LibraryStats,
@@ -42,6 +49,7 @@ const metaSchema = z
     rating: z.number().finite().min(0).max(5).multipleOf(0.5),
     memo: z.string().max(5000),
     tags: z.string().max(1000),
+    category: z.string().max(160).optional(),
   })
   .strict()
 const legacyStateSchema = z
@@ -106,7 +114,7 @@ const legacyStateSchema = z
   .strict()
 const optionsSchema = z
   .object({
-    model: z.enum(['tiny', 'base', 'small', 'medium', 'large-v3']),
+    model: z.enum(['tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3']),
     language: z.enum(['auto', 'ja', 'en', 'ko', 'zh']),
     translateToKorean: z.boolean(),
   })
@@ -154,7 +162,8 @@ const previousStateSchema = legacyStateSchema
   .strict()
 const thirdStateSchema = previousStateSchema.extend({ version: z.literal(3) }).strict()
 const fourthStateSchema = thirdStateSchema.extend({ version: z.literal(4) }).strict()
-const stateSchema = fourthStateSchema.extend({ version: z.literal(5) }).strict()
+const fifthStateSchema = fourthStateSchema.extend({ version: z.literal(5) }).strict()
+const stateSchema = fifthStateSchema.extend({ version: z.literal(6) }).strict()
 type DemoState = z.infer<typeof stateSchema>
 type SavedVideo = DemoState['videos'][number]
 type DemoJob = DemoState['jobs'][number]
@@ -188,13 +197,14 @@ function initialState(): DemoState {
     })),
   )
   return {
-    version: 5,
+    version: 6,
     videos: baseVideos.map((video) => ({
       id: video.id,
       title: video.title ?? video.fileName,
       rating: video.rating,
       memo: video.memo,
       tags: video.tags,
+      category: video.category ?? '',
       removed: false,
       updatedAt: video.updatedAt,
       resumePosSec: 0,
@@ -384,6 +394,15 @@ function parseState(raw: unknown): DemoState {
           ? { ...video, rating: john.rating }
           : video,
       ),
+    }
+  }
+  if (typeof input === 'object' && input !== null && 'version' in input && input.version === 5) {
+    const old = fifthStateSchema.parse(input)
+    // Add only the new field. Existing tags, edits, removals and saved media state stay intact.
+    input = {
+      ...old,
+      version: 6,
+      videos: old.videos.map((video) => ({ ...video, category: video.category ?? '' })),
     }
   }
   const parsed = stateSchema.parse(input)
@@ -1196,6 +1215,35 @@ export function createDemoAdapter(
   })
 
   const api = {
+    privacy: {
+      get: async () =>
+        ok({
+          maskThumbnails: false,
+          revealOnHover: true,
+          exitAction: 'blank' as const,
+          exitUrl: '',
+        }),
+      save: unsupported,
+      // PrivacyBoundary pauses browser media and displays its blank screen itself.
+      exit: async () => ok('blank' as const),
+    },
+    discovery: {
+      query: unsupported,
+      favorite: unsupported,
+      tags: unsupported,
+    },
+    metadataImport: {
+      getSettings: unsupported,
+      updateSettings: unsupported,
+      search: unsupported,
+      apply: unsupported,
+    },
+    maintenance: {
+      previewNames: unsupported,
+      applyNames: unsupported,
+      findDuplicates: unsupported,
+      cancel: unsupported,
+    },
     app: {
       getAccelerationInfo: async () =>
         ok({ videoDecodeStatus: 'unknown', gpuCompositingStatus: 'unknown' }),
@@ -1207,7 +1255,7 @@ export function createDemoAdapter(
         window.location.hash = '#/'
         return ok(null)
       },
-      getSettings: async () => ok({ cacheLimitGb: 0, nativePlayer: null }),
+      getSettings: async () => ok({ cacheLimitGb: 0, seekStepSec: 1, nativePlayer: null }),
       updateSettings: unsupported,
       getCacheInfo: unsupported,
       cleanCache: unsupported,
@@ -1227,10 +1275,21 @@ export function createDemoAdapter(
       delete: unsupported,
       selectFolder: unsupported,
       importFolder: unsupported,
+      selectFiles: unsupported,
+      importFiles: unsupported,
       refresh: unsupported,
       cancelWork: unsupported,
     },
     videos: {
+      metadataOptions: async (libraryId: string, removed = false) =>
+        knownLibrary(libraryId)
+          ? ok(
+              collectVideoMetadataOptions(
+                state.videos.filter((video) => video.removed === removed),
+              ),
+            )
+          : err('샘플 라이브러리를 찾을 수 없습니다.'),
+      revealSource: unsupported,
       search: async (libraryId: string, query: SearchQuery) => {
         if (!knownLibrary(libraryId)) return err('샘플 라이브러리를 찾을 수 없습니다.')
         const page = query.page ?? 1,
@@ -1245,11 +1304,8 @@ export function createDemoAdapter(
             (!Number.isFinite(query.rating) || query.rating < 0 || query.rating > 5))
         )
           return err('검색 조건이 올바르지 않습니다.')
-        const words = (query.q ?? '')
-          .normalize('NFKC')
-          .toLocaleLowerCase()
-          .split(/\s+/)
-          .filter(Boolean)
+        const search = parseVideoSearch(query.q)
+        const words = search.text.normalize('NFKC').toLocaleLowerCase().split(/\s+/).filter(Boolean)
         const videos = state.videos
           .filter((v) => v.removed === !!query.removed)
           .map(snapshot)
@@ -1257,6 +1313,10 @@ export function createDemoAdapter(
             (v) =>
               (query.rating === undefined || v.rating >= query.rating) &&
               (query.hasSubtitles === undefined || !!v.hasSubtitles === query.hasSubtitles) &&
+              (query.category === undefined ||
+                v.category === normalizeVideoCategory(query.category)) &&
+              (!query.tag || hasVideoTag(v.tags, query.tag)) &&
+              search.tags.every((tag) => hasVideoTag(v.tags, tag)) &&
               words.every((word) =>
                 `${v.title} ${v.fileName} ${v.memo} ${v.tags}`
                   .normalize('NFKC')
@@ -1302,11 +1362,18 @@ export function createDemoAdapter(
       updateMeta: async (libraryId: string, videoId: string, meta: VideoMeta) => {
         if (!savedVideo(libraryId, videoId)) return err('샘플 영상을 찾을 수 없습니다.')
         const patch = metaSchema.partial().safeParse(meta)
-        if (!patch.success) return err('제목·메모·태그·0~5점 별점만 수정할 수 있습니다.')
+        if (!patch.success) return err('제목·메모·카테고리·태그·0~5점 별점만 수정할 수 있습니다.')
+        if (patch.data.category !== undefined)
+          patch.data.category = normalizeVideoCategory(patch.data.category)
+        if (patch.data.tags !== undefined) patch.data.tags = serializeVideoTags(patch.data.tags)
         return commit((draft) => {
-          Object.assign(draft.videos.find((v) => v.id === videoId)!, patch.data, {
-            updatedAt: now(),
-          })
+          Object.assign(
+            draft.videos.find((v) => v.id === videoId)!,
+            patch.data,
+            {
+              updatedAt: now(),
+            },
+          )
           return null
         })
       },
@@ -1354,6 +1421,9 @@ export function createDemoAdapter(
         recordPosition(libraryId, videoId, position, false, true),
     },
     thumbnails: {
+      listJobs: async (libraryId: string) =>
+        knownLibrary(libraryId) ? ok([]) : err('샘플 라이브러리를 찾을 수 없습니다.'),
+      cancelForVideo: unsupported,
       getForVideo: async (libraryId: string, videoId: string) =>
         savedVideo(libraryId, videoId)
           ? ok(copy(state.thumbnails.filter((t) => t.videoId === videoId)))
@@ -1465,7 +1535,10 @@ export function createDemoAdapter(
         )
           return err('하이라이트 시간이 올바르지 않습니다.')
         const result = commit((draft) => {
-          Object.assign(draft.highlights.find((h) => h.id === id)!, patch)
+          Object.assign(
+            draft.highlights.find((h) => h.id === id)!,
+            patch,
+          )
           return null
         })
         if (result.ok) notifyHighlight(item.videoId)
