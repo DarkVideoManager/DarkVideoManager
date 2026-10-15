@@ -70,13 +70,16 @@ export class ConcurrencyQueue {
       signal?.addEventListener('abort', waiter.onAbort, { once: true })
       this.waiting.push(waiter)
     })
-    this.running++
   }
 
   private release(): void {
-    this.running--
     const next = this.waiting.shift()
-    if (!next) return
+    if (!next) {
+      this.running--
+      return
+    }
+    // Transfer this occupied slot directly. A new arrival must not steal it
+    // before the resumed waiter gets its next microtask.
     next.signal?.removeEventListener('abort', next.onAbort)
     next.resolve()
   }

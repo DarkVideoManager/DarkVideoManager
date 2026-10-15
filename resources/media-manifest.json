@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "recipeVersion": 1,
+  "recipeVersion": 2,
   "platform": "win32-x64",
   "ffmpegVersion": "9.0.2",
   "x264Revision": "31e19f92f00c7003fa115047ce50978bc98c3a0d",
+  "dav1dVersion": "1.5.4",
   "sourceDateEpoch": 1791900000,
   "assets": [
     {
@@ -29,6 +30,30 @@
       "url": "https://code.videolan.org/videolan/x264/-/archive/31e19f92f00c7003fa115047ce50978bc98c3a0d/x264-31e19f92f00c7003fa115047ce50978bc98c3a0d.tar.gz",
       "sha256": "d053c9d86988d6bc78237ca5205865c5ddf99c98ef4cd9927eec8f6d388f6dd9",
       "role": "statically linked H.264 encoder source"
+    },
+    {
+      "id": "dav1d",
+      "filename": "dav1d-1.5.4.tar.xz",
+      "directory": "dav1d-1.5.4",
+      "url": "https://downloads.videolan.org/pub/videolan/dav1d/1.5.4/dav1d-1.5.4.tar.xz",
+      "sha256": "686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5",
+      "role": "statically linked AV1 software decoder source"
+    },
+    {
+      "id": "meson",
+      "filename": "meson-1.9.1.tar.gz",
+      "directory": "meson-1.9.1",
+      "url": "https://files.pythonhosted.org/packages/48/d8/6c1dd1c740b7d5fd73a6ad67900a09e3dd6642013f58fa9e22ae6faaffc7/meson-1.9.1.tar.gz",
+      "sha256": "4e076606f2afff7881d195574bddcd8d89286f35a17b4977a216f535dc0c74ac",
+      "role": "dav1d build tool source; not shipped with the application"
+    },
+    {
+      "id": "ninja",
+      "filename": "ninja-1.13.1.tar.gz",
+      "directory": "ninja-1.13.1",
+      "url": "https://github.com/ninja-build/ninja/archive/refs/tags/v1.13.1.tar.gz",
+      "sha256": "f0055ad0369bf2e372955ba55128d000cfcc21777057806015b45e4accbebf23",
+      "role": "dav1d build tool source; not shipped with the application"
     },
     {
       "id": "nasm",

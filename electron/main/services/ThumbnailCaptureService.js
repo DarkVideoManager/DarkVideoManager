@@ -6,7 +6,11 @@ import { getDatabase } from '../db/connection'
 import { ThumbnailRepository } from '../db/repositories/ThumbnailRepository'
 import { VideoRepository } from '../db/repositories/VideoRepository'
 import { getThumbnailsDir } from '../infra/paths'
-import { generateThumbnails, extractThumbnailAtTime } from '../ffmpeg/thumbnail'
+import {
+  generateThumbnails,
+  extractThumbnailAtTime,
+  isThumbnailTimeoutError,
+} from '../ffmpeg/thumbnail'
 import { createLogger } from '../infra/logger'
 import { IPC } from '../../../src/shared/ipc'
 import {
@@ -15,34 +19,29 @@ import {
   throwIfWorkCancelled,
 } from './LibraryWorkService'
 import { isAbortError } from '../ffmpeg/queue'
+import { assertThumbnailJobAllowed, runThumbnailJob } from './ThumbnailJobService'
 const log = createLogger('ThumbnailService')
 
-async function withThumbnailWork(libraryId, operation) {
+async function withThumbnailWork(libraryId, videoId, total, operation) {
   return withLibraryWork(
     libraryId,
     async (signal) => {
-      const root = path.resolve(getThumbnailsDir(libraryId))
-      const outputDir = await fs.promises.mkdtemp(path.join(root, 'capture-'))
-      const work = { signal, outputDir, committed: false }
-      try {
-        throwIfWorkCancelled(signal)
-        return await operation(work)
-      } finally {
-        if (!work.committed) {
-          // Only this invocation's newly created directory can be removed.
-          const relative = path.relative(root, path.resolve(outputDir))
-          if (!relative || relative.startsWith('..') || path.isAbsolute(relative))
-            throw new Error('Invalid thumbnail cleanup directory')
-          await fs.promises.rm(outputDir, { recursive: true, force: true })
-        }
-      }
+      const db = getDatabase(libraryId)
+      if (!db) throw new Error('Library is not open')
+      const video = new VideoRepository(db).findById(videoId)
+      if (!video || video.removalMode) throw new Error('Video not found')
+      return runThumbnailJob(
+        { libraryId, videoId, fileName: video.fileName, total, signal },
+        operation,
+      )
     },
     'thumbnails',
+    videoId,
   )
 }
 
 export function ensureThumbnailForVideo(libraryId, videoId, webContents, force = false) {
-  return withThumbnailWork(libraryId, (work) =>
+  return withThumbnailWork(libraryId, videoId, 5, (work) =>
     ensureThumbnailForVideoInternal(libraryId, videoId, webContents, force, work),
   )
 }
@@ -62,31 +61,21 @@ async function ensureThumbnailForVideoInternal(libraryId, videoId, webContents, 
     video.id,
     video.durationSec,
     work.signal,
+    work.reportProgress,
   )
   throwIfWorkCancelled(work.signal)
   if (results.length === 0) {
-    const fallbackTimes = buildFallbackTimes(video.durationSec)
-    for (const timeSec of fallbackTimes) {
-      try {
-        const thumbnail = await captureThumbnailAtTimeInternal(
-          libraryId,
-          videoId,
-          timeSec,
-          webContents,
-          false,
-          true,
-          work,
-        )
-        if (thumbnail) {
-          return true
-        }
-      } catch (e) {
-        if (isAbortError(e)) throw e
-        log.warn({ err: e, libraryId, videoId, timeSec }, 'Fallback thumbnail capture failed')
-      }
+    // This helper already tries a bounded, unique set of nearby/fallback times.
+    // Nesting it inside another fallback loop repeats expensive failed decodes.
+    try {
+      await captureThumbnailAtTimeInternal(libraryId, videoId, 0, webContents, true, true, work)
+      return true
+    } catch (error) {
+      if (isAbortError(error) || isThumbnailTimeoutError(error)) throw error
+      log.warn({ err: error, libraryId, videoId }, 'Fallback thumbnail capture failed')
     }
     log.warn({ libraryId, videoId, filePath: video.filePath }, 'No thumbnails generated')
-    return false
+    throw new Error('동영상에서 썸네일을 추출하지 못했습니다.')
   }
   db.transaction(() => {
     if (force) thumbnailRepo.deleteByVideoId(videoId)
@@ -114,7 +103,7 @@ export function captureThumbnailAtTime(
   notify = true,
   makePrimary = true,
 ) {
-  return withThumbnailWork(libraryId, (work) =>
+  return withThumbnailWork(libraryId, videoId, 1, (work) =>
     captureThumbnailAtTimeInternal(
       libraryId,
       videoId,
@@ -160,7 +149,7 @@ async function captureThumbnailAtTimeInternal(
       resolvedTimeSec = candidateTimeSec
       break
     } catch (error) {
-      if (isAbortError(error)) throw error
+      if (isAbortError(error) || isThumbnailTimeoutError(error)) throw error
       lastError = error
       log.warn(
         { err: error, libraryId, videoId, requestedTimeSec, candidateTimeSec },
@@ -202,7 +191,8 @@ export function saveThumbnailImageCapture(
   webContents,
   makePrimary = true,
 ) {
-  assertLibraryWorkAllowed(libraryId, 'thumbnails')
+  assertLibraryWorkAllowed(libraryId, 'thumbnails', videoId)
+  assertThumbnailJobAllowed(libraryId, videoId)
   const db = getDatabase(libraryId)
   if (!db) throw new Error('Library is not open')
   const videoRepo = new VideoRepository(db)

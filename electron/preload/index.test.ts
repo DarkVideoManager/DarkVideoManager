@@ -76,6 +76,8 @@ describe('preload bridge', () => {
       api.playback.seek('lib', 'video', 1.5),
       api.playback.end('lib', 'video', 2),
       api.thumbnails.getForVideo('lib', 'video'),
+      api.thumbnails.listJobs('lib'),
+      api.thumbnails.cancelForVideo('lib', 'video'),
       api.thumbnails.setPrimary('lib', 'thumb', 'video'),
       api.thumbnails.ensureForVideo('lib', 'video'),
       api.thumbnails.captureAtTime('lib', 'video', 8),

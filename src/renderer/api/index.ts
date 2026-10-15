@@ -29,6 +29,8 @@ const videosApi: WindowApi['videos'] = {
   restore: (libraryId, videoId) => getApi().videos.restore(libraryId, videoId),
 }
 const thumbnailsApi: WindowApi['thumbnails'] = {
+  listJobs: (libraryId) => getApi().thumbnails.listJobs(libraryId),
+  cancelForVideo: (libraryId, videoId) => getApi().thumbnails.cancelForVideo(libraryId, videoId),
   getForVideo: (libraryId, videoId) => getApi().thumbnails.getForVideo(libraryId, videoId),
   setPrimary: (libraryId, thumbnailId, videoId) =>
     getApi().thumbnails.setPrimary(libraryId, thumbnailId, videoId),

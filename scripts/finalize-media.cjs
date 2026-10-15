@@ -18,7 +18,7 @@ const noticeNames = [
   'COPYING.GPLv2', 'COPYING.GPLv3', 'COPYING.LGPLv2.1', 'COPYING.LGPLv3',
   'FFmpeg-LICENSE.md', 'LLVM-MinGW-LICENSE.txt', 'MinGW-COPYING',
   'MinGW-COPYING.MinGW-w64-runtime.txt', 'MinGW-COPYING.MinGW-w64.txt',
-  'MinGW-COPYING.winpthreads.txt', 'MinGW-COPYING.winstorecompat.txt', 'x264-COPYING.txt',
+  'MinGW-COPYING.winpthreads.txt', 'MinGW-COPYING.winstorecompat.txt', 'x264-COPYING.txt', 'dav1d-COPYING.txt',
 ]
 // Resolve every component below the workspace before any reads/writes. Merely
 // checking a lexical prefix would permit release/source junctions to escape it.
@@ -125,14 +125,14 @@ try {
     }
     const binaries = Object.fromEntries(['ffmpeg', 'ffprobe'].map((name) => [name, hash(regularFile(path.join(directory, 'win32-x64', `${name}.exe`)))]))
     const imports = Object.fromEntries(['ffmpeg', 'ffprobe'].map((name) => [name, fs.readFileSync(regularFile(path.join(directory, `${name}-imports.txt`)), 'utf8').trim().split(/\r?\n/)]))
-    if (Object.values(imports).flat().some((line) => /(?:libgcc|libstdc\+\+|libwinpthread|libc\+\+|x264).*\.dll/i.test(line))) {
+    if (Object.values(imports).flat().some((line) => /(?:libgcc|libstdc\+\+|libwinpthread|libc\+\+|x264|dav1d).*\.dll/i.test(line))) {
       throw new Error('A non-system dynamic runtime was unexpectedly linked; review the build and bundle before distribution')
     }
     const inventory = {
       schemaVersion: 1, recipeHash,
-      ffmpegVersion: input.ffmpegVersion, x264Revision: input.x264Revision,
+      ffmpegVersion: input.ffmpegVersion, x264Revision: input.x264Revision, dav1dVersion: input.dav1dVersion,
       sourcePatches: [],
-      configuredExternalLibraries: ['libx264'],
+      configuredExternalLibraries: ['libx264', 'libdav1d'],
       license: 'GPL-3.0-or-later',
       assets: input.assets,
       binaries, importedDlls: imports,
@@ -159,11 +159,11 @@ try {
     write(buildInstructions, fs.readFileSync(regularFile(buildDocument)))
     writeJson(dependencyInventory, inventory)
     const common = {
-      sourceRevision: `FFmpeg ${input.ffmpegVersion}; x264 ${input.x264Revision}`,
+      sourceRevision: `FFmpeg ${input.ffmpegVersion}; x264 ${input.x264Revision}; dav1d ${input.dav1dVersion}`,
       archive: relative(archive), archiveSha256: hash(archive),
       buildInstructions: relative(buildInstructions), buildInstructionsSha256: hash(buildInstructions),
       dependencyInventory: relative(dependencyInventory), dependencyInventorySha256: hash(dependencyInventory),
-      reviewedSourceCompleteness: 'Controlled build from the included FFmpeg and x264 sources; autodetection disabled, libx264 is the only enabled external codec library; no source patches. Original build recipe, pinned toolchain receipt and license texts included.',
+      reviewedSourceCompleteness: 'Controlled build from the included FFmpeg, x264 and dav1d sources; autodetection disabled, libx264 and libdav1d are the enabled external codec libraries; no source patches. Original build recipe, build-tool sources, pinned toolchain receipt and license texts included.',
       releaseAssetName: path.basename(archive),
     }
     writeJson(path.join(root, 'resources/legal/media-source-receipts.json'), {
