@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   updateVideoMeta: vi.fn(),
   deleteVideo: vi.fn(),
   restoreVideo: vi.fn(),
+  revealVideoSource: vi.fn(),
   createHighlight: vi.fn(),
   updateHighlight: vi.fn(),
   deleteHighlight: vi.fn(),
@@ -86,6 +87,9 @@ vi.mock('../services/VideoService', () => ({
   openVideoInNativePlayer: mocks.openVideoInNativePlayer,
   seekActivePlayback: vi.fn(),
 }))
+vi.mock('../services/VideoSourceLocationService', () => ({
+  revealVideoSource: mocks.revealVideoSource,
+}))
 vi.mock('../services/PlaybackService', () => ({
   startPlayback: vi.fn(),
   heartbeat: vi.fn(),
@@ -150,6 +154,28 @@ beforeEach(() => {
 })
 
 describe('IPC dispatch', () => {
+  it('reveals an original source by library/video IDs and rejects renderer file paths', async () => {
+    expect(await invoke(IPC.VIDEOS.REVEAL_SOURCE, 'other-library', 'video')).toEqual({
+      ok: true,
+      value: null,
+    })
+    expect(mocks.revealVideoSource).toHaveBeenCalledWith('other-library', 'video')
+    for (const args of [
+      ['other-library', 'video', 'C:/renderer-supplied.mp4'],
+      [{ filePath: 'C:/renderer-supplied.mp4' }],
+      ['', 'video'],
+      ['other-library'],
+    ]) {
+      expect(await invoke(IPC.VIDEOS.REVEAL_SOURCE, ...args)).toMatchObject({ ok: false })
+    }
+    expect(mocks.revealVideoSource).toHaveBeenCalledTimes(1)
+    mocks.revealVideoSource.mockRejectedValueOnce(new Error('원본 영상 파일을 찾을 수 없습니다.'))
+    expect(await invoke(IPC.VIDEOS.REVEAL_SOURCE, 'other-library', 'video')).toEqual({
+      ok: false,
+      error: '원본 영상 파일을 찾을 수 없습니다.',
+    })
+  })
+
   it('rejects subframes and unregistered windows before a privileged handler runs', async () => {
     const entry = mocks.handle.mock.calls.find(([name]) => name === IPC.VIDEOS.UPDATE_META)!
     const args = ['lib', 'video', { rating: 3 }]

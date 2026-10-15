@@ -142,7 +142,11 @@ function configureDatabase(db: Database, readOnly: boolean): void {
   db.pragma('temp_store = MEMORY')
 }
 
-export function openDatabase(libraryId: string, dbPath: string): Database {
+export function openDatabase(
+  libraryId: string,
+  dbPath: string,
+  options: { fileMustExist?: boolean } = {},
+): Database {
   const existing = pool.get(libraryId)
   if (existing) return existing.db
   if (!BetterSqlite3) {
@@ -159,7 +163,7 @@ export function openDatabase(libraryId: string, dbPath: string): Database {
   try {
     db = readOnly
       ? new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true })
-      : new BetterSqlite3(dbPath)
+      : new BetterSqlite3(dbPath, { fileMustExist: options.fileMustExist ?? false })
     configureDatabase(db, readOnly)
   } catch (error) {
     releaseLock(lock)

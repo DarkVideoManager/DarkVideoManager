@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AccelerationInfo, AppSettings, CacheInfo, NativePlayerInfo } from '@shared/types'
+import {
+  DEFAULT_SEEK_STEP_SEC,
+  MAX_SEEK_STEP_SEC,
+  MIN_SEEK_STEP_SEC,
+  SeekStepSecZ,
+} from '@shared/playerSettings'
 
 interface SettingsDialogProps {
   onClose: () => void
@@ -47,6 +53,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [cacheInfo, setCacheInfo] = useState<CacheInfo | null>(null)
   const [limitInput, setLimitInput] = useState('')
+  const [seekStepInput, setSeekStepInput] = useState('')
   const [selectedNative, setSelectedNative] = useState<NativePlayerInfo | null>(null)
   const [nativePlayers, setNativePlayers] = useState<NativePlayerInfo[]>([])
   const [manualPlayerName, setManualPlayerName] = useState<NativePlayerInfo['name']>('mpv')
@@ -66,9 +73,13 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const validLimit =
     limitInput.trim() !== '' && Number.isFinite(limit) && limit >= 1 && limit <= 1000
   const cacheChanged = settings !== null && limit !== settings.cacheLimitGb
+  const seekStep = Number(seekStepInput)
+  const validSeekStep = seekStepInput.trim() !== '' && SeekStepSecZ.safeParse(seekStep).success
+  const seekStepChanged =
+    settings !== null && seekStep !== (settings.seekStepSec ?? DEFAULT_SEEK_STEP_SEC)
   const nativeChanged =
     settings !== null && playerKey(selectedNative) !== playerKey(settings.nativePlayer)
-  const changed = cacheChanged || nativeChanged
+  const changed = cacheChanged || nativeChanged || seekStepChanged
   const playerOptions = [...nativePlayers]
   if (
     selectedNative &&
@@ -103,6 +114,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
         setSettings(settingsResult.value)
         setSelectedNative(settingsResult.value.nativePlayer ?? null)
         setLimitInput(String(settingsResult.value.cacheLimitGb))
+        setSeekStepInput(String(settingsResult.value.seekStepSec ?? DEFAULT_SEEK_STEP_SEC))
         setCacheInfo(cacheResult.value)
       } catch (cause) {
         if (active) setError(errorMessage(cause))
@@ -160,29 +172,36 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
 
   async function saveSettings(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-    if (busy || !validLimit || !changed) return
+    if (busy || !validLimit || !validSeekStep || !changed) return
     setOperation('save')
     setError(null)
     setNotice(null)
     try {
       const patch: Partial<AppSettings> = {}
       if (cacheChanged) patch.cacheLimitGb = limit
+      if (seekStepChanged) patch.seekStepSec = seekStep
       if (nativeChanged) patch.nativePlayer = selectedNative
       const result = await window.api.app.updateSettings(patch)
       if (!result.ok) throw new Error(result.error)
       setSettings(result.value)
       setLimitInput(String(result.value.cacheLimitGb))
+      setSeekStepInput(String(result.value.seekStepSec ?? DEFAULT_SEEK_STEP_SEC))
       setSelectedNative(result.value.nativePlayer ?? null)
       setCacheInfo((previous) =>
         previous ? { ...previous, limitBytes: result.value.cacheLimitGb * GB } : previous,
       )
       setNotice(
-        nativeChanged
-          ? cacheChanged
-            ? '캐시와 외부 플레이어 설정을 저장했습니다.'
-            : '외부 플레이어 설정을 저장했습니다.'
-          : '캐시 용량 상한을 저장했습니다.',
+        seekStepChanged
+          ? cacheChanged || nativeChanged
+            ? '설정을 저장했습니다.'
+            : '탐색 간격을 저장했습니다.'
+          : nativeChanged
+            ? cacheChanged
+              ? '캐시와 외부 플레이어 설정을 저장했습니다.'
+              : '외부 플레이어 설정을 저장했습니다.'
+            : '캐시 용량 상한을 저장했습니다.',
       )
+      queryClient.setQueryData(['app-settings'], result.value)
       if (nativeChanged) await queryClient.invalidateQueries({ queryKey: ['native-player-info'] })
       try {
         const infoResult = await window.api.app.getCacheInfo()
@@ -310,6 +329,47 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
         )}
         {settings && cacheInfo && (
           <form onSubmit={(event) => void saveSettings(event)} noValidate className="space-y-5">
+            <section aria-labelledby="seek-step-title" className="space-y-3">
+              <h3 id="seek-step-title" className="font-semibold">
+                재생 탐색
+              </h3>
+              <p aria-label="현재 적용된 탐색 간격" className="text-xs text-zinc-300">
+                현재 적용: {settings.seekStepSec ?? DEFAULT_SEEK_STEP_SEC}초
+              </p>
+              <div>
+                <label htmlFor="seek-step" className="mb-2 block font-medium">
+                  기본 탐색 간격 (초)
+                </label>
+                <input
+                  id="seek-step"
+                  type="number"
+                  min={MIN_SEEK_STEP_SEC}
+                  max={MAX_SEEK_STEP_SEC}
+                  step={1}
+                  value={seekStepInput}
+                  disabled={busy || confirmCleanup}
+                  aria-describedby="seek-step-help seek-step-shortcuts"
+                  aria-invalid={!validSeekStep}
+                  onChange={(event) => {
+                    setSeekStepInput(event.target.value)
+                    setNotice(null)
+                  }}
+                  className="w-32 rounded border border-zinc-600 bg-zinc-950 px-3 py-2 disabled:opacity-50"
+                />
+                <p
+                  id="seek-step-help"
+                  className={`mt-2 text-xs ${validSeekStep ? 'text-zinc-400' : 'text-amber-300'}`}
+                >
+                  {MIN_SEEK_STEP_SEC}~{MAX_SEEK_STEP_SEC}초의 정수로 입력하세요. 기본값은{' '}
+                  {DEFAULT_SEEK_STEP_SEC}초입니다. 저장 후 적용됩니다.
+                </p>
+              </div>
+              <p id="seek-step-shortcuts" className="text-xs leading-relaxed text-zinc-400">
+                ←/→ 및 A/D를 한 번 누를 때 적용됩니다. 인앱 플레이어는 저장 즉시, mpv는 다음
+                실행부터 적용됩니다. Shift 조합은 5초, Ctrl 조합은 30초와 기존 길게 누르기 가속을
+                유지합니다. ffplay·VLC는 자체 단축키 설정을 사용합니다.
+              </p>
+            </section>
             <section aria-labelledby="cache-title" className="space-y-3">
               <h3 id="cache-title" className="font-semibold">
                 재생 캐시
@@ -524,7 +584,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
               <p className="text-xs text-zinc-400">변경사항은 저장을 누른 후 적용됩니다.</p>
               <button
                 type="submit"
-                disabled={busy || confirmCleanup || !validLimit || !changed}
+                disabled={busy || confirmCleanup || !validLimit || !validSeekStep || !changed}
                 className="rounded bg-indigo-600 px-4 py-2 hover:bg-indigo-500 disabled:opacity-50"
               >
                 {operation === 'save' ? '저장 중...' : '저장'}

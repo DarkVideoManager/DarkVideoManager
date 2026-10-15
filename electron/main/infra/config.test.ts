@@ -67,6 +67,26 @@ afterEach(() => {
 })
 
 describe('safe configuration persistence', () => {
+  it('keeps the seek interval across reloads while accepting older configurations', () => {
+    saveConfig(example())
+    expect(loadConfig().seekStepSec).toBeUndefined()
+    updateConfig((current) => ({ ...current, seekStepSec: 15 }))
+    expect(loadConfig()).toMatchObject({ ...example(), seekStepSec: 15 })
+    updateConfig((current) => ({ ...current, cacheLimitGb: 20 }))
+    expect(loadConfig().seekStepSec).toBe(15)
+  })
+
+  it.each([0, -1, 1.5, 601, Number.NaN, Infinity])(
+    'rejects invalid seek interval %s without changing the saved configuration',
+    (seekStepSec) => {
+      saveConfig({ ...example(), seekStepSec: 10 })
+      const before = raw()
+      expect(() => updateConfig((current) => ({ ...current, seekStepSec }))).toThrow('설정 구조')
+      expect(raw()).toBe(before)
+      expect(loadConfig().seekStepSec).toBe(10)
+    },
+  )
+
   it('allows only a fresh installation to start with an independent empty registry', () => {
     const first = loadConfig()
     first.libraries.push(example().libraries[0])

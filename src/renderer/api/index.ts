@@ -18,6 +18,7 @@ const libraryApi: WindowApi['library'] = {
 const videosApi: WindowApi['videos'] = {
   search: (libraryId, query) => getApi().videos.search(libraryId, query),
   get: (libraryId, videoId) => getApi().videos.get(libraryId, videoId),
+  revealSource: (libraryId, videoId) => getApi().videos.revealSource(libraryId, videoId),
   getPlaybackSource: (libraryId, videoId) => getApi().videos.getPlaybackSource(libraryId, videoId),
   getNativePlayerInfo: () => getApi().videos.getNativePlayerInfo(),
   openInNativePlayer: (libraryId, videoId, options) =>

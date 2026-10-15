@@ -14,10 +14,15 @@ import {
   seekActivePlayback,
 } from '../services/VideoService'
 import { createLogger } from '../infra/logger'
+import { revealVideoSource } from '../services/VideoSourceLocationService'
 
 const log = createLogger('ipc:videos')
 
 export function registerVideoHandlers(): void {
+  registerIpcHandler(IPC.VIDEOS.REVEAL_SOURCE, async (_event, libraryId, videoId) => {
+    await revealVideoSource(libraryId, videoId)
+    return ok(null)
+  })
   registerIpcHandler(IPC.VIDEOS.RESTORE, async (_event, libraryId, videoId) => {
     await restoreVideo(libraryId, videoId)
     return ok(null)

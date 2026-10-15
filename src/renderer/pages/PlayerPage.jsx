@@ -1,6 +1,6 @@
 // Restored application logic from the packaged 0.1.0 release; vendor code is imported from npm.
 import * as React from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import VideoPlayer from '../components/player/VideoPlayer'
 import DetailPanel from '../components/library/DetailPanel'
@@ -11,6 +11,10 @@ function PlayerPage() {
   const [pendingSeekRequest, setPendingSeekRequest] = React.useState(null)
   const [nativeLaunchPending, setNativeLaunchPending] = React.useState(false)
   const [subtitleNavigationTarget, setSubtitleNavigationTarget] = React.useState(null)
+  const fullscreenExitAt = React.useRef(-Infinity)
+  const handleFullscreenChange = React.useCallback((active, explicit) => {
+    fullscreenExitAt.current = !active && !explicit ? performance.now() : -Infinity
+  }, [])
   const { data: video, isLoading } = useQuery({
     queryKey: ['video', libraryId, videoId],
     queryFn: async () => {
@@ -23,11 +27,19 @@ function PlayerPage() {
   React.useEffect(() => {
     function handleKeyDown(event) {
       if (event.key === 'Escape' && !nativeLaunchPending) {
+        if (
+          event.defaultPrevented ||
+          document.fullscreenElement ||
+          performance.now() - fullscreenExitAt.current < 250
+        )
+          return
         navigate(-1)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [navigate, nativeLaunchPending])
   React.useEffect(() => {
     return window.api.on.nativePlayerEscape(({ videoId: escapedVideoId }) => {
@@ -62,20 +74,15 @@ function PlayerPage() {
   return (
     <div className={'flex h-screen overflow-hidden bg-zinc-950'}>
       <div className={'relative min-h-0 min-w-0 flex-1'}>
-        <button
-          onClick={() => setIsMaximized((value) => !value)}
-          className={
-            'absolute left-3 top-3 z-10 rounded bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80'
-          }
-        >
-          {isMaximized ? '상세 보기' : '플레이어 최대화'}
-        </button>
         <VideoPlayer
           video={video}
           libraryId={libraryId}
           seekRequest={pendingSeekRequest}
           onNativeLaunchPendingChange={setNativeLaunchPending}
           subtitleNavigationTarget={subtitleNavigationTarget}
+          isMaximized={isMaximized}
+          onToggleMaximized={() => setIsMaximized((value) => !value)}
+          onFullscreenChange={handleFullscreenChange}
         />
       </div>
       {!isMaximized && (
