@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AccelerationInfo, AppSettings, CacheInfo, NativePlayerInfo } from '@shared/types'
+import PrivacySettingsPanel from '../privacy/PrivacySettingsPanel'
+import { SubtitlePrivacyGuidance } from '../library/SubtitleGuidance'
 
 interface SettingsDialogProps {
   onClose: () => void
@@ -246,7 +248,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
         if (event.key !== 'Tab') return
         const controls = Array.from(
           event.currentTarget.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, a[href], [tabindex="0"]',
           ),
         ).filter((element) => element.getClientRects().length > 0)
         const first = controls[0]
@@ -289,6 +291,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
         </button>
       </div>
       <div className="space-y-5 p-5 text-sm">
+        <SubtitlePrivacyGuidance />
         {loading && (
           <p role="status" className="text-zinc-400">
             설정을 불러오는 중...
@@ -308,6 +311,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
             다시 시도
           </button>
         )}
+        <PrivacySettingsPanel />
         {settings && cacheInfo && (
           <form onSubmit={(event) => void saveSettings(event)} noValidate className="space-y-5">
             <section aria-labelledby="cache-title" className="space-y-3">

@@ -1,5 +1,7 @@
 // Dependency-free channel names are shared with the sandboxed preload.
 export const IPC = {
+  PRIVACY: { GET: 'privacy:get', SAVE: 'privacy:save', EXIT: 'privacy:exit' },
+  DISCOVERY: { QUERY: 'discovery:query', FAVORITE: 'discovery:favorite', TAGS: 'discovery:tags' },
   APP: {
     QUIT: 'app:quit',
     CLAIM_GITHUB_STAR_PROMPT: 'app:claimGitHubStarPrompt',
@@ -16,6 +18,18 @@ export const IPC = {
     SELECT_CSV: 'dataImport:selectCsv',
     PREVIEW: 'dataImport:preview',
     IMPORT: 'dataImport:import',
+  },
+  METADATA_IMPORT: {
+    GET_SETTINGS: 'metadataImport:getSettings',
+    UPDATE_SETTINGS: 'metadataImport:updateSettings',
+    SEARCH: 'metadataImport:search',
+    APPLY: 'metadataImport:apply',
+  },
+  MAINTENANCE: {
+    PREVIEW_NAMES: 'maintenance:previewNames',
+    APPLY_NAMES: 'maintenance:applyNames',
+    FIND_DUPLICATES: 'maintenance:findDuplicates',
+    CANCEL: 'maintenance:cancel',
   },
   LIBRARY: {
     LIST: 'library:list',

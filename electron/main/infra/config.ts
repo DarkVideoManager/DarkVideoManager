@@ -14,11 +14,15 @@ import { basename, dirname, join } from 'node:path'
 import { z } from 'zod'
 import type { Config } from '@shared/types'
 import { getConfigPath } from './paths'
+import { PrivacySettingsZ } from '@shared/privacy'
+import { DiscoveryPreferencesZ } from '@shared/discovery'
 
 // passthrough keeps settings added by later versions instead of silently dropping them.
 const NonemptyString = z.string().min(1)
 const ConfigSchema = z
   .object({
+    privacySettings: PrivacySettingsZ.optional(),
+    discoveryPreferences: z.record(z.string().min(1), DiscoveryPreferencesZ).optional(),
     libraries: z
       .array(
         z

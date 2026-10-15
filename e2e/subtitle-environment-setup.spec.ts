@@ -130,10 +130,12 @@ test('offers global setup without a library, polls progress and preserves the jo
   await prepareSetup(page)
   await page.getByRole('link', { name: '자막 생성', exact: true }).click()
   const panel = setupPanel(page)
-  await expect(panel.getByRole('listitem')).toHaveCount(6)
+  await expect(
+    panel.getByRole('list', { name: '자막 환경 준비 상태' }).getByRole('listitem'),
+  ).toHaveCount(6)
   await expect(panel).toContainText('15GB')
   await expect(panel).toContainText('관리자 승인')
-  await expect(panel).toContainText('Ubuntu의 초기 설정')
+  await expect(panel).toContainText('Ubuntu 계정은 보통 앱이 준비합니다.')
   expect(await page.evaluate(() => (window as unknown as SetupWindow).setupHarness.starts)).toBe(0)
   await panel.getByRole('button', { name: '자막 환경 자동 설치', exact: true }).click()
   await expect(

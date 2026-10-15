@@ -33,6 +33,28 @@ describe('preload bridge', () => {
   it('exposes all deployed operations with arguments accepted by the main process contracts', async () => {
     bridge.invoke.mockClear()
     await Promise.all([
+      api.privacy.get(),
+      api.privacy.save({
+        maskThumbnails: false,
+        revealOnHover: true,
+        exitAction: 'close',
+        exitUrl: '',
+      }),
+      api.privacy.exit(),
+      api.discovery.query('lib', { text: '미시청', page: 1 }),
+      api.discovery.favorite('lib', 'video', true),
+      api.discovery.tags('lib', ['축구']),
+      api.metadataImport.getSettings(),
+      api.metadataImport.updateSettings({ enabled: false, serverUrl: '' }),
+      api.metadataImport.search('example'),
+      api.metadataImport.apply('lib', 'video', {
+        expected: { title: null, memo: '', tags: '' },
+        patch: { title: 'Example' },
+      }),
+      api.maintenance.previewNames('lib', { prefix: '[sample] ' }),
+      api.maintenance.applyNames('lib', 'dd270470-14f8-45ed-af6e-f3b2da7c86d3', ['video']),
+      api.maintenance.findDuplicates('lib'),
+      api.maintenance.cancel('lib'),
       api.app.quit(),
       api.app.githubStar!.claimPrompt(),
       api.app.githubStar!.openRepository(),
