@@ -313,7 +313,10 @@ else { Write-Output 'DVM_INSTALL_STOPPED' }`),
     // The helper may have written completion while its identity was being probed.
     const completed = readInstallRecord()
     if (completed?.state === 'done') {
-      clearInstallRecord(completed)
+      // A restart-required receipt remains the gate for later checks/retries.
+      // Only the verified later-boot branch above may discard it.
+      if (!completed.restartRequired && ![3010, 1641].includes(completed.code ?? -1))
+        clearInstallRecord(completed)
       return completed
     }
     if (identity.code !== 0) throw new Error(installInterrupted)

@@ -132,6 +132,35 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
     expect(helpers[0]).toContain('Component Based Servicing')
   })
 
+  it.each([
+    { code: 3010, restart: false },
+    { code: 1641, restart: false },
+    { code: 0, restart: true },
+  ])(
+    'retains the restart receipt across install retries and checks until a verified reboot ($code, $restart)',
+    async ({ code, restart }) => {
+      const { capture, helpers } = installerCapture({ code, restart })
+      expect(await installSubtitleWsl(capture)).toBe(true)
+      expect(hasSubtitleWslInstall()).toBe(true)
+      const receipt = readFileSync(installFile(), 'utf8')
+      expect(await installSubtitleWsl(capture)).toBe(true)
+      expect(helpers).toHaveLength(1)
+      expect(readFileSync(installFile(), 'utf8')).toBe(receipt)
+
+      const check = vi.fn<WslCapture>().mockResolvedValue(result(''))
+      expect(await checkSubtitleWslReady(check, signal())).toBe(false)
+      expect(check).toHaveBeenCalledOnce()
+      expect(check.mock.calls[0][0]).toBe('powershell.exe')
+      expect(readFileSync(installFile(), 'utf8')).toBe(receipt)
+
+      check
+        .mockResolvedValueOnce(result('DVM_INSTALL_REBOOTED'))
+        .mockResolvedValueOnce(result('DVM_WSL_READY'))
+      expect(await checkSubtitleWslReady(check, signal())).toBe(true)
+      expect(hasSubtitleWslInstall()).toBe(false)
+    },
+  )
+
   it('continues after reboot without elevation when the platform is ready', async () => {
     const { capture, helpers } = installerCapture({ platform: true })
     expect(await installSubtitleWsl(capture)).toBe(false)
@@ -401,7 +430,7 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
         expect(launchCount()).toBe(1)
       } else {
         expect(await installSubtitleWsl(capture)).toBe(code === 3010)
-        expect(hasSubtitleWslInstall()).toBe(false)
+        expect(hasSubtitleWslInstall()).toBe(code === 3010)
       }
       if (!launchFailure) expect(readFileSync(installFile() + '.waited', 'utf8')).toBe('done')
       for (const [index, source] of [actualHelper, actualLauncher].entries()) {
