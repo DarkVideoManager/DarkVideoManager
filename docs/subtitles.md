@@ -115,7 +115,6 @@ Retype new password: 같은 암호 다시 입력
 
 Ubuntu 계정 생성과 암호 입력 방식은 [Microsoft의 WSL 초기 환경 안내](https://learn.microsoft.com/en-us/windows/wsl/setup/environment#set-up-your-linux-username-and-password)를 참고하세요. 이 앱의 자동 계정 준비 방식은 아래 설명처럼 일반적인 수동 WSL 설치와 차이가 있습니다.
 
-
 Ubuntu의 기본 사용자가 아직 `root`인 경우에는 암호 로그인이 잠긴 앱 전용 계정 `dvm-subtitles`를 만들고 사용합니다. 이 계정의 홈은 `/var/lib/dark-video-manager/user`입니다. Ubuntu의 기본 사용자를 바꾸지는 않으며, 이후 Ubuntu의 최초 사용자 설정을 마쳐도 앱은 같은 전용 계정과 모델을 계속 사용합니다. 이미 일반 사용자 설정을 마친 Ubuntu에서는 기존 사용자 환경을 유지합니다.
 
 처음에는 인터넷 연결과 **15 GB 이상의 여유 공간**을 권장합니다. Ollama 설치 파일은 약 1.4 GB, 번역 모델은 약 5.2 GB이며 Ubuntu와 Python 환경, 압축을 푸는 임시 공간도 사용합니다. 설치 단계와 다운로드 진행률을 화면에 표시합니다. 중단하거나 실패한 뒤 다시 설치할 수 있으며, Ollama가 이미 내려받은 번역 모델 조각은 재사용합니다. Windows 구성 요소나 Ubuntu 기본 패키지를 준비하는 동안에는 해당 단계가 끝날 때까지 기다립니다.
