@@ -32,6 +32,14 @@ function VideoPlayer({
   const lastPositionRef = React.useRef(video.resumePosSec ?? 0)
   const nativePlaybackRef = React.useRef(false)
   const nativeLaunchPendingRef = React.useRef(false)
+  const nativeLaunchViewRef = React.useRef({ active: false })
+  React.useEffect(() => {
+    const view = { active: true }
+    nativeLaunchViewRef.current = view
+    return () => {
+      view.active = false
+    }
+  }, [libraryId, video.id])
   const [nativeLaunchError, setNativeLaunchError] = React.useState(null)
   const [mediaPlaybackError, setMediaPlaybackError] = React.useState(null)
   const [playerActionError, setPlayerActionError] = React.useState(null)
@@ -367,6 +375,8 @@ function VideoPlayer({
   }, [libraryId, playbackSource, recordPlayback, useInAppPlayback, video.durationSec, video.id])
   const openInNativePlayer = useMutation({
     mutationFn: async () => {
+      const view = nativeLaunchViewRef.current
+      if (!view.active) throw new Error('외부 플레이어 실행이 취소되었습니다.')
       const hasMetadata =
         initializedResumeForVideoRef.current === video.id || videoRef.current?.readyState >= 1
       const currentTime = hasMetadata
@@ -378,6 +388,8 @@ function VideoPlayer({
         const result = await window.api.playback.seek(libraryId, video.id, currentTime)
         if (!result.ok) throw new Error(result.error)
       }
+      // Emergency exit unmounts this view; an earlier seek write must not launch a new window later.
+      if (!view.active) throw new Error('외부 플레이어 실행이 취소되었습니다.')
       const bounds = containerRef.current?.getBoundingClientRect()
       const outerLeft = typeof window.screenX === 'number' ? window.screenX : 0
       const outerTop = typeof window.screenY === 'number' ? window.screenY : 0

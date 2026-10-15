@@ -4,8 +4,34 @@ import childProcess, { type ChildProcess } from 'node:child_process'
 import type { NativePlayerInfo, NativePlayerOptions } from '@shared/types'
 import { loadConfig } from '../infra/config'
 import { createLogger } from '../infra/logger'
+import { acquireSourceFile } from './SourceFileUsage'
 
 const log = createLogger('native-player')
+const managedChildren = new Set<ChildProcess>()
+let launchGeneration = 0
+
+export function getNativePlayerLaunchGeneration(): number {
+  return launchGeneration
+}
+
+export function assertNativePlayerLaunchGeneration(expected: number): void {
+  if (expected !== launchGeneration) throw new Error('외부 플레이어 실행이 취소되었습니다.')
+}
+
+export function closeManagedNativePlayers(): void {
+  // Also cancel launches still awaiting executable discovery or validation.
+  launchGeneration += 1
+  let failed = false
+  for (const child of managedChildren) {
+    try {
+      if (!child.killed && child.exitCode === null && !child.kill()) failed = true
+    } catch {
+      failed = true
+    }
+  }
+  if (failed)
+    throw new Error('일부 외부 플레이어를 종료하지 못했습니다. 해당 창을 직접 확인하세요.')
+}
 // Whitelisted hardware decoding with mpv's normal software fallback. auto-safe
 // also supports older mpv builds; leave the renderer/context at their defaults.
 // https://mpv.io/manual/stable/#options-hwdec
@@ -107,15 +133,28 @@ export async function findNativePlayer(): Promise<NativePlayerInfo | null> {
 export function spawnNativePlayerProcess(
   playerPath: string,
   args: string[],
-  options: { env?: NodeJS.ProcessEnv } = {},
+  options: { env?: NodeJS.ProcessEnv; sourcePath?: string } = {},
 ): { child: ChildProcess; ready: Promise<void> } {
+  const { sourcePath, ...spawnOptions } = options
   const child = childProcess.spawn(playerPath, args, {
     cwd: path.dirname(playerPath),
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: false,
-    ...options,
+    ...spawnOptions,
   })
+  managedChildren.add(child)
+  child.once('exit', () => managedChildren.delete(child))
+  child.once('error', () => {
+    if (!child.pid) managedChildren.delete(child)
+  })
+  if (sourcePath) {
+    const release = acquireSourceFile(sourcePath)
+    child.once('exit', release)
+    child.once('error', () => {
+      if (!child.pid) release()
+    })
+  }
   let stderr = ''
   let settled = false
   let graceTimer: ReturnType<typeof setTimeout> | undefined
@@ -174,9 +213,11 @@ export async function openInNativePlayer(
   options: NativePlayerOptions = {},
   selectedPlayer?: NativePlayerInfo,
 ): Promise<NativePlayerInfo> {
+  const generation = getNativePlayerLaunchGeneration()
   const player = selectedPlayer
     ? await validateNativePlayer(selectedPlayer)
     : await findNativePlayer()
+  assertNativePlayerLaunchGeneration(generation)
   if (!player)
     throw new Error(
       '외부 플레이어를 찾을 수 없습니다. 설정에서 mpv, ffplay 또는 VLC 경로를 선택해 주세요.',
@@ -184,8 +225,10 @@ export async function openInNativePlayer(
   const { child, ready } = spawnNativePlayerProcess(
     player.path,
     buildArgs(player.name, filePath, options),
+    { sourcePath: filePath },
   )
   await ready
+  assertNativePlayerLaunchGeneration(generation)
   child.unref()
   log.info({ player, filePath, options }, 'Opened video in native player')
   return player
@@ -227,6 +270,6 @@ function buildArgs(
         filePath,
       ]
     case 'vlc':
-      return [...(start > 0 ? [`--start-time=${start}`] : []), '--', filePath]
+      return ['--no-one-instance', ...(start > 0 ? [`--start-time=${start}`] : []), '--', filePath]
   }
 }

@@ -61,6 +61,7 @@ export async function openInMpv(
       video.filePath,
     ]
     const { child, ready } = spawnNativePlayerProcess(mpvPath, args, {
+      sourcePath: video.filePath,
       env: {
         ...process.env,
         DARK_VIDEO_MANAGER_MPV_EVENT_FILE: eventFilePath,

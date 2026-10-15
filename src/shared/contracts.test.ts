@@ -88,6 +88,20 @@ describe('IPC contracts', () => {
     ).toBe(false)
   })
 
+  it('accepts large-v2 for generation and regeneration without widening model input', () => {
+    const options = { model: 'large-v2', language: 'auto', translateToKorean: true }
+    expect(IPC_SCHEMAS[IPC.SUBTITLES.GENERATE].parse(['lib', 'video', options])[2]).toEqual(options)
+    expect(
+      IPC_SCHEMAS[IPC.SUBTITLES.REGENERATE].parse(['lib', 'video', ['subtitle'], options])[3],
+    ).toEqual(options)
+    for (const model of ['large', 'large-v2.en', '../large-v2']) {
+      expect(
+        IPC_SCHEMAS[IPC.SUBTITLES.GENERATE].safeParse(['lib', 'video', { ...options, model }])
+          .success,
+      ).toBe(false)
+    }
+  })
+
   it('accepts explicit seek positions and rejects invalid positional inputs', () => {
     const seek = IPC_SCHEMAS[IPC.PLAYBACK.SEEK]
     expect(seek.safeParse(['library', 'video', 0]).success).toBe(true)

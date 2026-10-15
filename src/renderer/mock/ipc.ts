@@ -1,5 +1,15 @@
 import type { WindowApi } from '../../../electron/preload'
 import { DEFAULT_SEEK_STEP_SEC, SeekStepSecZ } from '../../shared/playerSettings'
+
+import { DEFAULT_PRIVACY_SETTINGS, PrivacySettingsZ } from '../../shared/privacy'
+import { discoverVideos, type DiscoveryPreferences } from '../../shared/discovery'
+import {
+  importedMetadata,
+  MetadataApplyZ,
+  MetadataSearchZ,
+  StashSettingsPatchZ,
+  type StashSettings,
+} from '../../shared/metadataImport'
 import { err, ok } from '../../shared/result'
 import type { Result } from '../../shared/result'
 import type { PlaybackConversionJob } from '../../shared/playbackConversion'
@@ -31,6 +41,7 @@ import type {
 
 const MOCK_LIBRARY_ID = 'mock-library'
 const MOCK_NOW = '2026-01-01T00:00:00.000Z'
+let mockStashSettings: StashSettings = { enabled: false, serverUrl: '', hasApiKey: false }
 
 const mockSubtitleSetup = (): SubtitleSetupStatus => ({
   phase: 'ready',
@@ -541,7 +552,121 @@ function mockStats(libraryId: string, requestedDays = 30): LibraryStats {
   }
 }
 
+let mockPrivacy = { ...DEFAULT_PRIVACY_SETTINGS }
+const mockDiscovery = new Map<string, DiscoveryPreferences>()
 export const mockApi: WindowApi = {
+  privacy: {
+    get: async () => ok({ ...mockPrivacy }),
+    save: async (settings) => {
+      mockPrivacy = PrivacySettingsZ.parse(settings)
+      return ok({ ...mockPrivacy })
+    },
+    exit: async () => ok(mockPrivacy.exitAction),
+  },
+  discovery: {
+    query: async (libraryId, query) =>
+      ok(
+        discoverVideos(
+          videosByLibrary.get(libraryId) ?? [],
+          mockDiscovery.get(libraryId) ?? { favoriteVideoIds: [], preferredTags: [] },
+          query,
+        ),
+      ),
+    favorite: async (libraryId, videoId, favorite) => {
+      const previous = mockDiscovery.get(libraryId) ?? { favoriteVideoIds: [], preferredTags: [] }
+      const ids = new Set(previous.favoriteVideoIds)
+      if (favorite) ids.add(videoId)
+      else ids.delete(videoId)
+      const value = { ...previous, favoriteVideoIds: [...ids] }
+      mockDiscovery.set(libraryId, value)
+      return ok(value)
+    },
+    tags: async (libraryId, preferredTags) => {
+      const value = {
+        favoriteVideoIds: mockDiscovery.get(libraryId)?.favoriteVideoIds ?? [],
+        preferredTags,
+      }
+      mockDiscovery.set(libraryId, value)
+      return ok(value)
+    },
+  },
+  metadataImport: {
+    getSettings: async () => ok({ ...mockStashSettings }),
+    updateSettings: async (input) => {
+      const parsed = StashSettingsPatchZ.safeParse(input)
+      if (!parsed.success) return err('Stash 설정을 확인하세요.')
+      const patch = parsed.data
+      mockStashSettings = {
+        enabled: patch.enabled,
+        serverUrl: patch.serverUrl,
+        hasApiKey:
+          Boolean(patch.apiKey?.trim()) ||
+          (mockStashSettings.serverUrl === patch.serverUrl &&
+            !patch.removeApiKey &&
+            mockStashSettings.hasApiKey),
+      }
+      return ok({ ...mockStashSettings })
+    },
+    search: async (query, mode = 'text') => {
+      if (!MetadataSearchZ.safeParse(query).success) return err('검색어를 확인하세요.')
+      if (!mockStashSettings.enabled || !mockStashSettings.serverUrl)
+        return err('Stash 연결을 설정하고 사용을 켜주세요.')
+      if (mode === 'code' && query.trim() !== 'DEMO-001') return ok({ total: 0, candidates: [] })
+      return ok({
+        total: 1,
+        candidates: [
+          {
+            id: 'demo-scene',
+            title: '예시 영상 제목',
+            description: 'Stash 메타데이터 미리보기 예시입니다.',
+            tags: ['예시', '인터뷰'],
+            people: ['예시 인물'],
+            studio: '예시 스튜디오',
+            date: '2026-01-01',
+            code: 'DEMO-001',
+          },
+        ],
+      })
+    },
+    apply: async (libraryId, videoId, input) => {
+      const parsed = MetadataApplyZ.safeParse(input)
+      if (!parsed.success) return err('적용할 항목을 확인하세요.')
+      const video = findVideo(libraryId, videoId)
+      if (!video || video.removalMode) return err('영상을 찾을 수 없습니다.')
+      const before = importedMetadata(video)
+      const { patch, expected } = parsed.data
+      if (
+        (['title', 'memo', 'tags'] as const).some(
+          (key) => patch[key] !== undefined && before[key] !== expected[key],
+        )
+      )
+        return err(
+          '선택한 항목이 미리보기 이후 변경되었습니다. 닫고 다시 열어 현재 값을 확인하세요.',
+        )
+      const after = {
+        ...before,
+        ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+      }
+      Object.assign(video, after, {
+        title: after.title ?? undefined,
+        updatedAt: new Date().toISOString(),
+      })
+      return ok({ before, after })
+    },
+  },
+  maintenance: {
+    previewNames: async (libraryId) =>
+      ok({
+        id: crypto.randomUUID(),
+        libraryId,
+        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        rows: [],
+        truncated: false,
+      }),
+    applyNames: async () => err('브라우저 데모에서는 실제 파일명을 변경하지 않습니다.'),
+    findDuplicates: async () => ok({ groups: [], checkedFiles: 0, skipped: [], cancelled: false }),
+    cancel: async () => ok(false),
+  },
   app: {
     getAccelerationInfo: async () =>
       ok({ videoDecodeStatus: 'enabled', gpuCompositingStatus: 'enabled' }),
