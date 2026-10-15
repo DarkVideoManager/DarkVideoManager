@@ -115,6 +115,12 @@ Ollama와 번역 모델은 **자막 환경 자동 설치**에서 준비할 수 �
 - 자막 생성 중 해당 라이브러리의 가져오기·삭제 등 충돌하는 작업은 완료 또는 취소 후 가능합니다.
 - 외부 플레이어에서 이미 재생 중이라면 새 자막을 읽으려면 영상을 다시 열어야 할 수 있습니다.
 
+### 진행 정보 저장 오류 후 다시 시도
+
+WSL에서 `checkpoint.json`을 갱신할 때 `[Errno 21] Is a directory` 오류가 발생하면, 저장 대상이 일반 파일인지 확인한 뒤 앱에 포함된 Windows Python으로 파일 교체를 다시 시도합니다. 진행 정보와 작업 중인 SRT는 새 내용을 임시 파일에 모두 기록한 후 교체하며, 기존 파일을 먼저 지우거나 직접 덮어쓰지 않습니다.
+
+이 오류로 실패한 작업은 수정된 버전에서 **재개 · 다시 시도**를 누르면 마지막으로 저장한 구간부터 이어갑니다. 실제로 저장 경로에 폴더나 링크가 있거나 Windows 파일 교체도 실패하면 작업을 중단하고 기존 내용을 보존합니다. 이 경우 작업 폴더의 충돌 경로와 쓰기 권한을 확인하세요.
+
 ## 구현 및 검증
 
 이전 로컬 영상 관리 프로젝트의 mono/16kHz 전처리와 Google 번역 흐름을 참고했습니다. 새 작업의 음성 인식은 Windows Vulkan 엔진을 사용하며, 이전 CPU 작업은 faster-whisper/VAD 경로를 유지합니다.
@@ -124,8 +130,11 @@ Ollama와 번역 모델은 **자막 환경 자동 설치**에서 준비할 수 �
 ```powershell
 npm run typecheck
 npm test
+py -3 -X utf8 -m unittest discover -s resources/subtitles -p "test_atomic_output.py"
 npm run test:e2e -- e2e/subtitles.spec.ts e2e/subtitle-queue.spec.ts e2e/subtitle-regenerate.spec.ts e2e/library-subtitle-progress.spec.ts
 ```
+
+전체 Python 자막 테스트는 Linux/WSL에서 프로젝트 폴더로 이동한 뒤 `python3 -m unittest discover -s resources/subtitles -p "test_*.py"`로 실행합니다. 번역 시간 제한 테스트는 Linux 신호를 사용합니다.
 
 실제 음성 영상으로 전체 파이프라인을 확인하는 선택적 통합 테스트도 있습니다.
 해당 영상은 임시 폴더로 복사되며 원본을 수정하지 않습니다. 한국어 번역 요청에 자막 텍스트가 사용됩니다.

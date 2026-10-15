@@ -21,6 +21,7 @@ extraResources:
     to: subtitles
     filter:
       - "generate.py"
+      - "atomic_output.py"
       - "whisper_vulkan.py"
       - "setup_environment.py"
       - "setup_models.py"
