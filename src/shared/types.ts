@@ -91,6 +91,8 @@ export interface SubtitleSetupStatus {
   components: SubtitleSetupComponent[]
   updatedAt: string
   canCancel: boolean
+  currentComponent?: SubtitleSetupComponent['id']
+  stepStartedAt?: string
 }
 
 export interface CloudTranslationSettings {
