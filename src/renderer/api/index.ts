@@ -12,6 +12,8 @@ const libraryApi: WindowApi['library'] = {
   delete: (id2) => getApi().library.delete(id2),
   selectFolder: () => getApi().library.selectFolder(),
   importFolder: (id2, folder) => getApi().library.importFolder(id2, folder),
+  selectFiles: () => getApi().library.selectFiles(),
+  importFiles: (id2, files) => getApi().library.importFiles(id2, files),
   refresh: (id2) => getApi().library.refresh(id2),
   cancelWork: (id2) => getApi().library.cancelWork(id2),
 }

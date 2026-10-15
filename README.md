@@ -19,6 +19,8 @@ A local-first video library manager for Windows, built with Electron, React and 
 
 AI 작업 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 작업이 남아 있으면 창 닫기는 트레이로 숨기며, 트레이의 **완전히 종료**로 작업을 보관하고 종료합니다.
 
+영상 한 개는 라이브러리의 **영상 파일 추가**로 추가하고, 등록 폴더의 새 영상은 **목록 업데이트**로 반영합니다. 단축키·음량·화면 크기는 앱의 **조작 안내**에서 확인할 수 있습니다. 자세한 사용법은 [영상 추가와 재생 조작](docs/import-and-controls.md)을 참고하세요.
+
 ## 사용자 설치
 
 지원 환경은 **Windows 10/11 x64**입니다. [공식 최신 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 다음 파일 중 하나를 내려받습니다.
