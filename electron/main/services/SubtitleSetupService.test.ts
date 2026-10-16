@@ -266,7 +266,7 @@ describe('subtitle environment setup lifecycle', () => {
     for (let index = 0; index < 4; index++) {
       dependencies.native.mockRejectedValueOnce(
         new Error(
-            `오류 ${index}\n${'a'.repeat(2000)}\n${privatePath}\ntoken=private-token\nHCS_E_HYPERV_NOT_INSTALLED`,
+            `오류 ${index}\n${'a'.repeat(2000)}\n${privatePath}\nD:/private/video.mp4\ntoken=private-token\nHCS_E_HYPERV_NOT_INSTALLED`,
         ),
       )
       controller.start(true)

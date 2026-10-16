@@ -31,7 +31,7 @@ function Read-InstallOutput([string]$path) {
       if ($null -eq $text) { $text=[Text.Encoding]::Default.GetString($bytes,0,$count) }
     }
     $text=$text.Trim([char]0xFEFF).Replace([string][char]0,'')
-    $text=[regex]::Replace($text,'(?i)(?:[a-z]:\\|\\\\)[^\r\n"<>|]*','[local path]')
+    $text=[regex]::Replace($text,'(?i)(?:[a-z]:[\\/]|\\\\)[^\r\n"<>|]*','[local path]')
     $text=[regex]::Replace($text,'(?i)\b(?:Bearer\s+\S+|(?:api[-_]?key|token|password|secret)\s*[:=]\s*\S+)','[secret hidden]')
     if ($text.Length -gt 1800) { $text=$text.Substring($text.Length-1800) }
     return $text
