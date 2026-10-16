@@ -2,6 +2,7 @@ import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import SubtitleProcessingStatus from './SubtitleProcessingStatus'
+import SubtitleModelGuide from './SubtitleModelGuide'
 import { SubtitleStartGuidance, SubtitlePrivacyGuidance } from './SubtitleGuidance'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
@@ -175,6 +176,7 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
         <label className="space-y-1 text-xs text-zinc-400">
           <span>음성 인식 모델</span>
           <select
+            aria-label="음성 인식 모델"
             value={model}
             onChange={(event) => setModel(event.target.value)}
             disabled={disabled || busy}
@@ -191,6 +193,7 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
         <label className="space-y-1 text-xs text-zinc-400">
           <span>영상 언어</span>
           <select
+            aria-label="영상 언어"
             value={language}
             onChange={(event) => setLanguage(event.target.value)}
             disabled={disabled || busy}
@@ -210,6 +213,7 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
           : '선택한 모델이 없으면 처음 생성할 때 다운로드합니다. 기본 base부터 짧은 영상으로 확인할 수 있습니다.'}{' '}
         모델 변경은 다음에 시작하는 작업에 적용됩니다.
       </p>
+      <SubtitleModelGuide model={model} language={language} />
       <label className="flex items-center gap-2 text-xs text-zinc-200">
         <input
           type="checkbox"
