@@ -8,12 +8,20 @@ const { execFileSync } = require('node:child_process')
 const { _electron: electron } = require('playwright')
 
 const root = path.resolve(__dirname, '..')
-const appCode = fs.readFileSync(path.join(root, 'out/main/index.js'), 'utf8')
+const executablePath = process.argv[2] ? path.resolve(process.argv[2]) : undefined
+const appCode = executablePath
+  ? require('@electron/asar')
+      .extractFile(
+        path.join(path.dirname(executablePath), 'resources/app.asar'),
+        path.join('out', 'main', 'index.js'),
+      )
+      .toString('utf8')
+  : fs.readFileSync(path.join(root, 'out/main/index.js'), 'utf8')
 assert.ok(
   ['DVM_USER_DATA_DIR', 'DVM_SMOKE_TEST', 'library:importFolders'].every((value) =>
     appCode.includes(value),
   ),
-  'Build the isolated application with multi-folder support first',
+  'Refusing to launch an application without isolated smoke and multi-folder support',
 )
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'dvm-library-usability-smoke-'))
 const userData = path.join(temporary, 'user-data')
@@ -21,8 +29,11 @@ const folders = [path.join(temporary, 'first'), path.join(temporary, 'second')]
 const nested = path.join(folders[0], 'nested')
 const disconnected = path.join(temporary, 'second-disconnected')
 const output = path.join(root, 'test-results')
-const reportPath = path.join(output, 'library-usability-electron.json')
-const screenshotPath = path.join(output, 'library-usability-electron.png')
+const reportPath = path.join(
+  output,
+  `library-usability-${executablePath ? 'packaged' : 'electron'}.json`,
+)
+const screenshotPath = reportPath.replace(/\.json$/, '.png')
 const files = folders.map((folder, index) => path.join(folder, `synthetic-${index + 1}.mp4`))
 const expectedVersion = require(path.join(root, 'package.json')).version
 const passed = []
@@ -31,6 +42,7 @@ let application
 let page
 let failure
 let runtime
+let abRepeat
 let sourcesUnchanged = false
 let cleaned = false
 
@@ -84,6 +96,180 @@ async function expectSelected(id) {
   )
 }
 
+async function checkAbRepeat(card, libraryId, nextVideo) {
+  await card.dblclick()
+  await poll(
+    () =>
+      page.evaluate(() => {
+        const video = document.querySelector('video')
+        return !!video && video.readyState >= 2 && video.duration > 5
+      }),
+    'real library media decoding for A-B repeat',
+  )
+  const media = page.locator('video')
+  const controls = page.getByRole('group', { name: 'A-B 구간 반복', exact: true })
+  const seekPaused = async (time) => {
+    await media.evaluate((video) => video.pause())
+    const slider = page.getByRole('slider', { name: '재생 위치', exact: true })
+    await slider.fill(String(time))
+    await slider.blur()
+    await poll(
+      () =>
+        media.evaluate(
+          (video, target) =>
+            video.paused && !video.seeking && Math.abs(video.currentTime - target) < 0.03,
+          time,
+        ),
+      `paused media seek to ${time}`,
+    )
+  }
+  const setRange = async () => {
+    await seekPaused(1)
+    await controls.getByRole('button', { name: 'A 시작점 설정', exact: true }).click()
+    await seekPaused(1.5)
+    await controls.getByRole('button', { name: 'B 끝점 설정', exact: true }).click()
+  }
+  await setRange()
+  await seekPaused(1)
+  await page.getByRole('combobox', { name: '재생 배속 선택', exact: true }).selectOption('0.25')
+  await poll(() => media.evaluate((video) => video.playbackRate === 0.25), '0.25x repeat rate')
+  await controls.getByRole('button', { name: '반복 켜기', exact: true }).click()
+  assert.equal(await media.evaluate((video) => video.paused), true)
+  await media.evaluate((video) => {
+    const trace = { wraps: [], samples: 0, peak: video.currentTime, started: performance.now() }
+    // Observe the decoded media clock and its real seek events; never dispatch timeupdate events.
+    const timer = setInterval(() => {
+      if (!video.paused && !video.seeking) {
+        trace.samples++
+        trace.peak = Math.max(trace.peak, video.currentTime)
+      }
+    }, 25)
+    const onSeek = () => {
+      if (!video.paused && Math.abs(video.currentTime - 1) < 0.03) {
+        trace.wraps.push({
+          target: video.currentTime,
+          peak: trace.peak,
+          wallSeconds: (performance.now() - trace.started) / 1000,
+        })
+        trace.peak = video.currentTime
+      }
+    }
+    video.addEventListener('seeking', onSeek)
+    window.librarySmokeRepeat = trace
+    window.librarySmokeRepeatCleanup = () => {
+      clearInterval(timer)
+      video.removeEventListener('seeking', onSeek)
+    }
+  })
+  await page.getByRole('button', { name: '재생', exact: true }).click()
+  await poll(
+    () => page.evaluate(() => window.librarySmokeRepeat.wraps.length >= 3),
+    'three decoded A-B passes at 0.25x',
+    20000,
+  )
+  await page.getByRole('button', { name: '일시정지', exact: true }).click()
+  const observed = await page.evaluate(() => ({
+    wraps: window.librarySmokeRepeat.wraps.slice(),
+    samples: window.librarySmokeRepeat.samples,
+    rate: document.querySelector('video').playbackRate,
+  }))
+  assert.equal(observed.rate, 0.25)
+  assert.ok(observed.samples > 100, 'Repeat must observe advancing decoded media')
+  assert.ok(
+    observed.wraps.every((wrap) => Math.abs(wrap.target - 1) < 0.03 && wrap.peak >= 1.4),
+    'Each loop must advance toward B before seeking back to A',
+  )
+  assert.ok(
+    observed.wraps
+      .slice(0, 3)
+      .every((wrap, index, wraps) =>
+        index ? wrap.wallSeconds - wraps[index - 1].wallSeconds > 1.3 : wrap.wallSeconds > 1.3,
+      ),
+    'Half a media second at 0.25x must not collapse into rapid seek events',
+  )
+  await seekPaused(3)
+  const paused = await media.evaluate(async (video) => {
+    const before = { time: video.currentTime, wraps: window.librarySmokeRepeat.wraps.length }
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    return {
+      before,
+      after: { time: video.currentTime, wraps: window.librarySmokeRepeat.wraps.length },
+      paused: video.paused,
+    }
+  })
+  assert.equal(paused.paused, true)
+  assert.deepEqual(
+    paused.after,
+    paused.before,
+    'Paused seeking outside A-B must remain at its target',
+  )
+  await page.getByRole('button', { name: '재생', exact: true }).click()
+  await poll(
+    () =>
+      media.evaluate((video) => !video.paused && video.currentTime >= 1 && video.currentTime < 1.6),
+    'resuming outside A-B returns to the active range',
+  )
+  await controls.getByRole('button', { name: '반복 끄기', exact: true }).click()
+  const disabledWraps = await page.evaluate(() => window.librarySmokeRepeat.wraps.length)
+  await page.getByRole('combobox', { name: '재생 배속 선택', exact: true }).selectOption('1')
+  await poll(
+    () => media.evaluate((video) => !video.paused && video.currentTime > 2.2),
+    'disabling repeat lets decoded media pass B',
+  )
+  assert.equal(await page.evaluate(() => window.librarySmokeRepeat.wraps.length), disabledWraps)
+  await setRange()
+  await controls.getByRole('button', { name: '반복 켜기', exact: true }).click()
+  await page.evaluate(() => window.librarySmokeRepeatCleanup())
+  // Change the real router's video ID while retaining the player route; IPC and media stay unmocked.
+  await page.evaluate(
+    ({ libraryId, videoId }) => {
+      window.location.hash = `#/player/${libraryId}/${videoId}`
+    },
+    { libraryId, videoId: nextVideo.id },
+  )
+  await poll(
+    () =>
+      media.evaluate(
+        (video, filePath) =>
+          video.readyState >= 2 &&
+          !!video.currentSrc &&
+          new URL(video.currentSrc).searchParams.get('path') === filePath,
+        nextVideo.filePath,
+      ),
+    'the next video decodes through real library IPC',
+  )
+  await poll(
+    async () =>
+      (await controls.getByRole('button', { name: 'A 시작점 설정', exact: true }).innerText()) ===
+        'A --:--' &&
+      (await controls.getByRole('button', { name: 'B 끝점 설정', exact: true }).innerText()) ===
+        'B --:--' &&
+      (await controls
+        .getByRole('button', { name: '반복 켜기', exact: true })
+        .getAttribute('aria-pressed')) === 'false',
+    'changing the real video resets both A-B points and repeat state',
+  )
+  await media.evaluate((video) => video.pause())
+  abRepeat = {
+    range: { start: 1, end: 1.5 },
+    rate: observed.rate,
+    completedPasses: observed.wraps.length,
+    wraps: observed.wraps,
+    mediaSamples: observed.samples,
+    pausedSeekingPreserved: true,
+    disabledPlaybackPassedB: true,
+    videoChangeReset: true,
+  }
+  await page.evaluate(() => {
+    window.location.hash = '#/'
+  })
+  await expectSelected(libraryId)
+  await card.waitFor({ state: 'visible' })
+  passed.push(
+    'real library playback completes three decoded A-B passes at 0.25x; paused seeking stays put, disable passes B, and changing video resets the range',
+  )
+}
+
 async function main() {
   for (const folder of [...folders, nested, output]) fs.mkdirSync(folder, { recursive: true })
   for (const [index, file] of files.entries()) {
@@ -98,9 +284,9 @@ async function main() {
         '-f',
         'lavfi',
         '-i',
-        `testsrc2=s=320x180:r=${index ? 24 : 12}:d=2`,
+        `testsrc2=s=320x180:r=${index ? 24 : 12}:d=6`,
         '-t',
-        '2',
+        '6',
         '-an',
         '-c:v',
         'libx264',
@@ -124,7 +310,12 @@ async function main() {
   }
   for (const name of ['ELECTRON_RUN_AS_NODE', 'ELECTRON_RENDERER_URL', 'VITE_MOCK_IPC'])
     delete env[name]
-  application = await electron.launch({ args: ['.'], cwd: root, env, timeout: 60000 })
+  application = await electron.launch({
+    ...(executablePath ? { executablePath, args: [] } : { args: ['.'] }),
+    cwd: root,
+    env,
+    timeout: 60000,
+  })
   const actual = await application.evaluate(({ app, BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0]
     win.setSize(1440, 960)
@@ -135,6 +326,7 @@ async function main() {
       pid: process.pid,
       version: app.getVersion(),
       userData: app.getPath('userData'),
+      hidden: !win.isVisible(),
       sandbox: preferences.sandbox,
       contextIsolation: preferences.contextIsolation,
       nodeIntegration: preferences.nodeIntegration,
@@ -147,6 +339,7 @@ async function main() {
   )
   insideFixture(actual.userData)
   assert.equal(actual.version, expectedVersion)
+  assert.equal(actual.hidden, true)
   assert.equal(actual.sandbox, true)
   assert.equal(actual.contextIsolation, true)
   assert.equal(actual.nodeIntegration, false)
@@ -268,7 +461,12 @@ async function main() {
   )
   await page.getByRole('tab', { name: '하이라이트', exact: true }).click()
   // Capture only synthetic titles and the empty highlights view; file locations are not visible.
-  await page.screenshot({ path: screenshotPath })
+  const screenshot = await application.evaluate(async ({ BrowserWindow }) => {
+    const image = await BrowserWindow.getAllWindows()[0].webContents.capturePage()
+    return image.isEmpty() ? null : image.toPNG().toString('base64')
+  })
+  assert.ok(screenshot, 'Hidden window must provide a rendered screenshot')
+  fs.writeFileSync(screenshotPath, Buffer.from(screenshot, 'base64'))
   passed.push(
     'actual renderer shows probed FPS/resolution/codec before playback and separates information, highlights and generation tabs',
   )
@@ -297,6 +495,8 @@ async function main() {
   passed.push(
     'real saved-library dropdown switches both ways without restart, clears selection and isolates each video list',
   )
+
+  await checkAbRepeat(firstCard, combined.id, secondCombined)
 
   const beforeFailure = (await invoke('videos', 'search', combined.id, {})).videos
     .map((video) => ({ id: video.id, memo: video.memo, title: video.title }))
@@ -364,8 +564,10 @@ main()
     const report = {
       completedAt: new Date().toISOString(),
       ok: !failure,
+      packaged: !!executablePath,
       passed,
       runtime,
+      abRepeat,
       sourcesUnchanged,
       cleaned,
       rendererErrors,

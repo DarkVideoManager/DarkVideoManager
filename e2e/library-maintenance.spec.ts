@@ -13,6 +13,7 @@ type MaintenanceWindow = Window & { maintenanceHarness: Harness }
 
 async function prepare(page: Page, open = true) {
   await page.goto('/')
+  await page.waitForFunction(() => Boolean(window.api?.maintenance))
   await page.evaluate(() => {
     const state: Harness = {
       previewCalls: [],

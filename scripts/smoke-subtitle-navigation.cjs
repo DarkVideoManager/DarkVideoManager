@@ -133,9 +133,12 @@ async function main() {
     assert.match(text, /00:00:04\.375/)
 
     await page.reload()
-    await page.getByText('Subtitle navigation smoke', { exact: true }).waitFor()
-    await page.getByRole('button', { name: '열기', exact: true }).click()
-    await page.getByText('subtitle-navigation.mp4', { exact: true }).first().dblclick()
+    const main = page.getByRole('main')
+    await main.getByText('Subtitle navigation smoke', { exact: true }).waitFor()
+    await main.getByRole('button', { name: '열기', exact: true }).click()
+    await page
+      .getByRole('button', { name: 'subtitle-navigation.mp4 영상 카드', exact: true })
+      .dblclick()
     await waitUntil(() => {
       const video = document.querySelector('video')
       return !!video && video.readyState >= 2 && video.videoWidth === 640 && video.duration > 11

@@ -10,13 +10,27 @@ const iconv = require('iconv-lite')
 const { _electron: electron } = require('playwright')
 
 const root = path.resolve(__dirname, '..')
-const appCode = fs.readFileSync(path.join(root, 'out/main/index.js'), 'utf8')
-assert.ok(['DVM_USER_DATA_DIR', 'DVM_SMOKE_TEST'].every((part) => appCode.includes(part)))
+const expectedVersion = require(path.join(root, 'package.json')).version
+const executablePath = process.argv[2] ? path.resolve(process.argv[2]) : undefined
+const appCode = executablePath
+  ? require('@electron/asar')
+      .extractFile(
+        path.join(path.dirname(executablePath), 'resources/app.asar'),
+        path.join('out', 'main', 'index.js'),
+      )
+      .toString('utf8')
+  : fs.readFileSync(path.join(root, 'out/main/index.js'), 'utf8')
+assert.ok(
+  ['DVM_USER_DATA_DIR', 'DVM_SMOKE_TEST'].every((part) => appCode.includes(part)),
+  'Refusing to launch an application without isolated smoke support',
+)
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'dvm-existing-srt-smoke-'))
 const media = path.join(temporary, 'media')
 const offline = path.join(temporary, 'offline-media')
 const userData = path.join(temporary, 'user-data')
 const output = path.join(root, 'test-results')
+const reportPath = path.join(output, `existing-srt-${executablePath ? 'packaged-' : ''}smoke.json`)
+const screenshotPath = reportPath.replace(/\.json$/, '.png')
 fs.mkdirSync(media)
 fs.mkdirSync(output, { recursive: true })
 function assertTemporary(file) {
@@ -71,12 +85,18 @@ async function main() {
   }
   for (const name of ['ELECTRON_RUN_AS_NODE', 'ELECTRON_RENDERER_URL', 'VITE_MOCK_IPC'])
     delete env[name]
-  const app = await electron.launch({ args: ['.'], cwd: root, env, timeout: 60_000 })
+  const app = await electron.launch({
+    ...(executablePath ? { executablePath, args: [] } : { args: ['.'] }),
+    cwd: root,
+    env,
+    timeout: 60_000,
+  })
   try {
     assert.equal(
       path.resolve(await app.evaluate(({ app }) => app.getPath('userData'))).toLowerCase(),
       path.resolve(userData).toLowerCase(),
     )
+    assert.equal(await app.evaluate(({ app }) => app.getVersion()), expectedVersion)
     const page = await app.firstWindow({ timeout: 30_000 })
     page.on('pageerror', (error) => rendererErrors.push(error.message))
     await app.evaluate(({ BrowserWindow }) => {
@@ -194,12 +214,15 @@ async function main() {
     passed.push(
       'real player selects Japanese sidecar, renders its cue and seeks decoded video; source hashes unchanged',
     )
-    await page.screenshot({ path: path.join(output, 'existing-srt-smoke.png') })
-    const report = { ok: true, passed, rendererErrors }
-    fs.writeFileSync(
-      path.join(output, 'existing-srt-smoke.json'),
-      JSON.stringify(report, null, 2) + '\n',
-    )
+    await page.screenshot({ path: screenshotPath })
+    const report = {
+      ok: true,
+      packaged: !!executablePath,
+      version: expectedVersion,
+      passed,
+      rendererErrors,
+    }
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n')
     console.log(JSON.stringify(report, null, 2))
   } finally {
     await app.close()
