@@ -162,12 +162,13 @@ async function main() {
     passed.push('offline directory retains its previously indexed track snapshot')
 
     await page.reload()
-    await page.getByText('Existing SRT smoke', { exact: true }).waitFor()
-    await page.getByRole('button', { name: '열기', exact: true }).click()
-    const title = page.getByText('sample.mp4', { exact: true }).first()
-    await title.click()
+    const main = page.getByRole('main')
+    await main.getByText('Existing SRT smoke', { exact: true }).waitFor()
+    await main.getByRole('button', { name: '열기', exact: true }).click()
+    const videoCard = page.getByRole('button', { name: 'sample.mp4 영상 카드', exact: true })
+    await videoCard.click()
     await page.getByRole('region', { name: '대표 썸네일 선택', exact: true }).waitFor()
-    await title.dblclick()
+    await videoCard.dblclick()
     await poll(
       () => page.evaluate(() => document.querySelector('video')?.readyState >= 2),
       'decoded video',
