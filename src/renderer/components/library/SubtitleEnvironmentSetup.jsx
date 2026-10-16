@@ -67,7 +67,7 @@ export default function SubtitleEnvironmentSetup() {
   }, [active, setup?.stepStartedAt])
   const currentComponent = setup?.components.find((item) => item.id === setup.currentComponent)
   const stepStartedAt = Date.parse(setup?.stepStartedAt || '')
-  const lastUpdate = Date.parse(updatedAt || '')
+  const lastUpdate = Date.parse(setup?.lastProgressAt || updatedAt || '')
   const waitingForUpdate = active && Number.isFinite(lastUpdate) && now - lastUpdate >= 120_000
   const busy = action.isPending || active
   const error = action.error || status.error
@@ -139,8 +139,23 @@ export default function SubtitleEnvironmentSetup() {
       {waitingForUpdate && (
         <p className="text-xs leading-relaxed text-amber-200">
           {elapsedLabel(now - lastUpdate)} 동안 새 진행 안내가 없습니다. 권한 승인 창과 인터넷
-          연결을 확인해 주세요. Windows 설치 중에는 앱을 종료해도 설치가 계속될 수 있습니다.
+          연결을 확인해 주세요. 단계 경과와 마지막 출력을 확인하고, Windows 설치 중에는 강제로
+          중단하지 마세요. 앱을 종료해도 설치가 계속될 수 있습니다.
         </p>
+      )}
+      {!!setup?.previousDiagnostics?.length && (
+        <details className="rounded border border-zinc-700 px-3 py-2 text-xs text-zinc-400">
+          <summary className="cursor-pointer text-zinc-300">이전 설치 진단 (최근 3회)</summary>
+          <ul aria-label="이전 설치 진단" className="mt-2 space-y-2">
+            {setup.previousDiagnostics.map((diagnostic, index) => (
+              <li key={`${diagnostic.at}-${index}`} className="whitespace-pre-wrap break-words">
+                <time dateTime={diagnostic.at}>{new Date(diagnostic.at).toLocaleString()}</time>
+                {'\n'}
+                {diagnostic.message}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {!!setup?.components.length && (
         <ul aria-label="자막 환경 준비 상태" className="grid gap-2 sm:grid-cols-2">

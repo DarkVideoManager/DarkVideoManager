@@ -5,6 +5,7 @@ import type { SubtitleSetupComponent, SubtitleSetupStatus } from '@shared/types'
 import { getSubtitleEngineInfo, runSubtitleCommand, toWslPath } from './SubtitleRuntime'
 import { listSubtitleQueue } from './SubtitleGenerationService'
 import { setSubtitleEnvironmentInstalling } from './SubtitleEnvironmentLock'
+import { subtitleSetupDiagnostic } from './SubtitleSetupDiagnostics'
 import {
   ensureSubtitleWslUser,
   checkSubtitleWslReady,
@@ -20,7 +21,10 @@ interface SetupDependencies {
   preflightWsl?: (signal: AbortSignal) => Promise<string | void>
   native: (install: boolean, signal: AbortSignal, emit: EventHandler) => Promise<void>
   wslReady: (signal: AbortSignal) => Promise<boolean>
-  installWsl: (progress: (message: string) => void, signal: AbortSignal) => Promise<boolean>
+  installWsl: (
+    progress: (message: string, heartbeat?: boolean) => void,
+    signal: AbortSignal,
+  ) => Promise<boolean>
   preparePython: (signal: AbortSignal) => Promise<void>
   environment: (install: boolean, signal: AbortSignal, emit: EventHandler) => Promise<void>
   verify: () => Promise<{ available: boolean; message: string }>
@@ -62,6 +66,12 @@ export class SubtitleSetupController {
     if (this.active) return this.snapshot()
     if (install) this.dependencies.canInstall()
     const controller = new AbortController()
+    const previousDiagnostics = [...(this.status.previousDiagnostics ?? [])]
+    if (this.status.phase === 'failed' || this.status.phase === 'restart-required')
+      previousDiagnostics.push({
+        at: this.status.updatedAt,
+        message: subtitleSetupDiagnostic(this.status.message),
+      })
     this.status = {
       phase: install ? 'installing' : 'checking',
       message: install
@@ -70,6 +80,7 @@ export class SubtitleSetupController {
       components: components(),
       updatedAt: new Date().toISOString(),
       canCancel: true,
+      previousDiagnostics: previousDiagnostics.slice(-3),
     }
     const operation = { controller, done: Promise.resolve() }
     this.active = operation
@@ -100,8 +111,9 @@ export class SubtitleSetupController {
     await this.active?.done
   }
 
-  private publish(): void {
+  private publish(progress = true): void {
     this.status.updatedAt = new Date().toISOString()
+    if (progress) this.status.lastProgressAt = this.status.updatedAt
     this.dependencies.changed?.(this.snapshot())
   }
 
@@ -109,15 +121,19 @@ export class SubtitleSetupController {
     id: ComponentId,
     state: SubtitleSetupComponent['state'],
     message?: string,
+    heartbeat = false,
   ): void {
     this.trackComponent(id, state)
-    Object.assign(this.status.components.find((item) => item.id === id)!, {
-      state,
-      message,
-      percent: undefined,
-    })
+    Object.assign(
+      this.status.components.find((item) => item.id === id)!,
+      {
+        state,
+        message,
+        percent: undefined,
+      },
+    )
     if (message) this.status.message = message
-    this.publish()
+    this.publish(!heartbeat)
   }
 
   private trackComponent(id: ComponentId, state: SubtitleSetupComponent['state']): void {
@@ -144,6 +160,7 @@ export class SubtitleSetupController {
       !['checking', 'missing', 'installing', 'ready', 'failed'].includes(String(data.state))
     )
       throw new Error('설치 도구의 상태 정보가 올바르지 않습니다.')
+    const previous = { state: item.state, message: item.message, percent: item.percent }
     this.trackComponent(item.id, data.state as SubtitleSetupComponent['state'])
     item.state = data.state as SubtitleSetupComponent['state']
     item.message = typeof data.message === 'string' ? data.message.slice(0, 1200) : undefined
@@ -152,7 +169,11 @@ export class SubtitleSetupController {
         ? Math.max(0, Math.min(100, data.percent))
         : undefined
     if (item.message) this.status.message = item.message
-    this.publish()
+    this.publish(
+      previous.state !== item.state ||
+        previous.message !== item.message ||
+        previous.percent !== item.percent,
+    )
   }
 
   private async run(install: boolean, signal: AbortSignal): Promise<void> {
@@ -181,7 +202,7 @@ export class SubtitleSetupController {
           'Windows 권한 승인 창을 확인해 주세요. Windows 환경 설치가 끝날 때까지 중단할 수 없습니다.',
         )
         const needsRestart = await this.dependencies.installWsl(
-          (message) => this.component('wsl', 'installing', message),
+          (message, heartbeat) => this.component('wsl', 'installing', message, heartbeat),
           signal,
         )
         this.status.canCancel = true

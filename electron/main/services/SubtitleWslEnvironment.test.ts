@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { subtitleInstallOutputReader } from './SubtitleInstallOutput'
 
 const state = vi.hoisted(() => ({ userData: '' }))
 const prerequisites = vi.hoisted(() => ({
@@ -354,6 +355,32 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
     expect(capture).toHaveBeenCalledOnce()
   })
 
+  it('marks unchanged polling as heartbeats and newly received output as progress', async () => {
+    vi.useFakeTimers()
+    const record = pendingRecord({ installerPid: 445, installerStart: '639010000000000002' })
+    const controller = new AbortController()
+    const progress = vi.fn()
+    const capture = vi.fn<WslCapture>().mockResolvedValue(result('DVM_INSTALL_RUNNING'))
+    const operation = installSubtitleWsl(capture, progress, controller.signal)
+    const failure = expect(operation).rejects.toThrow('stop monitoring')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(progress.mock.calls[0][1]).toBe(false)
+    expect(progress.mock.calls.at(-1)?.[1]).toBe(true)
+    writeFileSync(
+      installFile(),
+      JSON.stringify({ ...record, diagnostics: '한국어 다운로드 준비 완료' }),
+    )
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(progress.mock.calls.at(-1)).toEqual([
+      expect.stringContaining('한국어 다운로드 준비 완료'),
+      false,
+    ])
+    controller.abort(new Error('stop monitoring'))
+    await vi.advanceTimersByTimeAsync(0)
+    await failure
+    expect(hasSubtitleWslInstall()).toBe(true)
+  })
+
   it('rejects invalid process identities without interpolating them into a command', async () => {
     pendingRecord({ helperStart: "1'; Start-Process anything" })
     const capture = vi.fn<WslCapture>()
@@ -404,7 +431,7 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
             start[0],
             launchFailure
               ? "  throw [InvalidOperationException]::new('Elevation cancelled',[ComponentModel.Win32Exception]::new(1223))"
-              : `  $installer=Start-Process -FilePath "$PSHOME\\powershell.exe" -ArgumentList @('-NoProfile','-NonInteractive','-Command','Start-Sleep -Milliseconds 300; exit ${code}') -WindowStyle Hidden -PassThru ${operation === 'distribution' ? '-RedirectStandardOutput $outputPath -RedirectStandardError $errorPath' : ''}`,
+              : `  $installer=Start-Process -FilePath "$PSHOME\\powershell.exe" -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand','${Buffer.from(`[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); [Console]::WriteLine('한국어 설치 실패 HCS_E_HYPERV_NOT_INSTALLED'); Start-Sleep -Milliseconds 300; exit ${code}`, 'utf16le').toString('base64')}') -WindowStyle Hidden -PassThru ${operation === 'distribution' ? '-RedirectStandardOutput $outputPath -RedirectStandardError $errorPath' : ''}`,
           )
           if (denyHandle) {
             const handle = 'try { $null=$installer.Handle } catch {}'
@@ -466,6 +493,10 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
       } else {
         expect(await installSubtitleWsl(capture)).toBe(code === 3010)
         expect(hasSubtitleWslInstall()).toBe(code === 3010)
+        if (operation === 'distribution' && code === 3010) {
+          const receipt = JSON.parse(readFileSync(installFile(), 'utf8'))
+          expect(receipt.diagnostics).toContain('한국어 설치 실패 HCS_E_HYPERV_NOT_INSTALLED')
+        }
       }
       if (!launchFailure) expect(readFileSync(installFile() + '.waited', 'utf8')).toBe('done')
       for (const [index, source] of [actualHelper, actualLauncher].entries()) {
@@ -480,6 +511,74 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
       }
     },
     40_000,
+  )
+})
+
+describe.runIf(process.platform === 'win32')('bounded Windows installer output decoding', () => {
+  it.each(['utf8', 'utf8-tail', 'utf16le', 'utf16le-bom', 'cp949', 'cp949-short'])(
+    'reads Korean %s diagnostics without default Get-Content decoding',
+    async (encoding) => {
+      const path = join(state.userData, 'native-output.txt')
+      const iconv = await import('iconv-lite')
+      const message =
+        encoding === 'cp949-short'
+          ? '가 HCS_E_HYPERV_NOT_INSTALLED'
+          : '한국어 설치 실패 HCS_E_HYPERV_NOT_INSTALLED'
+      let prefix = ''
+      if (encoding === 'utf8-tail') {
+        let spaces = 16000
+        if ((30000 + spaces + Buffer.byteLength(message) - 16384) % 3 === 0) spaces++
+        prefix = '가'.repeat(10000) + ' '.repeat(spaces)
+      }
+      const bytes = encoding.startsWith('cp949')
+        ? iconv.default.encode(message, 'cp949')
+        : Buffer.from(
+            prefix + (encoding === 'utf16le-bom' ? '\uFEFF' : '') + message,
+            encoding.startsWith('utf8') ? 'utf8' : 'utf16le',
+          )
+      writeFileSync(path, bytes)
+      // Encoding.Default is the host's ANSI page; force the Korean fallback for a portable test.
+      const reader = subtitleInstallOutputReader.replace(
+        '[Text.Encoding]::Default.GetString',
+        '[Text.Encoding]::GetEncoding(949).GetString',
+      )
+      const script = `$ProgressPreference='SilentlyContinue'\n${reader}\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Write-Output (Read-InstallOutput '${path.replaceAll("'", "''")}')`
+      expect(
+        execFileSync(
+          'powershell.exe',
+          ['-NoProfile', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+          { windowsHide: true, encoding: 'utf8', timeout: 15_000 },
+        ).trim(),
+      ).toBe(message)
+    },
+  )
+
+  it.each([
+    {
+      text: 'D:/private/video.mp4 실패 HCS_E_HYPERV_NOT_INSTALLED (0x80370102) token=private-token',
+      keepCodes: true,
+    },
+    { text: 'token=0x80370102\n인증 정보를 확인해 주세요.', keepCodes: false },
+  ])(
+    'redacts native output without losing codes or restoring credentials ($keepCodes)',
+    ({ text, keepCodes }) => {
+      const path = join(state.userData, 'native-output.txt')
+      writeFileSync(path, text, 'utf8')
+      const script = `$ProgressPreference='SilentlyContinue'\n${subtitleInstallOutputReader}\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Write-Output (Read-InstallOutput '${path.replaceAll("'", "''")}')`
+      const output = execFileSync(
+        'powershell.exe',
+        ['-NoProfile', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+        { windowsHide: true, encoding: 'utf8', timeout: 15_000 },
+      ).trim()
+      expect(output).not.toMatch(/private|video\.mp4/)
+      if (keepCodes) {
+        expect(output).toContain('HCS_E_HYPERV_NOT_INSTALLED')
+        expect(output).toContain('0x80370102')
+      } else {
+        expect(output).not.toContain('0x80370102')
+        expect(output).toContain('인증 정보를 확인해 주세요.')
+      }
+    },
   )
 })
 
