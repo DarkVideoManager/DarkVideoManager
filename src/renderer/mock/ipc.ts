@@ -556,7 +556,8 @@ let mockPrivacy = { ...DEFAULT_PRIVACY_SETTINGS }
 const mockDiscovery = new Map<string, DiscoveryPreferences>()
 export const mockApi: WindowApi = {
   temporaryPlayback: {
-    openDroppedFiles: async () => err('브라우저 미리보기에서는 탐색기 파일을 열 수 없습니다. 데스크톱 앱을 사용해 주세요.'),
+    openDroppedFiles: async () =>
+      err('브라우저 미리보기에서는 탐색기 파일을 열 수 없습니다. 데스크톱 앱을 사용해 주세요.'),
     close: async () => ok(null),
   },
   privacy: {
@@ -707,11 +708,13 @@ export const mockApi: WindowApi = {
       return library ? ok(library) : err('라이브러리를 찾을 수 없습니다')
     },
     create: async (name, folderPath) => {
+      const folderPaths = typeof folderPath === 'string' ? [folderPath] : folderPath
       const library: Library = {
         id: `mock-${libraries.length + 1}`,
         name,
         dbPath: `/mock/${libraries.length + 1}.db`,
-        folderPath,
+        folderPath: folderPaths[0],
+        folderPaths,
         createdAt: MOCK_NOW,
       }
       libraries.push(library)
@@ -727,7 +730,9 @@ export const mockApi: WindowApi = {
       return ok(null)
     },
     selectFolder: async () => ok('/mock/videos'),
+    selectFolders: async () => ok(['/mock/videos']),
     importFolder: mockImport,
+    importFolders: mockImport,
     selectFiles: async () => ok(['/mock/videos/sample.mp4']),
     importFiles: mockImport,
     refresh: async () => ok({ added: 0, skipped: 1, removed: 0, errors: [] }),

@@ -22,6 +22,19 @@ import {
 } from './result'
 
 describe('IPC contracts', () => {
+  it('keeps single folder creation compatible and bounds multi-folder operations', () => {
+    const create = IPC_SCHEMAS[IPC.LIBRARY.CREATE]
+    expect(create.safeParse(['Videos', 'D:/']).success).toBe(true)
+    expect(create.safeParse(['Videos', ['D:/', 'E:/Movies']]).success).toBe(true)
+    const folders = IPC_SCHEMAS[IPC.LIBRARY.IMPORT_FOLDERS]
+    expect(folders.safeParse(['lib', ['D:/', 'E:/Movies']]).success).toBe(true)
+    for (const paths of [[], [''], Array(101).fill('D:/'), 'D:/', undefined]) {
+      expect(folders.safeParse(['lib', paths]).success).toBe(false)
+      if (Array.isArray(paths)) expect(create.safeParse(['Videos', paths]).success).toBe(false)
+    }
+    expect(IPC_SCHEMAS[IPC.LIBRARY.SELECT_FOLDERS].safeParse([]).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.LIBRARY.SELECT_FOLDERS].safeParse(['D:/']).success).toBe(false)
+  })
   it('bounds requested playback rates and accepts native speed reports independently', () => {
     for (const rate of [0.25, 1, 1.5, 4]) {
       expect(

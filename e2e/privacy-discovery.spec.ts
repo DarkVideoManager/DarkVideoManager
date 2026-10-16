@@ -34,6 +34,8 @@ test('private thumbnails reveal only on hover or keyboard focus and hide again o
     .filter({ has: page.getByText('Sample video', { exact: true }) })
   await expect(card.getByText('썸네일 가림', { exact: true })).toBeVisible()
   await expect(card.locator('img')).toHaveCount(0)
+  // Library selection can mount this card under the pointer; test a real pointer entry.
+  await page.getByRole('link', { name: '추천 탐색', exact: true }).hover()
   await card.getByLabel('대체 썸네일', { exact: true }).hover({ position: { x: 100, y: 85 } })
   await expect(card.locator('img')).toHaveCount(1)
   await page.getByRole('link', { name: '추천 탐색', exact: true }).hover()

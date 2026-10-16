@@ -251,7 +251,7 @@ test('view shortcuts preserve Tab navigation and do not intercept text entry or 
   await page.keyboard.press('Tab')
   await expect(infoButton(page)).not.toBeFocused()
   await expect(infoButton(page)).toHaveAttribute('aria-expanded', 'false')
-  await page.getByRole('button', { name: '정보', exact: true }).click()
+  await page.getByRole('tab', { name: '정보', exact: true }).click()
   const memo = page.locator('textarea').first()
   await memo.fill('')
   await memo.press('i')
@@ -355,7 +355,7 @@ test('player view and percentage shortcuts do not act through a removal confirma
   page,
 }) => {
   await openPlayer(page)
-  await page.getByRole('button', { name: '정보', exact: true }).click()
+  await page.getByRole('tab', { name: '정보', exact: true }).click()
   await page.getByRole('button', { name: '목록에서만 제거', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
@@ -407,7 +407,7 @@ test('refreshing metadata for the same loaded video preserves the current decode
     })
   })
   // This existing UI action invalidates video metadata without replacing its playback source.
-  await page.getByRole('button', { name: '정보', exact: true }).click()
+  await page.getByRole('tab', { name: '정보', exact: true }).click()
   await page.getByRole('button', { name: '다시 생성', exact: true }).click()
   await expect(infoRegion(page)).toContainText('metadata-refreshed.mp4')
   await expect(infoRegion(page)).toContainText(/9\s*Mbps/i)

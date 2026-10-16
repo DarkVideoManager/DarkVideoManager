@@ -150,7 +150,7 @@ async function main() {
         video.pause()
       })
     })
-    await page.getByRole('button', { name: '자막 탐색', exact: true }).click()
+    await page.getByRole('tab', { name: '자막 탐색', exact: true }).click()
     const navigator = page.getByRole('region', { name: '자막 탐색', exact: true })
     const destination = navigator.getByRole('button', { name: /찾아갈 장면/ })
     await destination.waitFor()

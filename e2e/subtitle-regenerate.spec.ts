@@ -124,6 +124,7 @@ async function prepareExistingSubtitles(page: Page) {
     .getByRole('button')
     .filter({ has: page.getByText('Sample video', { exact: true }) })
     .click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   return page.getByRole('region', { name: 'AI 자막 생성', exact: true })
 }
 
@@ -314,6 +315,7 @@ test('queues regeneration behind another video and preserves files when waiting 
     .getByRole('button')
     .filter({ has: page.getByText('Sample video', { exact: true }) })
     .click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   await panel.getByRole('button', { name: '기존 자막 삭제 후 재생성', exact: true }).click()
   await panel
     .getByRole('dialog')
@@ -357,6 +359,7 @@ test('blocks destructive regeneration while the existing job is paused or active
     .getByRole('button')
     .filter({ has: page.getByText('Sample video', { exact: true }) })
     .click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   await expect(panel.getByRole('status')).toContainText('일시정지됨')
   await expect(
     panel.getByRole('button', { name: '기존 자막 삭제 후 재생성', exact: true }),

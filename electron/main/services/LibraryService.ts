@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { basename, dirname, extname, join, resolve, relative, isAbsolute } from 'path'
 import { stat, lstat, readdir } from 'node:fs/promises'
+import { statSync } from 'node:fs'
 import type { Database } from 'better-sqlite3'
 import { BrowserWindow } from 'electron'
 import { Library, ImportProgress, ImportResult, ProbeData } from '@shared/types'
@@ -11,6 +12,8 @@ import { runMigrations } from '../db/migrator'
 import { VideoRepository } from '../db/repositories/VideoRepository'
 import { ThumbnailRepository } from '../db/repositories/ThumbnailRepository'
 import { finishPlaybackSessions } from './PlaybackService'
+import { closeManagedNativePlayers } from './NativePlayerService'
+import { closeAllMpvSessions } from './MpvSessionService.js'
 import { FsScanner } from './FsScanner'
 import {
   matchSidecarSubtitle,
@@ -44,21 +47,35 @@ export function openLibrary(libraryId: string): Library {
   const lib = config.libraries.find((l) => l.id === libraryId)
   if (!lib) throw new Error(`라이브러리를 찾을 수 없습니다: ${libraryId}`)
 
-  const db = openDatabase(libraryId, lib.dbPath)
-  runMigrations(db, lib.dbPath)
-
-  updateConfig((c) => ({
-    ...c,
-    libraries: c.libraries.map((l) =>
-      l.id === libraryId ? { ...l, lastOpenedAt: new Date().toISOString() } : l,
-    ),
-    lastActiveLibraryId: libraryId,
-  }))
+  const alreadyOpen = Boolean(getDatabase(libraryId))
+  try {
+    const db = openDatabase(libraryId, lib.dbPath)
+    runMigrations(db, lib.dbPath)
+    if (config.lastActiveLibraryId !== libraryId) stopPreviousLibraryPlayback()
+    updateConfig((c) => ({
+      ...c,
+      libraries: c.libraries.map((l) =>
+        l.id === libraryId ? { ...l, lastOpenedAt: new Date().toISOString() } : l,
+      ),
+      lastActiveLibraryId: libraryId,
+    }))
+  } catch (error) {
+    if (!alreadyOpen) closeDatabase(libraryId)
+    throw error
+  }
 
   return lib
 }
 
-export function createLibrary(name: string, folderPath: string): Library {
+export function createLibrary(name: string, folders: string | string[]): Library {
+  const requested = typeof folders === 'string' ? [folders] : folders
+  if (!requested.length || requested.length > 100 || requested.some((folder) => !folder.trim()))
+    throw new Error('라이브러리에 등록할 폴더를 1~100개 선택해 주세요.')
+  // Validate every root before touching the registry or creating a database.
+  for (const folder of requested)
+    if (!statSync(folder).isDirectory()) throw new Error('폴더 또는 드라이브를 선택해 주세요.')
+  const folderPaths = uniqueRoots(requested)
+  const folderPath = folderPaths[0]
   // Establish a recoverable registry before creating the first database.
   saveConfig(loadConfig())
   const id = randomUUID()
@@ -69,13 +86,14 @@ export function createLibrary(name: string, folderPath: string): Library {
     name,
     dbPath,
     folderPath,
-    folderPaths: [folderPath],
+    folderPaths,
     createdAt: new Date().toISOString(),
   }
 
   try {
     const db = openDatabase(id, dbPath)
     runMigrations(db, dbPath)
+    stopPreviousLibraryPlayback()
     updateConfig((c) => ({
       ...c,
       libraries: [...c.libraries, lib],
@@ -88,6 +106,14 @@ export function createLibrary(name: string, folderPath: string): Library {
 
   log.info({ id, name, folderPath }, '라이브러리 생성')
   return lib
+}
+
+function stopPreviousLibraryPlayback(): void {
+  // Stop managed processes first: failure must leave mpv's tracking and the
+  // selected library intact so the user can recover from the visible error.
+  closeManagedNativePlayers()
+  closeAllMpvSessions()
+  finishPlaybackSessions()
 }
 
 export function closeLibrary(libraryId: string): void {
@@ -423,7 +449,7 @@ async function markMissingVideos(
 
 async function runFolderWork(
   libraryId: string,
-  requestedFolder: string | undefined,
+  requestedFolders: string[] | undefined,
   win: BrowserWindow,
   signal: AbortSignal,
 ): Promise<ImportResult> {
@@ -432,17 +458,24 @@ async function runFolderWork(
   const library = loadConfig().libraries.find((entry) => entry.id === libraryId)
   if (!library) throw new Error('라이브러리를 찾을 수 없습니다')
   const roots = uniqueRoots(
-    requestedFolder ? [requestedFolder] : [library.folderPath, ...(library.folderPaths ?? [])],
+    requestedFolders ?? [library.folderPath, ...(library.folderPaths ?? [])],
   )
   const emit = createEmitter(libraryId, win)
   const result: ImportResult = { added: 0, skipped: 0, removed: 0, errors: [] }
   let files: string[] = []
   emit({ phase: 'scanning', total: 0, current: 0, errors: [] })
   try {
+    // Selection is one operation: an inaccessible root must not register or import
+    // earlier roots. Scanning all roots also completes before any database write.
+    for (const folder of requestedFolders ?? roots) {
+      if (!(await stat(folder)).isDirectory())
+        throw new Error('폴더 또는 드라이브를 선택해 주세요.')
+      throwIfWorkCancelled(signal)
+    }
     const snapshot = await scanFolders(roots, signal, emit)
     files = snapshot.files
     throwIfWorkCancelled(signal)
-    if (requestedFolder)
+    if (requestedFolders)
       updateConfig((config) => ({
         ...config,
         libraries: config.libraries.map((entry) =>
@@ -452,7 +485,7 @@ async function runFolderWork(
                 folderPaths: uniqueRoots([
                   entry.folderPath,
                   ...(entry.folderPaths ?? []),
-                  requestedFolder,
+                  ...requestedFolders,
                 ]),
               }
             : entry,
@@ -461,7 +494,7 @@ async function runFolderWork(
     await importScannedFiles(db, files, snapshot.sidecars, signal, result, emit)
     await generateLibraryThumbnails(libraryId, files, db, win, signal, result, emit)
     throwIfWorkCancelled(signal)
-    if (!requestedFolder) await markMissingVideos(db, roots, files, signal, result)
+    if (!requestedFolders) await markMissingVideos(db, roots, files, signal, result)
     emit({ phase: 'done', total: files.length, current: files.length, errors: result.errors })
     return result
   } catch (error) {
@@ -475,7 +508,7 @@ async function runFolderWork(
       })
       return result
     }
-    if (requestedFolder) throw error
+    if (requestedFolders) throw error
     result.errors.push('폴더에 접근할 수 없어 새로고침을 중단했습니다: ' + (error as Error).message)
     emit({
       phase: 'done',
@@ -492,7 +525,20 @@ export function importFolder(
   folderPath: string,
   win: BrowserWindow,
 ): Promise<ImportResult> {
-  return withLibraryWork(libraryId, (signal) => runFolderWork(libraryId, folderPath, win, signal))
+  return importFolders(libraryId, [folderPath], win)
+}
+export function importFolders(
+  libraryId: string,
+  folderPaths: string[],
+  win: BrowserWindow,
+): Promise<ImportResult> {
+  if (
+    !folderPaths.length ||
+    folderPaths.length > 100 ||
+    folderPaths.some((folder) => !folder.trim())
+  )
+    return Promise.reject(new Error('가져올 폴더를 1~100개 선택해 주세요.'))
+  return withLibraryWork(libraryId, (signal) => runFolderWork(libraryId, folderPaths, win, signal))
 }
 export function refreshLibrary(libraryId: string, win: BrowserWindow): Promise<ImportResult> {
   return withLibraryWork(libraryId, (signal) => runFolderWork(libraryId, undefined, win, signal))
