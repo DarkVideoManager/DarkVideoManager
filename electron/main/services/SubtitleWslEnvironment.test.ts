@@ -469,7 +469,8 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
         const output = execFileSync(command, args, {
           windowsHide: true,
           encoding: 'utf8',
-          timeout: 15_000,
+          // A cold CI worker starts the launcher, helper and harmless child here.
+          timeout: 30_000,
         })
         return result(output)
       })
@@ -510,7 +511,7 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
         )
       }
     },
-    40_000,
+    90_000,
   )
 })
 
