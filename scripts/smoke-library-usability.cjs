@@ -461,7 +461,12 @@ async function main() {
   )
   await page.getByRole('tab', { name: '하이라이트', exact: true }).click()
   // Capture only synthetic titles and the empty highlights view; file locations are not visible.
-  await page.screenshot({ path: screenshotPath })
+  const screenshot = await application.evaluate(async ({ BrowserWindow }) => {
+    const image = await BrowserWindow.getAllWindows()[0].webContents.capturePage()
+    return image.isEmpty() ? null : image.toPNG().toString('base64')
+  })
+  assert.ok(screenshot, 'Hidden window must provide a rendered screenshot')
+  fs.writeFileSync(screenshotPath, Buffer.from(screenshot, 'base64'))
   passed.push(
     'actual renderer shows probed FPS/resolution/codec before playback and separates information, highlights and generation tabs',
   )
