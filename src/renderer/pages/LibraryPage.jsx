@@ -331,7 +331,7 @@ ${error.message}`)
     if (!confirmed) return
     deleteLibrary.mutate(library.id, {
       onSuccess: () => {
-        if (library.id !== activeLibraryId) return
+        if (library.id !== useLibraryStore.getState().activeLibraryId) return
         activateLibrary(null)
       },
       onError: (error) =>

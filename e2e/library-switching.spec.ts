@@ -10,6 +10,8 @@ interface LibraryHarness {
   refreshCalls: string[]
   releaseRefresh?: () => void
   importCalls: { libraryId: string; folders: string[] }[]
+  listCalls?: number
+  releaseList?: () => void
 }
 type LibraryWindow = Window & { libraryHarness: LibraryHarness }
 
@@ -76,6 +78,93 @@ test('switches libraries without restarting and restores each library search and
   expect(
     await page.evaluate(() => (window as unknown as LibraryWindow).libraryHarness.closeCalls),
   ).toEqual([])
+})
+
+async function delayFirstDeletionRefresh(page: Page) {
+  await page.getByRole('link', { name: '라이브러리 관리', exact: true }).click()
+  await page.evaluate(() => {
+    const state = (window as unknown as LibraryWindow).libraryHarness
+    const originalList = window.api.library.list
+    state.listCalls = 0
+    window.api.library.list = async () => {
+      state.listCalls = (state.listCalls ?? 0) + 1
+      if (state.listCalls === 1)
+        await new Promise<void>((resolve) => {
+          state.releaseList = resolve
+        })
+      return originalList()
+    }
+  })
+  page.on('dialog', (dialog) => void dialog.accept())
+}
+
+test('preserves the newly opened library when the previous library deletion finishes later', async ({
+  page,
+}) => {
+  await prepare(page)
+  await delayFirstDeletionRefresh(page)
+  const firstLibrary = page
+    .locator('p')
+    .filter({ hasText: /^Demo Library$/ })
+    .locator('..')
+  await firstLibrary.getByRole('button', { name: '삭제', exact: true }).click()
+  await page.waitForFunction(() =>
+    Boolean((window as unknown as LibraryWindow).libraryHarness.releaseList),
+  )
+  const picker = page.getByRole('combobox', { name: '라이브러리 전환' })
+  await picker.selectOption({ label: 'Second Library' })
+  await expect(picker).toHaveValue('mock-2')
+  await expect(page.getByRole('textbox', { name: '영상 검색' })).toBeVisible()
+  await page.evaluate(() => (window as unknown as LibraryWindow).libraryHarness.releaseList!())
+  await expect(picker).toHaveValue('mock-2')
+  await expect(picker.getByRole('option', { name: 'Demo Library', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '라이브러리 선택' })).toHaveCount(0)
+})
+
+test('clears the deleted current library if opening another library fails', async ({ page }) => {
+  await prepare(page)
+  await delayFirstDeletionRefresh(page)
+  await page.evaluate(() => {
+    ;(window as unknown as LibraryWindow).libraryHarness.failOpen = true
+  })
+  await page
+    .locator('p')
+    .filter({ hasText: /^Demo Library$/ })
+    .locator('..')
+    .getByRole('button', { name: '삭제', exact: true })
+    .click()
+  await page.waitForFunction(() =>
+    Boolean((window as unknown as LibraryWindow).libraryHarness.releaseList),
+  )
+  const picker = page.getByRole('combobox', { name: '라이브러리 전환' })
+  await picker.selectOption({ label: 'Second Library' })
+  await expect(page.getByRole('alert')).toContainText('테스트: 드라이브에 접근할 수 없습니다.')
+  await page.evaluate(() => (window as unknown as LibraryWindow).libraryHarness.releaseList!())
+  await expect(picker).toHaveValue('')
+  await expect(page.getByRole('heading', { name: '라이브러리 선택' })).toBeVisible()
+  await expect(picker.getByRole('option', { name: 'Demo Library', exact: true })).toHaveCount(0)
+})
+
+test('preserves the current library when a different saved library is deleted', async ({
+  page,
+}) => {
+  await prepare(page)
+  await delayFirstDeletionRefresh(page)
+  await page
+    .locator('p')
+    .filter({ hasText: /^Second Library$/ })
+    .locator('..')
+    .getByRole('button', { name: '삭제', exact: true })
+    .click()
+  await page.waitForFunction(() =>
+    Boolean((window as unknown as LibraryWindow).libraryHarness.releaseList),
+  )
+  await page.evaluate(() => (window as unknown as LibraryWindow).libraryHarness.releaseList!())
+  const picker = page.getByRole('combobox', { name: '라이브러리 전환' })
+  await expect(page.locator('p').filter({ hasText: /^Second Library$/ })).toHaveCount(0)
+  await expect(picker).toHaveValue('mock-library')
+  await page.getByRole('button', { name: '현재 라이브러리로 돌아가기' }).click()
+  await expect(page.getByText('Sample video', { exact: true })).toBeVisible()
 })
 
 test('keeps the current library visible on open failure and prevents overlapping transitions', async ({
