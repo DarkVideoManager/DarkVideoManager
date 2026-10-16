@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('explains GPU support beside model selection without starting setup', async ({ page }) => {
   await page.goto('/')
+  await page.waitForFunction(() => Boolean(window.api?.subtitles))
   await page.evaluate(() => {
     ;(window as Window & { gpuHelpSetupStarts?: number }).gpuHelpSetupStarts = 0
     window.api.subtitles.startSetup = async () => {
@@ -16,16 +17,19 @@ test('explains GPU support beside model selection without starting setup', async
     .click()
   const panel = page.getByRole('region', { name: 'AI 자막 생성', exact: true })
   await expect(panel.getByLabel('음성 인식 모델')).toBeVisible()
-  await panel.getByText('AMD·NVIDIA 지원 · 실제 처리 장치 확인', { exact: true }).click()
+  const guidance = panel
+    .locator('details')
+    .filter({ hasText: 'AMD·NVIDIA 지원 · 실제 처리 장치 확인' })
+  await guidance.locator('summary').click()
   await expect(
-    panel.getByText('음성 인식을 위해 CUDA나 ROCm을 따로 설치할 필요는 없습니다.', {
+    guidance.getByText('음성 인식을 위해 CUDA나 ROCm을 따로 설치할 필요는 없습니다.', {
       exact: false,
     }),
   ).toBeVisible()
-  await expect(panel.getByText('CPU로 자동 전환하지', { exact: false })).toBeVisible()
-  await expect(panel.getByText('HCS_E_HYPERV_NOT_INSTALLED', { exact: false })).toBeVisible()
+  await expect(guidance.getByText('CPU로 자동 전환하지', { exact: false })).toBeVisible()
+  await expect(guidance.getByText('HCS_E_HYPERV_NOT_INSTALLED', { exact: false })).toBeVisible()
   await expect(
-    panel.getByText('그래픽카드 제품명과 다를 수 있습니다.', { exact: false }),
+    guidance.getByText('그래픽카드 제품명과 다를 수 있습니다.', { exact: false }),
   ).toBeVisible()
   expect(
     await page.evaluate(
@@ -40,11 +44,14 @@ test('distinguishes translation device conditions on a narrow screen', async ({ 
   await page.goto('/')
   await page.getByRole('link', { name: '자막 생성', exact: true }).click()
   const panel = page.getByRole('region', { name: '한국어 번역 설정', exact: true })
-  await panel.getByText('AMD·NVIDIA 지원 · 실제 처리 장치 확인', { exact: true }).click()
+  const guidance = panel
+    .locator('details')
+    .filter({ hasText: 'AMD·NVIDIA 지원 · 실제 처리 장치 확인' })
+  await guidance.locator('summary').click()
   await expect(
-    panel.getByText('번역 장치는 Ollama 로그에서 별도로 확인하세요.', { exact: false }),
+    guidance.getByText('번역 장치는 Ollama 로그에서 별도로 확인하세요.', { exact: false }),
   ).toBeVisible()
-  await expect(panel.getByText('음성 인식 · Windows / Vulkan', { exact: true })).toBeVisible()
+  await expect(guidance.getByText('음성 인식 · Windows / Vulkan', { exact: true })).toBeVisible()
   await expect(panel.getByRole('button', { name: '번역 설정 저장', exact: true })).toBeVisible()
   await page.screenshot({
     path: test.info().outputPath('gpu-translation-guidance-mobile.png'),
