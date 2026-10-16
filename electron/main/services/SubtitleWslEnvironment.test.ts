@@ -480,26 +480,34 @@ describe('subtitle WSL installation on a fresh Windows account', () => {
 })
 
 describe.runIf(process.platform === 'win32')('bounded Windows installer output decoding', () => {
-  it.each(['utf8', 'utf16le', 'utf16le-bom', 'cp949'])(
+  it.each(['utf8', 'utf8-tail', 'utf16le', 'utf16le-bom', 'cp949', 'cp949-short'])(
     'reads Korean %s diagnostics without default Get-Content decoding',
     async (encoding) => {
       const path = join(state.userData, 'native-output.txt')
       const iconv = await import('iconv-lite')
-      const message = '한국어 설치 실패 HCS_E_HYPERV_NOT_INSTALLED'
-      const bytes =
-        encoding === 'cp949'
-          ? iconv.default.encode(message, 'cp949')
-          : Buffer.from(
-              (encoding === 'utf16le-bom' ? '\uFEFF' : '') + message,
-              encoding === 'utf8' ? 'utf8' : 'utf16le',
-            )
+      const message =
+        encoding === 'cp949-short'
+          ? '가 HCS_E_HYPERV_NOT_INSTALLED'
+          : '한국어 설치 실패 HCS_E_HYPERV_NOT_INSTALLED'
+      let prefix = ''
+      if (encoding === 'utf8-tail') {
+        let spaces = 16000
+        if ((30000 + spaces + Buffer.byteLength(message) - 16384) % 3 === 0) spaces++
+        prefix = '가'.repeat(10000) + ' '.repeat(spaces)
+      }
+      const bytes = encoding.startsWith('cp949')
+        ? iconv.default.encode(message, 'cp949')
+        : Buffer.from(
+            prefix + (encoding === 'utf16le-bom' ? '\uFEFF' : '') + message,
+            encoding.startsWith('utf8') ? 'utf8' : 'utf16le',
+          )
       writeFileSync(path, bytes)
       // Encoding.Default is the host's ANSI page; force the Korean fallback for a portable test.
       const reader = subtitleInstallOutputReader.replace(
         '[Text.Encoding]::Default.GetString',
         '[Text.Encoding]::GetEncoding(949).GetString',
       )
-      const script = `${reader}\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Write-Output (Read-InstallOutput '${path.replaceAll("'", "''")}')`
+      const script = `$ProgressPreference='SilentlyContinue'\n${reader}\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Write-Output (Read-InstallOutput '${path.replaceAll("'", "''")}')`
       expect(
         execFileSync(
           'powershell.exe',
@@ -507,6 +515,34 @@ describe.runIf(process.platform === 'win32')('bounded Windows installer output d
           { windowsHide: true, encoding: 'utf8', timeout: 15_000 },
         ).trim(),
       ).toBe(message)
+    },
+  )
+
+  it.each([
+    {
+      text: 'D:/private/video.mp4 실패 HCS_E_HYPERV_NOT_INSTALLED (0x80370102) token=private-token',
+      keepCodes: true,
+    },
+    { text: 'token=0x80370102\n인증 정보를 확인해 주세요.', keepCodes: false },
+  ])(
+    'redacts native output without losing codes or restoring credentials ($keepCodes)',
+    ({ text, keepCodes }) => {
+      const path = join(state.userData, 'native-output.txt')
+      writeFileSync(path, text, 'utf8')
+      const script = `$ProgressPreference='SilentlyContinue'\n${subtitleInstallOutputReader}\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Write-Output (Read-InstallOutput '${path.replaceAll("'", "''")}')`
+      const output = execFileSync(
+        'powershell.exe',
+        ['-NoProfile', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+        { windowsHide: true, encoding: 'utf8', timeout: 15_000 },
+      ).trim()
+      expect(output).not.toMatch(/private|video\.mp4/)
+      if (keepCodes) {
+        expect(output).toContain('HCS_E_HYPERV_NOT_INSTALLED')
+        expect(output).toContain('0x80370102')
+      } else {
+        expect(output).not.toContain('0x80370102')
+        expect(output).toContain('인증 정보를 확인해 주세요.')
+      }
     },
   )
 })

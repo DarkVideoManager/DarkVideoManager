@@ -25,14 +25,19 @@ function Read-InstallOutput([string]$path) {
       $utf8=[Text.UTF8Encoding]::new($false,$true)
       $text=$null
       # A bounded tail can start inside a UTF-8 character.
-      for ($skip=0; $skip -le [Math]::Min(3,$count); $skip++) {
+      # At the file start, invalid UTF-8 must use the ANSI fallback without dropping text.
+      $maxSkip=0
+      if ($offset -gt 0) { $maxSkip=[Math]::Min(3,$count) }
+      for ($skip=0; $skip -le $maxSkip; $skip++) {
         try { $text=$utf8.GetString($bytes,$skip,$count-$skip); break } catch {}
       }
       if ($null -eq $text) { $text=[Text.Encoding]::Default.GetString($bytes,0,$count) }
     }
     $text=$text.Trim([char]0xFEFF).Replace([string][char]0,'')
-    $text=[regex]::Replace($text,'(?i)(?:[a-z]:[\\/]|\\\\)[^\r\n"<>|]*','[local path]')
     $text=[regex]::Replace($text,'(?i)\b(?:Bearer\s+\S+|(?:api[-_]?key|token|password|secret)\s*[:=]\s*\S+)','[secret hidden]')
+    $codes=@([regex]::Matches($text,'(?i)\b(?:HCS_E_[A-Z0-9_]+|WSL_E_[A-Z0-9_]+|E_ACCESSDENIED|0x[0-9a-f]{8})\b') | ForEach-Object { $_.Value } | Select-Object -Unique -Last 8)
+    $text=[regex]::Replace($text,'(?i)(?:[a-z]:[\\/]|\\\\)[^\r\n"<>|]*','[local path]')
+    foreach ($code in $codes) { if (!$text.Contains($code)) { $text+=[Environment]::NewLine+$code } }
     if ($text.Length -gt 1800) { $text=$text.Substring($text.Length-1800) }
     return $text
   } catch { return '' }
