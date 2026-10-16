@@ -539,7 +539,7 @@ describe('IPC dispatch', () => {
     )
   })
 
-  it('discovers sidecar subtitles when a video has no indexed subtitles', async () => {
+  it('rediscovers sidecars even when a video already has indexed tracks', async () => {
     const subtitles = [
       { id: 'sub', videoId: 'video', filePath: 'movie.srt', type: 'srt', isEmbedded: false },
     ]
@@ -554,6 +554,41 @@ describe('IPC dispatch', () => {
     mocks.syncSidecarSubtitlesForVideo.mockClear()
     mocks.subtitleRows.mockReturnValue(subtitles)
     await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')
+    expect(mocks.syncSidecarSubtitlesForVideo).toHaveBeenCalledWith(mocks.db, 'video', 'movie.mp4')
+    mocks.syncSidecarSubtitlesForVideo.mockReturnValue([])
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: [],
+    })
+  })
+
+  it('keeps stored tracks when a subtitle directory is inaccessible and reports an initial scan failure', async () => {
+    const subtitles = [
+      { id: 'sub', videoId: 'video', filePath: 'movie.srt', type: 'srt', isEmbedded: false },
+    ]
+    mocks.subtitleRows.mockReturnValue(subtitles)
+    mocks.videoRow.mockReturnValue({ id: 'video', filePath: 'movie.mp4' })
+    mocks.syncSidecarSubtitlesForVideo.mockImplementation(() => {
+      throw new Error('Drive offline')
+    })
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: subtitles,
+    })
+    mocks.subtitleRows.mockReturnValue([])
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: false,
+      error: 'Drive offline',
+    })
+  })
+
+  it('does not rediscover subtitles for a deliberately removed video', async () => {
+    mocks.subtitleRows.mockReturnValue([])
+    mocks.videoRow.mockReturnValue({ id: 'video', filePath: 'movie.mp4', removalMode: 'keep' })
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: [],
+    })
     expect(mocks.syncSidecarSubtitlesForVideo).not.toHaveBeenCalled()
   })
 
