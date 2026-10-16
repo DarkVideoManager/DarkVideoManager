@@ -555,6 +555,10 @@ function mockStats(libraryId: string, requestedDays = 30): LibraryStats {
 let mockPrivacy = { ...DEFAULT_PRIVACY_SETTINGS }
 const mockDiscovery = new Map<string, DiscoveryPreferences>()
 export const mockApi: WindowApi = {
+  temporaryPlayback: {
+    openDroppedFiles: async () => err('브라우저 미리보기에서는 탐색기 파일을 열 수 없습니다. 데스크톱 앱을 사용해 주세요.'),
+    close: async () => ok(null),
+  },
   privacy: {
     get: async () => ok({ ...mockPrivacy }),
     save: async (settings) => {

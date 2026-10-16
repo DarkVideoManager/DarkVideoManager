@@ -3,6 +3,7 @@ import { IPC, IPC_SCHEMAS, INVOKE_CHANNELS, EVENT_CHANNELS } from '../../src/sha
 import type { WindowApi } from './index'
 
 const bridge = vi.hoisted(() => ({
+  getPathForFile: vi.fn().mockReturnValue('C:/한글 영상.mp4'),
   exposeInMainWorld: vi.fn(),
   invoke: vi.fn().mockResolvedValue({ ok: true, value: null }),
   on: vi.fn(),
@@ -10,6 +11,7 @@ const bridge = vi.hoisted(() => ({
 }))
 
 vi.mock('electron', () => ({
+  webUtils: { getPathForFile: bridge.getPathForFile },
   contextBridge: { exposeInMainWorld: bridge.exposeInMainWorld },
   ipcRenderer: { invoke: bridge.invoke, on: bridge.on, removeListener: bridge.removeListener },
 }))
@@ -30,9 +32,25 @@ afterAll(() => {
 })
 
 describe('preload bridge', () => {
+  it('accepts one native File path only and never accepts a supplied path or URL', async () => {
+    bridge.invoke.mockClear()
+    expect((await api.temporaryPlayback.openDroppedFiles([])).ok).toBe(false)
+    expect((await api.temporaryPlayback.openDroppedFiles([{} as File, {} as File])).ok).toBe(false)
+    bridge.getPathForFile.mockReturnValueOnce('')
+    expect((await api.temporaryPlayback.openDroppedFiles([{} as File])).ok).toBe(false)
+    bridge.getPathForFile.mockImplementationOnce(() => {
+      throw new Error('not a File')
+    })
+    expect(
+      (await api.temporaryPlayback.openDroppedFiles(['C:/video.mp4' as unknown as File])).ok,
+    ).toBe(false)
+    expect(bridge.invoke).not.toHaveBeenCalled()
+  })
   it('exposes all deployed operations with arguments accepted by the main process contracts', async () => {
     bridge.invoke.mockClear()
     await Promise.all([
+      api.temporaryPlayback.openDroppedFiles([{} as File]),
+      api.temporaryPlayback.close('dd270470-14f8-45ed-af6e-f3b2da7c86d3'),
       api.privacy.get(),
       api.privacy.save({
         maskThumbnails: false,
@@ -155,11 +173,7 @@ describe('preload bridge', () => {
         channel,
       ).toBe(true)
     }
-    expect(bridge.invoke).toHaveBeenCalledWith(
-      IPC.VIDEOS.REVEAL_SOURCE,
-      'lib',
-      'video',
-    )
+    expect(bridge.invoke).toHaveBeenCalledWith(IPC.VIDEOS.REVEAL_SOURCE, 'lib', 'video')
     expect(bridge.invoke).toHaveBeenCalledWith(
       IPC.THUMBNAILS.ENSURE_FOR_VIDEO,
       'lib',

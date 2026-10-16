@@ -79,6 +79,8 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     throw new Error('network must not be used')
   })
   const calls = [
+    () => api.temporaryPlayback.openDroppedFiles([]),
+    () => api.temporaryPlayback.close('dd270470-14f8-45ed-af6e-f3b2da7c86d3'),
     () => api.library.selectFiles(),
     () => api.library.importFiles(libraryId, ['C:\\private.mp4']),
     () => api.videos.revealSource(libraryId, videoId),
