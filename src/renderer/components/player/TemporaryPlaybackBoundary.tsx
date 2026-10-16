@@ -2,6 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 type Media = { token: string; fileName: string; sourceUrl: string }
 
+function releaseTemporaryPlayback(token: string) {
+  // Navigation/destruction also revokes the main-process grant if IPC is already detached.
+  void Promise.resolve()
+    .then(() => window.api.temporaryPlayback.close(token))
+    .catch(() => undefined)
+}
+
 /** Standalone playback never receives a library/video ID or calls persistence APIs. */
 export default function TemporaryPlaybackBoundary({ children }: { children: ReactNode }) {
   const [media, setMedia] = useState<Media | null>(null)
@@ -30,7 +37,7 @@ export default function TemporaryPlaybackBoundary({ children }: { children: Reac
       try {
         const result = await window.api.temporaryPlayback.openDroppedFiles(files)
         if (id !== request.current) {
-          if (result.ok) void window.api.temporaryPlayback.close(result.value.token)
+          if (result.ok) releaseTemporaryPlayback(result.value.token)
           return
         }
         if (!result.ok) {
@@ -52,7 +59,7 @@ export default function TemporaryPlaybackBoundary({ children }: { children: Reac
       lifecycleRequest.current++
       window.removeEventListener('dragover', preventFileNavigation)
       window.removeEventListener('drop', drop)
-      if (current.current) void window.api.temporaryPlayback.close(current.current.token)
+      if (current.current) releaseTemporaryPlayback(current.current.token)
     }
   }, [])
 
@@ -60,7 +67,7 @@ export default function TemporaryPlaybackBoundary({ children }: { children: Reac
     request.current++
     setOpening(false)
     video.current?.pause()
-    if (current.current) void window.api.temporaryPlayback.close(current.current.token)
+    if (current.current) releaseTemporaryPlayback(current.current.token)
     current.current = null
     setMedia(null)
     setError(null)

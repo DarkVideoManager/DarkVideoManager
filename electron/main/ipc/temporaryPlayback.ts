@@ -8,9 +8,10 @@ import { closeManagedNativePlayers } from '../services/NativePlayerService'
 export function registerTemporaryPlaybackHandlers(): void {
   const watched = new WeakSet<Electron.WebContents>()
   registerIpcHandler(IPC.TEMPORARY_PLAYBACK.OPEN, (event, filePath) => {
-    const media = openTemporaryPlayback(event.sender.id, filePath)
-    closeAllMpvSessions()
-    closeManagedNativePlayers()
+    const media = openTemporaryPlayback(event.sender.id, filePath, () => {
+      closeAllMpvSessions()
+      closeManagedNativePlayers()
+    })
     if (!watched.has(event.sender)) {
       watched.add(event.sender)
       const owner = event.sender.id

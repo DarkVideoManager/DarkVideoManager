@@ -21,7 +21,11 @@ function localPath(path: string): boolean {
   )
 }
 
-export function openTemporaryPlayback(owner: number, filePath: string): TemporaryPlayback {
+export function openTemporaryPlayback(
+  owner: number,
+  filePath: string,
+  beforeGrant?: () => void,
+): TemporaryPlayback {
   if (!localPath(filePath) || !isVideoFile(filePath))
     throw new Error('로컬 영상 파일 하나를 놓아 주세요. 폴더와 URL은 열 수 없습니다.')
   let canonical: string
@@ -32,6 +36,8 @@ export function openTemporaryPlayback(owner: number, filePath: string): Temporar
   } catch {
     throw new Error('영상 파일을 찾거나 읽을 수 없습니다. 파일 위치를 확인해 주세요.')
   }
+  // Preserve the existing grant if the active player cannot be stopped.
+  beforeGrant?.()
   const token = randomUUID()
   sessions.set(owner, { token, path: canonical })
   return {
