@@ -149,6 +149,8 @@ export const HighlightCreateZ = z
 export const HighlightPatchZ = HighlightCreateZ.partial().strict()
 
 export const IPC_SCHEMAS = {
+  [IPC.TEMPORARY_PLAYBACK.OPEN]: z.tuple([FilePathZ.max(32767)]),
+  [IPC.TEMPORARY_PLAYBACK.CLOSE]: z.tuple([z.string().uuid()]),
   [IPC.PRIVACY.GET]: EmptyArgsZ,
   [IPC.PRIVACY.SAVE]: z.tuple([PrivacySettingsZ]),
   [IPC.PRIVACY.EXIT]: EmptyArgsZ,

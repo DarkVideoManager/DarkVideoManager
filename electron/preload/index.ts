@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC } from '../../src/shared/channels'
 import type {
   Library,
@@ -58,6 +58,23 @@ import type {
 } from '../../src/shared/discovery'
 
 const api = {
+  temporaryPlayback: {
+    openDroppedFiles: async (
+      files: File[],
+    ): Promise<Result<{ token: string; fileName: string; sourceUrl: string }, string>> => {
+      if (!Array.isArray(files) || files.length !== 1)
+        return { ok: false, error: '영상 파일을 한 번에 하나씩 놓아 주세요.' }
+      try {
+        const path = webUtils.getPathForFile(files[0])
+        if (!path) return { ok: false, error: '탐색기의 로컬 영상 파일을 놓아 주세요.' }
+        return ipcRenderer.invoke(IPC.TEMPORARY_PLAYBACK.OPEN, path)
+      } catch {
+        return { ok: false, error: '탐색기의 로컬 영상 파일을 놓아 주세요.' }
+      }
+    },
+    close: (token: string): Promise<Result<null, string>> =>
+      ipcRenderer.invoke(IPC.TEMPORARY_PLAYBACK.CLOSE, token),
+  },
   privacy: {
     get: (): Promise<Result<PrivacySettings, string>> => ipcRenderer.invoke(IPC.PRIVACY.GET),
     save: (settings: PrivacySettings): Promise<Result<PrivacySettings, string>> =>

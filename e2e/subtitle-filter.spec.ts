@@ -51,6 +51,10 @@ test('missing-subtitle filter preserves search and sort across playback, navigat
   await expect(page.getByText('1개 영상', { exact: true })).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('subtitle-filter.png'), fullPage: true })
 
+  // Selecting opens the detail panel and can resize/remount the virtualized card.
+  // Complete that layout change before sending the playback double-click.
+  await videoCard(page).click()
+  await expect(page.getByPlaceholder('이 영상에 대한 메모를 적어보세요...')).toBeVisible()
   await videoCard(page).dblclick()
   await expect(page.locator('video')).toBeVisible()
   await page.getByRole('button', { name: '닫기', exact: true }).click()

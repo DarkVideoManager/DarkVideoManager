@@ -1,3 +1,4 @@
+import { registerTemporaryPlaybackHandlers } from './temporaryPlayback'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC, IPC_SCHEMAS, type InvokeChannel, type InvokeArgs } from '@shared/ipc'
 import { isLibraryWorkBlocked, type LibraryWorkKind } from '../services/LibraryWorkService'
@@ -85,6 +86,7 @@ export function registerIpcHandler<C extends InvokeChannel>(
 }
 
 export function registerAllHandlers(): void {
+  registerTemporaryPlaybackHandlers()
   registerDiscoveryHandlers()
   registerAppHandlers()
   registerDataImportHandlers()
