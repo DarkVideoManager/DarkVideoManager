@@ -1,3 +1,4 @@
+import { isTemporaryMediaAllowed } from '../services/TemporaryPlaybackService'
 import { protocol } from 'electron'
 import { statSync, createReadStream, realpathSync } from 'fs'
 import { relative, isAbsolute, extname } from 'path'
@@ -96,7 +97,9 @@ export function createMediaResponse(
   try {
     const filePath = new URL(request.url).searchParams.get('path')
     if (!filePath) return new Response('Missing path', { status: 400 })
-    if (!authorize(filePath)) return new Response('Forbidden', { status: 403 })
+    const temporary = new URL(request.url).searchParams.get('temporary')
+    if (!(temporary ? isTemporaryMediaAllowed(filePath, temporary) : authorize(filePath)))
+      return new Response('Forbidden', { status: 403 })
     const stat = statSync(filePath)
     if (!stat.isFile()) return new Response('Not a file', { status: 404 })
     const headers: Record<string, string> = {

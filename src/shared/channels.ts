@@ -1,5 +1,6 @@
 // Dependency-free channel names are shared with the sandboxed preload.
 export const IPC = {
+  TEMPORARY_PLAYBACK: { OPEN: 'temporaryPlayback:open', CLOSE: 'temporaryPlayback:close' },
   PRIVACY: { GET: 'privacy:get', SAVE: 'privacy:save', EXIT: 'privacy:exit' },
   DISCOVERY: { QUERY: 'discovery:query', FAVORITE: 'discovery:favorite', TAGS: 'discovery:tags' },
   APP: {
