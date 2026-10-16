@@ -162,6 +162,7 @@ export async function openVideoInNativePlayer(
         options.x,
         options.y,
         webContents,
+        options.playbackRate,
       )
       return player
     }

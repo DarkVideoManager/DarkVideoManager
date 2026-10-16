@@ -53,6 +53,7 @@ export const IPC = {
     GET_PLAYBACK_SOURCE: 'videos:getPlaybackSource',
     GET_NATIVE_PLAYER_INFO: 'videos:getNativePlayerInfo',
     OPEN_IN_NATIVE_PLAYER: 'videos:openInNativePlayer',
+    SET_ACTIVE_PLAYBACK_RATE: 'videos:setActivePlaybackRate',
     SEEK_ACTIVE_PLAYBACK: 'videos:seekActivePlayback',
     UPDATE_META: 'videos:updateMeta',
     DELETE: 'videos:delete',
@@ -111,6 +112,7 @@ export const IPC = {
     THUMBNAIL_READY: 'event:thumbnailReady',
     HIGHLIGHT_CHANGED: 'event:highlightChanged',
     NATIVE_PLAYER_ESCAPE: 'event:nativePlayerEscape',
+    NATIVE_PLAYER_SPEED: 'event:nativePlayerSpeed',
     NATIVE_PLAYER_ACTION: 'event:nativePlayerAction',
   },
 } as const

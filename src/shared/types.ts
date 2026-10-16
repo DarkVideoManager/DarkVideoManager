@@ -337,6 +337,7 @@ export interface NativePlayerInfo {
 }
 
 export interface NativePlayerOptions {
+  playbackRate?: number
   startTimeSec?: number
   width?: number
   height?: number

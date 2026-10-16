@@ -26,6 +26,8 @@ const videosApi: WindowApi['videos'] = {
   getNativePlayerInfo: () => getApi().videos.getNativePlayerInfo(),
   openInNativePlayer: (libraryId, videoId, options) =>
     getApi().videos.openInNativePlayer(libraryId, videoId, options),
+  setActivePlaybackRate: (libraryId, videoId, rate) =>
+    getApi().videos.setActivePlaybackRate(libraryId, videoId, rate),
   seekActivePlayback: (libraryId, videoId, timeSec) =>
     getApi().videos.seekActivePlayback(libraryId, videoId, timeSec),
   updateMeta: (libraryId, videoId, meta) => getApi().videos.updateMeta(libraryId, videoId, meta),

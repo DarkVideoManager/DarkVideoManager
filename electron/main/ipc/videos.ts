@@ -1,3 +1,4 @@
+import { setMpvPlaybackRate } from '../services/MpvSessionService.js'
 import { IPC } from '@shared/ipc'
 import { registerIpcHandler } from './index'
 import { ok, err } from '@shared/result'
@@ -20,6 +21,14 @@ import { revealVideoSource } from '../services/VideoSourceLocationService'
 const log = createLogger('ipc:videos')
 
 export function registerVideoHandlers(): void {
+  registerIpcHandler(
+    IPC.VIDEOS.SET_ACTIVE_PLAYBACK_RATE,
+    async (_event, libraryId, videoId, rate) => {
+      if (!(await setMpvPlaybackRate(libraryId, videoId, rate)))
+        throw new Error('실행 중인 mpv 플레이어를 찾을 수 없습니다.')
+      return ok(rate)
+    },
+  )
   registerIpcHandler(IPC.VIDEOS.METADATA_OPTIONS, (_event, libraryId, removed = false) =>
     ok(getVideoMetadataOptions(libraryId, removed)),
   )
