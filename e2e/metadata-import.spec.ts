@@ -62,6 +62,23 @@ test('requires explicit enabled settings and lookup; key is cleared from the for
   })
 })
 
+test('explains prerequisites and recovery in the import dialog without starting a lookup', async ({
+  page,
+}) => {
+  const dialog = await openImport(page)
+  await page.evaluate(() => {
+    window.api.metadataImport.search = async () => {
+      throw new Error('Unexpected lookup')
+    }
+  })
+  await dialog.getByText('처음 사용하시나요? Stash 준비와 적용 방법', { exact: true }).click()
+  await expect(dialog.getByText(/Stash는 별도로 실행하는/)).toBeVisible()
+  await expect(dialog.getByText(/저장할 수 있는 항목은 제목·메모·태그/)).toBeVisible()
+  await expect(dialog.getByText(/마지막 적용 한 번에만/)).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/stash-guide.png', fullPage: true })
+})
+
 test('edits selected metadata, explicitly adds people to tags, preserves unselected values and can undo', async ({
   page,
 }) => {
