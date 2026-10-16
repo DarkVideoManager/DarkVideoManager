@@ -1972,7 +1972,7 @@ details > p {
   background: #202027;
   border-bottom: 1px solid #38343f;
 }
-.live-demo-heading h1 {
+.live-demo-heading h2 {
   display: block;
   font-size: 15px;
   font-weight: 600;
@@ -2572,5 +2572,47 @@ details > p {
   }
   .credits-main h1 {
     font-size: 30px;
+  }
+}
+
+/* Keep the real Windows download ahead of the optional browser demo. */
+.download-intro {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: start;
+  padding-top: 56px;
+  padding-bottom: 40px;
+}
+.download-intro-copy h1 {
+  font-size: clamp(28px, 3.5vw, 44px);
+  line-height: 1.3;
+  margin: 16px 0;
+}
+.download-intro-copy > p {
+  color: var(--muted, #b4b7be);
+  line-height: 1.8;
+}
+.download-intro-copy .text-button {
+  margin-top: 18px;
+}
+.download-intro-copy .download-source-help {
+  margin-top: 24px;
+  font-size: 14px;
+}
+.download-choice-help {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 10px 0 16px;
+  color: #b4b7be;
+}
+#downloads {
+  scroll-margin-top: 90px;
+}
+@media (max-width: 760px) {
+  .download-intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    padding-top: 28px;
   }
 }
