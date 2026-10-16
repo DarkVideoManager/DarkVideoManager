@@ -10,6 +10,7 @@ export function openInMpv(
   x: number | undefined,
   y: number | undefined,
   webContents: WebContents,
+  playbackRate?: number,
 ): Promise<void>
 export function seekMpvSession(
   libraryId: string,
@@ -17,3 +18,9 @@ export function seekMpvSession(
   timeSec: number,
 ): Promise<boolean>
 export function closeAllMpvSessions(): void
+
+export function setMpvPlaybackRate(
+  libraryId: string,
+  videoId: string,
+  rate: number,
+): Promise<boolean>

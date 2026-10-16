@@ -22,6 +22,29 @@ import {
 } from './result'
 
 describe('IPC contracts', () => {
+  it('bounds requested playback rates and accepts native speed reports independently', () => {
+    for (const rate of [0.25, 1, 1.5, 4]) {
+      expect(
+        IPC_SCHEMAS[IPC.VIDEOS.SET_ACTIVE_PLAYBACK_RATE].safeParse(['lib', 'video', rate]).success,
+      ).toBe(true)
+      expect(
+        IPC_SCHEMAS[IPC.VIDEOS.OPEN_IN_NATIVE_PLAYER].safeParse([
+          'lib',
+          'video',
+          { playbackRate: rate },
+        ]).success,
+      ).toBe(true)
+    }
+    for (const rate of [0, -1, 0.24, 4.01, NaN, Infinity, '1.5']) {
+      expect(
+        IPC_SCHEMAS[IPC.VIDEOS.SET_ACTIVE_PLAYBACK_RATE].safeParse(['lib', 'video', rate]).success,
+      ).toBe(false)
+    }
+    expect(
+      IPC_EVENT_SCHEMAS[IPC.EVENTS.NATIVE_PLAYER_SPEED].safeParse({ videoId: 'video', rate: 5 })
+        .success,
+    ).toBe(true)
+  })
   it('does not accept renderer URLs or account details for the GitHub quick link', () => {
     for (const channel of [IPC.APP.CLAIM_GITHUB_STAR_PROMPT, IPC.APP.OPEN_GITHUB_REPOSITORY]) {
       expect(IPC_SCHEMAS[channel].safeParse([]).success).toBe(true)
@@ -114,7 +137,7 @@ describe('IPC contracts', () => {
 
   it('registers every invoke channel with a positional schema', () => {
     expect(INVOKE_CHANNELS.length).toBeGreaterThanOrEqual(39)
-    expect(EVENT_CHANNELS).toHaveLength(5)
+    expect(EVENT_CHANNELS).toHaveLength(6)
     const { EVENTS, ...invokeGroups } = IPC
     expect(new Set(INVOKE_CHANNELS)).toEqual(
       new Set(Object.values(invokeGroups).flatMap(Object.values)),
