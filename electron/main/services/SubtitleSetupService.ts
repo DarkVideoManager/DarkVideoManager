@@ -5,9 +5,11 @@ import type { SubtitleSetupComponent, SubtitleSetupStatus } from '@shared/types'
 import { getSubtitleEngineInfo, runSubtitleCommand, toWslPath } from './SubtitleRuntime'
 import { listSubtitleQueue } from './SubtitleGenerationService'
 import { setSubtitleEnvironmentInstalling } from './SubtitleEnvironmentLock'
+import { preflightSubtitleWsl } from './SubtitleWslPrerequisites'
 import {
   ensureSubtitleWslUser,
   checkSubtitleWslReady,
+  hasSubtitleWslInstall,
   installSubtitleWsl,
   subtitleWslArgs,
 } from './SubtitleWslEnvironment'
@@ -15,6 +17,7 @@ import {
 type ComponentId = SubtitleSetupComponent['id']
 type EventHandler = (event: unknown) => void
 interface SetupDependencies {
+  preflightWsl?: (signal: AbortSignal) => Promise<string | void>
   native: (install: boolean, signal: AbortSignal, emit: EventHandler) => Promise<void>
   wslReady: (signal: AbortSignal) => Promise<boolean>
   installWsl: (progress: (message: string) => void, signal: AbortSignal) => Promise<boolean>
@@ -154,6 +157,12 @@ export class SubtitleSetupController {
 
   private async run(install: boolean, signal: AbortSignal): Promise<void> {
     try {
+      if (install && this.dependencies.preflightWsl) {
+        this.component('wsl', 'checking', 'Windows 가상화 실행 조건을 먼저 확인하고 있습니다.')
+        const message = await this.dependencies.preflightWsl(signal)
+        signal.throwIfAborted()
+        if (message) this.component('wsl', 'checking', message)
+      }
       this.component(
         'whisper',
         'checking',
@@ -291,6 +300,16 @@ function capture(
 
 const listeners = new Set<() => void>()
 const setup = new SubtitleSetupController({
+  async preflightWsl(signal) {
+    // Reconnect to an existing installer before probing servicing state.
+    if (hasSubtitleWslInstall()) return
+    const result = await preflightSubtitleWsl(capture, signal)
+    if (result.platform === 'unknown' || result.hypervisorPresent === null)
+      return '일부 Windows 가상화 조건을 확인하지 못했습니다. 설치 단계에서 실제 실행을 확인합니다. 문제가 생기면 Windows 기능과 가상화 설정을 점검해 주세요.'
+    if (result.platform === 'disabled')
+      return '가상 머신 플랫폼이 꺼져 있습니다. Windows 환경 설치 단계에서 준비하며 재부팅이 필요할 수 있습니다.'
+    return undefined
+  },
   async native(install, signal, emit) {
     if (process.platform !== 'win32')
       throw new Error('자막 환경 자동 설치는 Windows에서 사용할 수 있습니다.')
