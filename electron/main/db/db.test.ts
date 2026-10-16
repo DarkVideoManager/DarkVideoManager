@@ -155,6 +155,33 @@ describe('repositories', () => {
     )
   })
 
+  it('persists a changed primary thumbnail in the library after reopening the database', () => {
+    temporaryDirectory = mkdtempSync(join(tmpdir(), 'dark-video-manager-thumbnail-'))
+    const dbPath = join(temporaryDirectory, 'library.db')
+    db.close()
+    db = new Database(dbPath)
+    runMigrations(db, dbPath)
+    insertVideo()
+    const repository = new ThumbnailRepository(db)
+    for (const index of [1, 2]) {
+      repository.insert({
+        id: `thumb-${index}`,
+        videoId: 'video-1',
+        filePath: `/thumb-${index}.jpg`,
+        timeSec: index,
+        isPrimary: index === 1,
+      })
+    }
+    repository.setPrimary('thumb-2', 'video-1')
+    db.close()
+    db = new Database(dbPath)
+    expect(new ThumbnailRepository(db).findByVideoId('video-1').map((item) => item.isPrimary)).toEqual([
+      false,
+      true,
+    ])
+    expect(new VideoRepository(db).findById('video-1')?.primaryThumbnailPath).toBe('/thumb-2.jpg')
+  })
+
   it('preserves substring/wildcard matching, removed filters and page hydration', () => {
     const repository = new VideoRepository(db)
     for (const id of ['c', 'a', 'b', 'removed']) {
