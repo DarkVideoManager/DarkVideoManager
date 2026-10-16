@@ -13,6 +13,7 @@ import {
 } from '../services/SubtitleService'
 import { getThumbnailsDir } from '../infra/paths'
 import { createLogger } from '../infra/logger'
+import { isLibraryBusy } from '../services/LibraryWorkService'
 import { join } from 'path'
 import { readFileSync } from 'fs'
 
@@ -40,6 +41,8 @@ export function registerStatsHandlers(): void {
       const db = getDatabase(libraryId)
       if (!db) return err('라이브러리가 열려 있지 않습니다')
       let subtitles = new SubtitleRepository(db).findByVideoId(videoId)
+      // Discovery mutates the index; an active job owns its snapshot until cleanup finishes.
+      if (isLibraryBusy(libraryId)) return ok(subtitles)
       const video = new VideoRepository(db).findById(videoId)
       if (video && !video.removalMode) {
         try {
