@@ -1,8 +1,8 @@
+import { probeWslPrerequisites, requireWslVirtualization } from './SubtitleWslPrerequisites'
 import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { probeWslPrerequisites, requireWslVirtualization } from './SubtitleWslPrerequisites'
 
 export interface WslCommandResult {
   code: number

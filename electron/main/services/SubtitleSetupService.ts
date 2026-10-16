@@ -5,7 +5,6 @@ import type { SubtitleSetupComponent, SubtitleSetupStatus } from '@shared/types'
 import { getSubtitleEngineInfo, runSubtitleCommand, toWslPath } from './SubtitleRuntime'
 import { listSubtitleQueue } from './SubtitleGenerationService'
 import { setSubtitleEnvironmentInstalling } from './SubtitleEnvironmentLock'
-import { preflightSubtitleWsl } from './SubtitleWslPrerequisites'
 import {
   ensureSubtitleWslUser,
   checkSubtitleWslReady,
@@ -13,6 +12,7 @@ import {
   installSubtitleWsl,
   subtitleWslArgs,
 } from './SubtitleWslEnvironment'
+import { preflightSubtitleWsl } from './SubtitleWslPrerequisites'
 
 type ComponentId = SubtitleSetupComponent['id']
 type EventHandler = (event: unknown) => void
