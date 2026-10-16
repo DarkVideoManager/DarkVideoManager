@@ -6,17 +6,18 @@ A local-first video library manager for Windows, built with Electron, React and 
 
 [브라우저 데모](https://dark-video-manager.vercel.app/) · [기능 요청](https://github.com/DarkVideoManager/DarkVideoManager/issues)
 
-## v0.3.0 업데이트
+## v0.3.1 업데이트
 
-**Windows 10/11 x64**: [설치형 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/DarkVideoManager-Setup-0.3.0-x64.exe) · [포터블 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/DarkVideoManager-Portable-0.3.0-x64.exe) · [릴리스와 변경 내역](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.0)
+**Windows 10/11 x64**: [설치형 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.1/DarkVideoManager-Setup-0.3.1-x64.exe) · [포터블 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.1/DarkVideoManager-Portable-0.3.1-x64.exe) · [릴리스와 변경 내역](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.1)
 
-- **라이브러리 정리**: 카테고리·태그 편집과 필터, Stash 후보 확인 후 메타데이터 적용, 파일명 정리와 정확한 중복 후보 확인
-- **재생 편의**: 숫자로 재생 위치 이동, 탐색 간격 설정, 인앱 전체화면·확대와 재생 정보, 자막 작업의 원본 위치 열기
-- **자막과 화면 보호**: GPU 인식 장치 표시, 설치·모델 선택·결과 확인 안내, 로컬 추천, 대체 썸네일과 긴급 탈출
+- **바로 재생과 배속**: 라이브러리 등록 없이 영상 한 개를 앱 창에 놓아 재생하고, 인앱·mpv에서 0.25–4배속과 1배속 복귀를 조절합니다.
+- **대표 썸네일 선택**: 상세 화면에서 자동 생성·직접 캡처 후보 중 대표 이미지를 고르고 저장합니다.
+- **자막 설치 안정성**: 모델을 받기 전 Windows 가상화를 확인하고, 한글 설치 출력·진행 시각·재시도 진단을 개선했습니다.
+- **사용 안내**: Stash 준비·적용, 음성 모델 선택, AMD·NVIDIA 처리 장치 구분과 설치형·포터블 다운로드 경로를 보강했습니다.
 
-[최종 공식 CI](https://github.com/DarkVideoManager/DarkVideoManager/actions/runs/38745766261)에서 앱 단위·통합 테스트 **594개 통과·선택 검사 1개 건너뜀**, 브라우저 E2E **164/164**, 공개·배포 도구 검사 **40/40**을 확인했습니다.
+이번 업데이트의 PR별 검토는 [0.3.1 검토 기록](docs/releases/0.3.1-review.md), 실제 배포 파일의 검사 결과·해시·검증하지 못한 환경은 [0.3.1 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.1/VERIFICATION.md)에서 확인하세요.
 
-별도 패키지 검사에서는 **Radeon RX 9060 XT / Vulkan / base 모델**로 약 12초 영어 합성 영상의 원어 자막 생성을 완료했습니다. 번역·다른 GPU·장시간 영상의 품질을 검증한 결과는 아닙니다. 설치형·포터블 내용 비교, 실제 포터블 실행과 미검증 환경은 [v0.3.0 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md)에 있습니다.
+이전 v0.3.0에서는 **Radeon RX 9060 XT / Vulkan / base 모델**로 약 12초 영어 합성 영상의 원어 자막 생성을 확인했습니다. 이는 이번 버전의 모든 GPU·번역·장시간 영상 검증을 대신하지 않습니다. 이전 결과는 [v0.3.0 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md)에 보존되어 있습니다.
 
 ## 주요 기능
 
@@ -38,11 +39,11 @@ AI 작업 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 
 
 ## 사용자 설치
 
-지원 환경은 **Windows 10/11 x64**입니다. 위 v0.3.0 다운로드에서 `Setup`은 설치 안내를 따라 설치하고, `Portable`은 설치 없이 실행합니다. 이후 버전은 [공식 최신 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 확인할 수 있습니다.
+지원 환경은 **Windows 10/11 x64**입니다. 위 v0.3.1 다운로드에서 `Setup`은 설치 안내를 따라 설치하고, `Portable`은 설치 없이 실행합니다. 이후 버전은 [공식 최신 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 확인할 수 있습니다.
 
 업데이트 전에는 트레이에서도 앱을 완전히 종료하세요. 릴리스의 **Source code** 및 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다. 코드에서 직접 실행하려면 아래 소스 빌드 방법을 따릅니다.
 
-v0.3.0 파일의 SHA-256과 검증 범위는 [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/SHA256SUMS.txt)와 [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md)에서 확인합니다. 다른 버전에는 해당 릴리스의 자료를 사용하세요. **v0.3.0 설치형·포터블은 코드 서명이 없습니다(`NotSigned`).** V3 등 보안 프로그램이 실행을 차단하면 [다운로드 검증·차단 제보 안내](docs/download-verification.md)에 따라 파일 출처, 해시와 탐지 기록을 확인해 주세요. 깨끗한 Windows에서 설치 마법사를 실행하는 검사는 수행하지 않았습니다.
+v0.3.1 파일의 SHA-256과 검증 범위는 [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.1/SHA256SUMS.txt)와 [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.1/VERIFICATION.md)에서 확인합니다. 다른 버전에는 해당 릴리스의 자료를 사용하세요. **설치형·포터블은 코드 서명이 없습니다(`NotSigned`).** V3 등 보안 프로그램이 실행을 차단하면 [다운로드 검증·차단 제보 안내](docs/download-verification.md)에 따라 파일 출처, 해시와 탐지 기록을 확인해 주세요. 깨끗한 Windows에서 설치 마법사를 실행하는 검사는 수행하지 않았습니다.
 
 일반 영상 관리·재생·하이라이트에는 API 키가 필요하지 않습니다. 재생 가능 여부는 코덱에 따라 다르며, mpv·VLC·FFplay를 별도 설치해 외부 플레이어로 사용할 수 있습니다.
 
