@@ -26,6 +26,7 @@ async function openCandidates(
     }),
   )
   await page.goto('/')
+  await expect(page.getByRole('button', { name: '열기', exact: true })).toBeVisible()
   await page.evaluate(async (fixtureMode) => {
     const result = await window.api.videos.get('mock-library', 'mock-video-1')
     if (!result.ok || !result.value) throw new Error('Missing fixture')
