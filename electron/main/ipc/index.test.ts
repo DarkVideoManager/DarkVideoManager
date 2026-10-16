@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   cancelThumbnailJob: vi.fn(),
   refreshLibrary: vi.fn(),
   importFiles: vi.fn(),
+  importFolders: vi.fn(),
   recordSeek: vi.fn(),
   listConversions: vi.fn(),
   pauseConversion: vi.fn(),
@@ -87,6 +88,7 @@ vi.mock('../services/LibraryService', () => ({
   deleteLibrary: mocks.deleteLibrary,
   importFolder: vi.fn(),
   importFiles: mocks.importFiles,
+  importFolders: mocks.importFolders,
   refreshLibrary: mocks.refreshLibrary,
 }))
 vi.mock('../services/VideoService', () => ({
@@ -172,6 +174,30 @@ beforeEach(() => {
 })
 
 describe('IPC dispatch', () => {
+  it('selects multiple folders and drive roots and imports them in one operation', async () => {
+    const folderPaths = ['D:/', 'E:/Movies']
+    mocks.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: folderPaths })
+    expect(await invoke(IPC.LIBRARY.SELECT_FOLDERS)).toEqual({ ok: true, value: folderPaths })
+    expect(mocks.showOpenDialog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ properties: ['openDirectory', 'multiSelections'] }),
+    )
+    mocks.importFolders.mockResolvedValue({ added: 2, skipped: 0, removed: 0, errors: [] })
+    expect(await invoke(IPC.LIBRARY.IMPORT_FOLDERS, 'lib', folderPaths)).toMatchObject({
+      ok: true,
+      value: { added: 2 },
+    })
+    expect(mocks.importFolders).toHaveBeenCalledExactlyOnceWith(
+      'lib',
+      folderPaths,
+      expect.anything(),
+    )
+    for (const paths of [[], [''], Array(101).fill('D:/'), 'D:/'])
+      expect(await invoke(IPC.LIBRARY.IMPORT_FOLDERS, 'lib', paths)).toMatchObject({ ok: false })
+    expect(mocks.importFolders).toHaveBeenCalledTimes(1)
+    mocks.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
+    expect(await invoke(IPC.LIBRARY.SELECT_FOLDERS)).toEqual({ ok: true, value: null })
+  })
   it('allows thumbnail status and per-video cancellation during an import', async () => {
     mocks.listThumbnailJobs.mockReturnValue([{ videoId: 'video', phase: 'running' }])
     mocks.cancelThumbnailJob.mockReturnValue(true)

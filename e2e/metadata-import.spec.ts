@@ -200,7 +200,7 @@ test('renders provider strings as text and Escape closes only the dialog in the 
   page,
 }) => {
   await page.goto('/#/player/mock-library/mock-video-1')
-  await page.getByRole('button', { name: '정보', exact: true }).click()
+  await page.getByRole('tab', { name: '정보', exact: true }).click()
   await page.getByRole('button', { name: 'Stash에서 정보 가져오기' }).click()
   await enableStash(page)
   await page.evaluate(() => {

@@ -150,7 +150,7 @@ async function openSubtitleNavigator(page: Page, mode: FixtureMode = 'normal') {
   })
   await expect(page.locator('video')).toHaveAttribute('src', /subtitle-navigation/)
   await page.evaluate(() => (window as unknown as NavigationWindow).subtitleNavigationHarness.setReady())
-  await page.getByRole('button', { name: '자막 탐색', exact: true }).click()
+  await page.getByRole('tab', { name: '자막 탐색', exact: true }).click()
   const navigator = page.getByRole('region', { name: '자막 탐색', exact: true })
   if (mode !== 'empty') {
     // Track ordering is separate from navigation; make the fixture language explicit.

@@ -220,7 +220,7 @@ test('exact-duplicate candidates show paths and hashes and lead to existing libr
   await expect(page.getByText('offline.mp4: 원본 파일을 찾을 수 없습니다.')).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('library-maintenance.png'), fullPage: true })
   await group.getByRole('button', { name: '라이브러리에서 확인' }).first().click()
-  await expect(page.getByRole('button', { name: '정보', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '정보', exact: true })).toBeVisible()
   await expect(page.getByText('Sample video', { exact: true })).not.toHaveCount(0)
 })
 

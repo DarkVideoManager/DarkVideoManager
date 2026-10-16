@@ -38,11 +38,13 @@ export const IPC = {
     CREATE: 'library:create',
     CLOSE: 'library:close',
     IMPORT_FOLDER: 'library:importFolder',
+    IMPORT_FOLDERS: 'library:importFolders',
     IMPORT_FILES: 'library:importFiles',
     SELECT_FILES: 'library:selectFiles',
     REFRESH: 'library:refresh',
     CANCEL_WORK: 'library:cancelWork',
     SELECT_FOLDER: 'library:selectFolder',
+    SELECT_FOLDERS: 'library:selectFolders',
     DELETE: 'library:delete',
   },
   VIDEOS: {

@@ -166,7 +166,7 @@ const api = {
     list: (): Promise<Result<Library[], string>> => ipcRenderer.invoke(IPC.LIBRARY.LIST),
     open: (libraryId: string): Promise<Result<Library, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.OPEN, libraryId),
-    create: (name: string, folderPath: string): Promise<Result<Library, string>> =>
+    create: (name: string, folderPath: string | string[]): Promise<Result<Library, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.CREATE, name, folderPath),
     close: (libraryId: string): Promise<Result<null, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.CLOSE, libraryId),
@@ -174,8 +174,15 @@ const api = {
       ipcRenderer.invoke(IPC.LIBRARY.DELETE, libraryId),
     selectFolder: (): Promise<Result<string | null, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.SELECT_FOLDER),
+    selectFolders: (): Promise<Result<string[] | null, string>> =>
+      ipcRenderer.invoke(IPC.LIBRARY.SELECT_FOLDERS),
     importFolder: (libraryId: string, folderPath: string): Promise<Result<ImportResult, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.IMPORT_FOLDER, libraryId, folderPath),
+    importFolders: (
+      libraryId: string,
+      folderPaths: string[],
+    ): Promise<Result<ImportResult, string>> =>
+      ipcRenderer.invoke(IPC.LIBRARY.IMPORT_FOLDERS, libraryId, folderPaths),
     selectFiles: (): Promise<Result<string[] | null, string>> =>
       ipcRenderer.invoke(IPC.LIBRARY.SELECT_FILES),
     importFiles: (libraryId: string, filePaths: string[]): Promise<Result<ImportResult, string>> =>

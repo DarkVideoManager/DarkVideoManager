@@ -1,7 +1,7 @@
 // Restored application logic from the packaged 0.1.0 release; vendor code is imported from npm.
 import * as React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useLibraryStore } from '../store/libraryStore'
 import { useVideos } from '../api/useVideos'
 import { useLibrarySubtitleJobs } from '../api/useLibrarySubtitleJobs'
@@ -22,13 +22,14 @@ import ImportDialog, {
 import CsvImportDialog from '../components/library/CsvImportDialog'
 import VideoMetadataFilters from '../components/library/VideoMetadataFilters'
 import { requestPrivacyExit } from '../components/privacy/PrivacyBoundary'
+import { folderLabel } from '../components/library/folderLabel'
 function LibraryPage() {
   const {
     activeLibraryId,
     openedLibraryId,
     selectedVideoId,
-    setActiveLibrary,
-    setOpenedLibraryId,
+    activateLibrary,
+    libraryTransitionPending,
     setSelectedVideoId,
     getSortPreference,
     setSortPreference,
@@ -42,6 +43,8 @@ function LibraryPage() {
     setScrollTop,
   } = useLibraryStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const showManagement = !activeLibraryId || searchParams.get('manage') === '1'
   const qc2 = useQueryClient()
   const { data: libraries = [] } = useLibraries()
   const createLibrary = useCreateLibrary()
@@ -50,7 +53,9 @@ function LibraryPage() {
   const initialSort = getSortPreference(activeLibraryId)
   const initialSearchText = getSearchText(activeLibraryId)
   const initialScrollTop = getScrollTop(activeLibraryId)
-  const isLibraryReady = !!activeLibraryId && openedLibraryId === activeLibraryId
+  const [queryLibraryId, setQueryLibraryId] = React.useState(activeLibraryId)
+  const isLibraryReady =
+    !!activeLibraryId && openedLibraryId === activeLibraryId && queryLibraryId === activeLibraryId
   const subtitleJobs = useLibrarySubtitleJobs(activeLibraryId, isLibraryReady)
   const thumbnailJobs = useThumbnailJobs(activeLibraryId, isLibraryReady)
   const visibleLibraries = [...libraries].sort((a2, b2) => {
@@ -76,46 +81,53 @@ function LibraryPage() {
   const [refreshMessage, setRefreshMessage] = React.useState(null)
   const [refreshError, setRefreshError] = React.useState(null)
   const [refreshResult, setRefreshResult] = React.useState(null)
+  const activeLibraryRef = React.useRef(activeLibraryId)
+  activeLibraryRef.current = activeLibraryId
   React.useEffect(() => {
     setRefreshMessage(null)
     setRefreshError(null)
     setRefreshResult(null)
   }, [activeLibraryId])
   const refreshLibrary = useMutation({
-    mutationFn: async () => {
-      if (!activeLibraryId) throw new Error('Library is not selected')
-      const res = await libraryApi.refresh(activeLibraryId)
+    mutationFn: async (libraryId) => {
+      if (!libraryId) throw new Error('Library is not selected')
+      const res = await libraryApi.refresh(libraryId)
       if (!res.ok) throw new Error(res.error)
       return res.value
     },
-    onSuccess: (result) => {
-      setRefreshResult(result)
-      setRefreshMessage(
-        result.cancelled
-          ? '목록 업데이트가 취소되었습니다. 처리된 항목은 반영되었습니다.'
-          : result.errors.length
-            ? '목록 업데이트 결과를 확인해 주세요. 일부 항목을 처리하지 못했습니다.'
-            : '목록 업데이트가 완료되었습니다.',
-      )
-      if (!activeLibraryId) return
+    onSuccess: (result, libraryId) => {
+      if (activeLibraryRef.current === libraryId) {
+        setRefreshResult(result)
+        setRefreshMessage(
+          result.cancelled
+            ? '목록 업데이트가 취소되었습니다. 처리된 항목은 반영되었습니다.'
+            : result.errors.length
+              ? '목록 업데이트 결과를 확인해 주세요. 일부 항목을 처리하지 못했습니다.'
+              : '목록 업데이트가 완료되었습니다.',
+        )
+      }
       qc2.invalidateQueries({
-        queryKey: ['videos', activeLibraryId],
+        queryKey: ['videos', libraryId],
       })
       qc2.invalidateQueries({
-        queryKey: ['video', activeLibraryId],
+        queryKey: ['video', libraryId],
       })
       qc2.invalidateQueries({
-        queryKey: ['thumbnails', activeLibraryId],
+        queryKey: ['thumbnails', libraryId],
       })
       qc2.invalidateQueries({
-        queryKey: ['highlights', activeLibraryId],
+        queryKey: ['highlights', libraryId],
       })
-      qc2.invalidateQueries({ queryKey: ['video-metadata-options', activeLibraryId] })
+      qc2.invalidateQueries({ queryKey: ['video-metadata-options', libraryId] })
     },
-    onError: (error) =>
-      setRefreshError(error instanceof Error ? error.message : '목록 업데이트에 실패했습니다.'),
-    onSettled: () => refreshWork.finish(),
+    onError: (error, libraryId) => {
+      if (activeLibraryRef.current === libraryId)
+        setRefreshError(error instanceof Error ? error.message : '목록 업데이트에 실패했습니다.')
+    },
+    onSettled: (_data, _error, libraryId) => refreshWork.finish(libraryId),
   })
+  const isRefreshingCurrent =
+    refreshLibrary.isPending && refreshLibrary.variables === activeLibraryId
   const {
     data,
     isLoading,
@@ -136,6 +148,7 @@ function LibraryPage() {
   })
   React.useEffect(() => {
     const sort = getSortPreference(activeLibraryId)
+    setQueryLibraryId(activeLibraryId)
     const savedSearchText = getSearchText(activeLibraryId)
     setSearchInput(savedSearchText)
     setQuery((prev) => ({
@@ -151,12 +164,12 @@ function LibraryPage() {
     }))
   }, [activeLibraryId, getSearchText, getSortPreference, getWithoutSubtitles, getMetadataFilters])
   React.useEffect(() => {
-    if (!activeLibraryId) return
+    if (!activeLibraryId || queryLibraryId !== activeLibraryId) return
     setSortPreference(activeLibraryId, {
       sortBy: query.sortBy ?? 'createdAt',
       sortDir: query.sortDir ?? 'desc',
     })
-  }, [activeLibraryId, query.sortBy, query.sortDir, setSortPreference])
+  }, [activeLibraryId, queryLibraryId, query.sortBy, query.sortDir, setSortPreference])
   React.useEffect(() => {
     let thumbnailsStarted = false
     return window.api.on.importProgress((progress) => {
@@ -233,7 +246,7 @@ function LibraryPage() {
     setRefreshError(null)
     setRefreshResult(null)
     refreshWork.begin('scanning')
-    refreshLibrary.mutate()
+    refreshLibrary.mutate(activeLibraryId)
   }
   function handleVideoDoubleClick(video) {
     if (query.removed || video.removalMode) {
@@ -272,21 +285,21 @@ function LibraryPage() {
   }
   async function handleCreateLibrary() {
     try {
-      const folderRes = await libraryApi.selectFolder()
+      if (libraryTransitionPending) return
+      const folderRes = await libraryApi.selectFolders()
       if (!folderRes.ok) throw new Error(folderRes.error)
       if (!folderRes.value) return
-      const folder = folderRes.value
-      const name = folder.split(/[\\/]/).pop() ?? '새 라이브러리'
+      const folders = folderRes.value
+      if (!folders.length) return
+      const name =
+        folderLabel(folders[0]) + (folders.length > 1 ? ` 외 ${folders.length - 1}개 폴더` : '')
       createLibrary.mutate(
         {
           name,
-          folderPath: folder,
+          folderPath: folders,
         },
         {
-          onSuccess: (library) => {
-            setActiveLibrary(library)
-            setOpenedLibraryId(library.id)
-            setSelectedVideoId(null)
+          onSuccess: () => {
             navigate('/')
           },
           onError: (error) => {
@@ -302,11 +315,9 @@ ${error.message}`)
     }
   }
   function handleOpenLibrary(libraryId) {
+    if (libraryTransitionPending) return
     openLibrary.mutate(libraryId, {
-      onSuccess: (library) => {
-        setActiveLibrary(library)
-        setOpenedLibraryId(library.id)
-        setSelectedVideoId(null)
+      onSuccess: () => {
         navigate('/')
       },
       onError: (error) => {
@@ -320,10 +331,8 @@ ${error.message}`)
     if (!confirmed) return
     deleteLibrary.mutate(library.id, {
       onSuccess: () => {
-        if (library.id !== activeLibraryId) return
-        setActiveLibrary(null)
-        setOpenedLibraryId(null)
-        setSelectedVideoId(null)
+        if (library.id !== useLibraryStore.getState().activeLibraryId) return
+        activateLibrary(null)
       },
       onError: (error) =>
         window.alert(
@@ -353,9 +362,11 @@ ${error.message}`)
       page: 1,
     }))
   }
-  if (!activeLibraryId) {
+  if (showManagement) {
     return (
-      <div className={'flex flex-1 items-center justify-center bg-zinc-950 p-8'}>
+      <div
+        className={'flex min-h-0 flex-1 items-start justify-center overflow-y-auto bg-zinc-950 p-8'}
+      >
         <div
           className={
             'w-full max-w-4xl rounded-2xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-2xl'
@@ -365,18 +376,26 @@ ${error.message}`)
             <div>
               <h2 className={'text-xl font-semibold text-zinc-100'}>{'라이브러리 선택'}</h2>
               <p className={'mt-1 text-sm text-zinc-500'}>
-                {'앱을 처음 실행했거나 현재 선택된 라이브러리가 없을 때만 이 화면이 표시됩니다.'}
+                {
+                  '폴더 여러 개나 드라이브 전체를 한 라이브러리로 등록할 수 있습니다. 다른 라이브러리도 재실행 없이 열 수 있습니다.'
+                }
               </p>
             </div>
             <button
               onClick={() => void handleCreateLibrary()}
+              disabled={libraryTransitionPending}
               className={
-                'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500'
+                'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50'
               }
             >
               {'새 라이브러리'}
             </button>
           </div>
+          {activeLibraryId && (
+            <button onClick={() => navigate('/')} className="mb-4 text-sm text-indigo-300">
+              현재 라이브러리로 돌아가기
+            </button>
+          )}
           {libraries.length === 0 ? (
             <div
               className={
@@ -396,7 +415,18 @@ ${error.message}`)
                   <p className={'mt-1 truncate font-mono text-[11px] text-zinc-600'}>
                     {library.id}
                   </p>
-                  <p className={'mt-1 truncate text-xs text-zinc-500'}>{library.folderPath}</p>
+                  <ul
+                    aria-label={`${library.name} 등록 폴더`}
+                    className="mt-1 text-xs text-zinc-500"
+                  >
+                    {(library.folderPaths?.length ? library.folderPaths : [library.folderPath]).map(
+                      (folder) => (
+                        <li key={folder} className="break-all">
+                          {folder}
+                        </li>
+                      ),
+                    )}
+                  </ul>
                   <p className={'mt-2 text-[11px] text-zinc-600'}>
                     {'마지막 열기:'}{' '}
                     {library.lastOpenedAt
@@ -406,6 +436,7 @@ ${error.message}`)
                   <div className={'mt-4 flex items-center gap-2'}>
                     <button
                       onClick={() => handleOpenLibrary(library.id)}
+                      disabled={libraryTransitionPending}
                       className={
                         'rounded bg-zinc-800 px-3 py-1.5 text-xs text-zinc-100 hover:bg-zinc-700'
                       }
@@ -414,6 +445,7 @@ ${error.message}`)
                     </button>
                     <button
                       onClick={() => handleDeleteLibrary(library)}
+                      disabled={libraryTransitionPending || deleteLibrary.isPending}
                       className={
                         'rounded bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-red-300'
                       }
@@ -472,6 +504,7 @@ ${error.message}`)
             onCompositionEnd={handleSearchCompositionEnd}
           />
           <select
+            aria-label="영상 정렬 기준"
             value={query.sortBy ?? 'createdAt'}
             onChange={(event) =>
               setQuery((prev) => ({
@@ -490,6 +523,7 @@ ${error.message}`)
             <option value={'playCount'}>{'많이 시청한 순'}</option>
           </select>
           <select
+            aria-label="영상 정렬 방향"
             value={query.sortDir ?? 'desc'}
             onChange={(event) =>
               setQuery((prev) => ({
@@ -532,7 +566,7 @@ ${error.message}`)
               'rounded bg-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600 disabled:opacity-50'
             }
           >
-            {refreshLibrary.isPending ? '목록 갱신 중...' : '목록 업데이트'}
+            {isRefreshingCurrent ? '목록 갱신 중...' : '목록 업데이트'}
           </button>
           <button
             onClick={() => setShowImport('files')}
@@ -561,6 +595,12 @@ ${error.message}`)
           query={query}
           onChange={handleMetadataFiltersChange}
         />
+        {refreshLibrary.isPending && !isRefreshingCurrent && (
+          <p role="status" className="px-4 py-2 text-xs text-zinc-400">
+            다른 라이브러리의 목록 업데이트가 진행 중입니다. 해당 라이브러리로 전환하면 진행 상태를
+            확인하거나 취소할 수 있습니다.
+          </p>
+        )}
         <details className="border-b border-zinc-800 px-4 py-2 text-xs text-zinc-400">
           <summary className="w-fit cursor-pointer text-zinc-300">영상 추가·폴더 갱신 안내</summary>
           <div className="mt-2 space-y-1 leading-relaxed">
@@ -582,7 +622,7 @@ ${error.message}`)
         </details>
         {refreshWork.progress && (
           <div className="px-4">
-            <WorkProgress work={refreshWork} isWorking={refreshLibrary.isPending} />
+            <WorkProgress work={refreshWork} isWorking={isRefreshingCurrent} />
           </div>
         )}
         {refreshMessage && (

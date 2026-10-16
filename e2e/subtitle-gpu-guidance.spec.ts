@@ -15,6 +15,7 @@ test('explains GPU support beside model selection without starting setup', async
     .getByRole('button')
     .filter({ has: page.getByText('Sample video', { exact: true }) })
     .click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   const panel = page.getByRole('region', { name: 'AI 자막 생성', exact: true })
   await expect(panel.getByLabel('음성 인식 모델')).toBeVisible()
   const guidance = panel
