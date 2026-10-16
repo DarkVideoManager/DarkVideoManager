@@ -2,6 +2,8 @@ import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { subtitleInstallOutputReader } from './SubtitleInstallOutput'
+import { subtitleSetupDiagnostic } from './SubtitleSetupDiagnostics'
 
 export interface WslCommandResult {
   code: number
@@ -105,7 +107,7 @@ function installFailure(
   context: string,
   result: { code?: number; diagnostics?: string; launchError?: number },
 ): Error {
-  const diagnostics = (result.diagnostics ?? '').replaceAll('\0', '').trim().slice(-1600)
+  const diagnostics = subtitleSetupDiagnostic(result.diagnostics ?? '')
   let message = `${context} 인터넷 연결과 Windows 업데이트 상태를 확인한 뒤 다시 시도해 주세요.`
   if (result.launchError === 1223 || result.code === 1223 || /0x800704c7/i.test(diagnostics))
     message =
@@ -153,10 +155,13 @@ function installHelper(record: InstallRecord): string {
       : `@('--install','--distribution',${psString(record.distribution)},'--no-launch','--web-download')`
   return `$ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+$env:WSL_UTF8='1'
+${subtitleInstallOutputReader}
 $recordPath=${psString(installRecordPath())}
 $token=${psString(record.token)}
 function Save-Record {
-  $current=Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json
+  $current=Get-Content -LiteralPath $recordPath -Raw -Encoding UTF8 | ConvertFrom-Json
   if ($current.token -ne $token) { throw 'Install record changed' }
   $temporary=$recordPath+'.'+[guid]::NewGuid().ToString()+'.tmp'
   [IO.File]::WriteAllText($temporary,($record | ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
@@ -165,7 +170,7 @@ function Save-Record {
 # Do not launch an installer until the launcher has durably recorded this helper.
 $deadline=[DateTime]::UtcNow.AddSeconds(60)
 do {
-  $record=Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json
+  $record=Get-Content -LiteralPath $recordPath -Raw -Encoding UTF8 | ConvertFrom-Json
   if ($record.token -ne $token) { exit 1 }
   if ($record.helperPid -eq $PID) { break }
   Start-Sleep -Milliseconds 200
@@ -188,6 +193,15 @@ try {
   # remains the primary identity; metadata failures must not stop its wait.
   try { $record | Add-Member -Force NoteProperty installerStart ($installer.StartTime.ToUniversalTime().Ticks.ToString()) } catch {}
   try { Save-Record } catch {}
+  while (!$installer.WaitForExit(1000)) {
+    # Only bounded, decoded snapshots are shared. Monitoring never kills servicing.
+    $live=(Read-InstallOutput $outputPath)+"\n"+(Read-InstallOutput $errorPath)
+    if ($live.Length -gt 2000) { $live=$live.Substring($live.Length-2000) }
+    if ($live -ne $record.diagnostics) {
+      $record | Add-Member -Force NoteProperty diagnostics $live
+      try { Save-Record } catch {}
+    }
+  }
   $installer.WaitForExit()
   if ($null -eq $installer.ExitCode) { throw 'Installer exit status unavailable' }
   $record | Add-Member -Force NoteProperty code ([int]$installer.ExitCode)
@@ -196,7 +210,7 @@ try {
   $diagnostics=''
   foreach ($file in @($outputPath,$errorPath)) {
     if (Test-Path -LiteralPath $file) {
-      $diagnostics+=((Get-Content -LiteralPath $file -Tail 12 -ErrorAction SilentlyContinue) -join "\n")+"\n"
+      $diagnostics+=(Read-InstallOutput $file)+"\n"
     }
   }
   if ($diagnostics.Length -gt 2000) { $diagnostics=$diagnostics.Substring($diagnostics.Length-2000) }
@@ -252,7 +266,7 @@ async function launchInstall(
 $ProgressPreference='SilentlyContinue'
 $recordPath=${psString(installRecordPath())}
 $helper=Start-Process -FilePath "$PSHOME\\powershell.exe" -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',${psString('"' + helperPath + '"')}) -WindowStyle Hidden -PassThru
-$record=Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json
+$record=Get-Content -LiteralPath $recordPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($record.token -ne ${psString(record.token)}) { throw 'Install record changed' }
 $record | Add-Member -Force NoteProperty helperPid $helper.Id
 $record | Add-Member -Force NoteProperty helperStart ($helper.StartTime.ToUniversalTime().Ticks.ToString())
@@ -269,10 +283,11 @@ Write-Output 'DVM_INSTALL_STARTED'`
 
 async function waitForInstall(
   capture: WslCapture,
-  progress?: (message: string) => void,
+  progress?: (message: string, heartbeat?: boolean) => void,
   signal?: AbortSignal,
 ): Promise<InstallRecord | undefined> {
   let lastProgress = 0
+  let previousProgress = ''
   for (;;) {
     signal?.throwIfAborted()
     const record = readInstallRecord()
@@ -283,9 +298,13 @@ async function waitForInstall(
       const stage = record.installerPid
         ? 'Windows 설치 도구가 실행 중입니다.'
         : 'Windows 설치 도구를 시작하고 있습니다. 권한 승인 창이 있으면 확인해 주세요.'
+      const diagnostics = subtitleSetupDiagnostic(record.diagnostics ?? '', 1000)
+      const fingerprint = `${record.state}:${record.installerPid ?? ''}:${diagnostics}`
       progress?.(
-        `${stage} 경과 ${minutes}분. 앱을 종료해도 Windows 설치는 계속되며 다시 실행한 뒤 자동 설치를 누르면 진행 상태를 확인합니다.`,
+        `${stage} 경과 ${minutes}분. 앱을 종료해도 Windows 설치는 계속되며 다시 실행한 뒤 자동 설치를 누르면 진행 상태를 확인합니다.${diagnostics ? `\n최근 출력: ${diagnostics}` : ''}`,
+        fingerprint === previousProgress,
       )
+      previousProgress = fingerprint
     }
     // PID alone is never sufficient: reject PID reuse, and allow recovery after reboot.
     const identity = await capture(
@@ -507,7 +526,7 @@ async function requireWslStartup(capture: WslCapture, signal?: AbortSignal): Pro
 /** Elevate only machine-wide WSL features; distros belong to the original user. */
 export async function installSubtitleWsl(
   capture: WslCapture,
-  progress?: (message: string) => void,
+  progress?: (message: string, heartbeat?: boolean) => void,
   signal?: AbortSignal,
 ): Promise<boolean> {
   const resumed = await waitForInstall(capture, progress, signal)
