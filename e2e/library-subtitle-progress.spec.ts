@@ -197,6 +197,7 @@ test('starting from an empty queue updates the card and keeps normal selection a
   await prepareLibrary(page, false)
   await expect(status(page)).toHaveCount(0)
   await card(page, 'Sample video').click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   const panel = page.getByRole('region', { name: 'AI 자막 생성', exact: true })
   await expect(panel).toBeVisible()
   await panel.getByRole('button', { name: '자막 생성 시작', exact: true }).click()

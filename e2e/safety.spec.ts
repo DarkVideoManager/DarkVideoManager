@@ -118,7 +118,11 @@ test('trash removal explains the recovery requirement and a missing original lea
   await expect(
     page.getByText('Windows 휴지통에서 원본 파일을 먼저 복원한 다음 목록 복구를 눌러주세요.'),
   ).toBeVisible()
-  await expect(page.getByText('/mock/videos/sample.mp4', { exact: true })).toBeVisible()
+  await expect(
+    page
+      .getByRole('region', { name: '영상 메타데이터' })
+      .getByText('/mock/videos/sample.mp4', { exact: true }),
+  ).toBeVisible()
   await page.evaluate(() => {
     window.api.videos.restore = async () => ({
       ok: false,

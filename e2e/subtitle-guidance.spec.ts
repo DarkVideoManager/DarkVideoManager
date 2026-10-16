@@ -18,6 +18,7 @@ test('explains the generation workflow and submits the selected large-v2 model',
     .getByRole('button')
     .filter({ has: page.getByText('Sample video', { exact: true }) })
     .click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   const panel = page.getByRole('region', { name: 'AI 자막 생성', exact: true })
   await panel.getByText('처음 자막 만들기 · 모델·언어·비용', { exact: true }).click()
   await expect(

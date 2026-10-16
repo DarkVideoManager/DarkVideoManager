@@ -1,4 +1,6 @@
 import PlaybackRateControl from './PlaybackRateControl'
+import AbRepeatControl from './AbRepeatControl'
+import { createAbRepeatController, repeatRangeError } from '../../utils/abRepeat'
 import { PlaybackRateZ } from '../../../shared/playbackRate'
 // Restored application logic from the packaged 0.1.0 release; vendor code is imported from npm.
 import * as React from 'react'
@@ -286,6 +288,28 @@ function VideoPlayer({
   ])
   const showConversionJob =
     useInAppPlayback && !playbackSource && conversionJob && conversionJob.status !== 'completed'
+  const repeatContext = JSON.stringify([
+    libraryId,
+    video.id,
+    video.filePath,
+    useInAppPlayback,
+    playbackSource,
+    playbackSourceEpoch,
+  ])
+  const [repeatState, setRepeatState] = React.useState({
+    context: '',
+    start: null,
+    end: null,
+    enabled: false,
+    error: null,
+  })
+  const repeat =
+    repeatState.context === repeatContext
+      ? repeatState
+      : { start: null, end: null, enabled: false, error: null }
+  React.useEffect(() => {
+    setRepeatState({ context: repeatContext, start: null, end: null, enabled: false, error: null })
+  }, [repeatContext])
   const {
     data: nativePlayerInfo,
     isFetched: nativePlayerFetched,
@@ -366,7 +390,10 @@ function VideoPlayer({
         if (!nativePlaybackRef.current)
           void recordPlayback(window.api.playback.seek(libraryId, video.id, time))
       },
-      onError: (error) => setPlayerActionError(`이동하지 못했습니다: ${String(error)}`),
+      onError: (error) => {
+        setPlayerActionError(`이동하지 못했습니다: ${String(error)}`)
+        setRepeatState((state) => ({ ...state, enabled: false }))
+      },
     })
     seekControllerRef.current = controller
     return () => {
@@ -476,6 +503,7 @@ function VideoPlayer({
   const requestNativePlayback = React.useCallback(() => {
     if (nativeLaunchPendingRef.current) return
     stopSmoothSeek()
+    setRepeatState((state) => ({ ...state, start: null, end: null, enabled: false, error: null }))
     nativeLaunchPendingRef.current = true
     setNativeLaunchError(null)
     onNativeLaunchPendingChange?.(true)
@@ -660,6 +688,63 @@ function VideoPlayer({
     }
     return 0
   }, [video.resumePosSec])
+  const clearRepeat = () => {
+    setRepeatState({ context: repeatContext, start: null, end: null, enabled: false, error: null })
+  }
+  const markRepeatPoint = (point) => {
+    const position = clampTime(getCurrentTime(), durationSec)
+    const next = { ...repeat, [point]: position }
+    setRepeatState({
+      ...next,
+      context: repeatContext,
+      enabled: false,
+      error:
+        next.start !== null && next.end !== null
+          ? repeatRangeError(next.start, next.end, durationSec)
+          : null,
+    })
+  }
+  const toggleRepeat = () => {
+    const error = repeat.enabled ? null : repeatRangeError(repeat.start, repeat.end, durationSec)
+    setRepeatState({
+      ...repeat,
+      context: repeatContext,
+      error,
+      enabled: !repeat.enabled && !error,
+    })
+  }
+  React.useEffect(() => {
+    const media = videoRef.current
+    if (!repeat.enabled || !useInAppPlayback || !playbackSource || !media) return
+    const error = repeatRangeError(repeat.start, repeat.end, durationSec)
+    if (error) {
+      setRepeatState((state) => ({ ...state, enabled: false, error }))
+      return
+    }
+    const controller = createAbRepeatController(media, {
+      range: { start: repeat.start, end: repeat.end },
+      isSeekPending: () => Boolean(seekControllerRef.current?.isActive || mouseSeekingRef.current),
+      seek: (time) => {
+        if (!seekControllerRef.current) throw new Error('영상이 아직 준비되지 않았습니다.')
+        seekControllerRef.current.request(time)
+      },
+      onError: (error) =>
+        setRepeatState((state) => ({
+          ...state,
+          enabled: false,
+          error: `구간 반복을 적용하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
+        })),
+    })
+    return () => controller.dispose()
+  }, [
+    durationSec,
+    playbackSource,
+    repeat.enabled,
+    repeat.start,
+    repeat.end,
+    useInAppPlayback,
+    repeatContext,
+  ])
   const jumpToAdjacentHighlight = React.useCallback(
     async (direction, currentTime) => {
       const baseTime = currentTime ?? getCurrentTime()
@@ -1192,6 +1277,7 @@ function VideoPlayer({
     if (!useInAppPlayback || nativePlaybackRef.current || !playbackSource) return
     const error = videoRef.current?.error
     if (!error || error.code === 1) return
+    setRepeatState((state) => ({ ...state, enabled: false }))
     setMediaPlaybackError(
       error.code === 3 || error.code === 4
         ? '이 영상의 코덱을 인앱 플레이어에서 재생할 수 없습니다.'
@@ -1228,6 +1314,23 @@ function VideoPlayer({
                   ? 'VLC의 재생 → 속도 메뉴에서 조절하세요. 앱에서는 변경·조회할 수 없습니다.'
                   : 'FFplay 배속 변경은 앱에서 지원하지 않습니다. 인앱 또는 mpv를 사용하세요.'
         }
+      />
+      <AbRepeatControl
+        start={repeat.start}
+        end={repeat.end}
+        enabled={repeat.enabled}
+        available={Boolean(
+          useInAppPlayback &&
+          playbackSource &&
+          videoRef.current?.readyState >= 1 &&
+          !openInNativePlayer.isPending &&
+          !mediaPlaybackError,
+        )}
+        external={!useInAppPlayback}
+        error={repeat.error}
+        onMark={markRepeatPoint}
+        onToggle={toggleRepeat}
+        onClear={clearRepeat}
       />
       {subtitleNavigationTarget &&
         createPortal(

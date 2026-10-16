@@ -209,7 +209,7 @@ test('newly indexed videos and individual cancel controls are available during a
   await page.evaluate(() => {
     const state = (window as unknown as ThumbnailWindow).thumbnailHarness
     state.jobs = []
-    window.api.library.importFolder = async () => {
+    window.api.library.importFolders = async () => {
       const video = {
         ...state.videos[0],
         id: 'imported-video',

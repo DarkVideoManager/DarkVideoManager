@@ -9,6 +9,7 @@ import ThumbnailJobStatus, { isThumbnailJobActive } from './ThumbnailJobStatus'
 import VideoMetadataEditor from './VideoMetadataEditor'
 import MetadataImportDialog from './MetadataImportDialog'
 import ThumbnailSelector from './ThumbnailSelector'
+import VideoTechnicalInfo from './VideoTechnicalInfo'
 const STAR_COUNT = 5
 function StarRating({ value, onChange, disabled = false }) {
   const [hovered, setHovered] = React.useState(0)
@@ -89,6 +90,8 @@ function DetailPanel({
   thumbnailJobs: sharedThumbnailJobs,
 }) {
   const [tab, setTab] = React.useState(initialTab)
+  const [generationVisited, setGenerationVisited] = React.useState(initialTab === 'generation')
+  const tabsId = React.useId()
   const [showMetadataImport, setShowMetadataImport] = React.useState(false)
   const [memo2, setMemo] = React.useState(video.memo ?? '')
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
@@ -318,7 +321,8 @@ function DetailPanel({
   )
   React.useEffect(() => {
     setTab(initialTab)
-  }, [initialTab, video.id])
+    setGenerationVisited(initialTab === 'generation')
+  }, [initialTab, libraryId, video.id])
   React.useEffect(() => {
     setShowDeleteConfirm(false)
     setShowMetadataImport(false)
@@ -354,13 +358,16 @@ function DetailPanel({
       updateMeta.mutate(pending)
     }, 500)
   }
-  const durationStr =
-    video.durationSec != null
-      ? `${Math.floor(video.durationSec / 60)}분 ${Math.floor(video.durationSec % 60)}초`
-      : '정보 없음'
-  const fileSizeMb = video.sizeBytes
-    ? `${(video.sizeBytes / 1024 / 1024).toFixed(1)} MB`
-    : '정보 없음'
+  const tabs = [
+    ['info', '정보'],
+    ['highlights', '하이라이트'],
+    ['generation', '자막 생성'],
+    ...(subtitleNavigationRef ? [['subtitles', '자막 탐색']] : []),
+  ]
+  const selectTab = (value) => {
+    if (value === 'generation') setGenerationVisited(true)
+    setTab(value)
+  }
   const primaryThumbnail = thumbnails.find((thumbnail) => thumbnail.isPrimary) ?? thumbnails[0]
   const hasThumbnail = thumbnails.length > 0
   const displayTitle = video.title?.trim() || video.fileName
@@ -423,28 +430,64 @@ function DetailPanel({
           </button>
         </div>
       )}
-      <div className={'flex border-b border-zinc-800'}>
-        {(subtitleNavigationRef ? ['info', 'highlights', 'subtitles'] : ['info', 'highlights']).map(
-          (value) => (
-            <button
-              onClick={() => setTab(value)}
-              className={`flex-1 whitespace-nowrap px-3 py-2 text-xs font-medium ${tab === value ? 'border-b-2 border-indigo-400 text-indigo-400' : 'text-zinc-500'}`}
-              key={value}
-            >
-              {value === 'info' ? '정보' : value === 'highlights' ? '하이라이트' : '자막 탐색'}
-            </button>
-          ),
-        )}
+      <div role="tablist" aria-label="영상 상세 탭" className={'flex border-b border-zinc-800'}>
+        {tabs.map(([value, label], index) => (
+          <button
+            type="button"
+            role="tab"
+            id={`${tabsId}-${value}`}
+            aria-selected={tab === value}
+            aria-controls={`${tabsId}-panel`}
+            tabIndex={tab === value ? 0 : -1}
+            onClick={() => selectTab(value)}
+            onKeyDown={(event) => {
+              const next =
+                event.key === 'ArrowRight'
+                  ? (index + 1) % tabs.length
+                  : event.key === 'ArrowLeft'
+                    ? (index + tabs.length - 1) % tabs.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? tabs.length - 1
+                        : undefined
+              if (next === undefined) return
+              event.preventDefault()
+              event.stopPropagation()
+              selectTab(tabs[next][0])
+              event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[next]?.focus()
+            }}
+            className={`flex-1 whitespace-nowrap px-3 py-2 text-xs font-medium ${tab === value ? 'border-b-2 border-indigo-400 text-indigo-400' : 'text-zinc-500'}`}
+            key={value}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       <div
+        id={`${tabsId}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${tabsId}-${tab}`}
         className={
           tab === 'subtitles' ? 'min-h-0 flex-1 overflow-hidden' : 'flex-1 overflow-y-auto p-4'
         }
       >
+        {generationVisited && (
+          <div hidden={tab !== 'generation'}>
+            <SubtitleGenerationPanel
+              key={`${libraryId}:${video.id}`}
+              libraryId={libraryId}
+              videoId={video.id}
+              disabled={isRemoved}
+              visible={tab === 'generation'}
+            />
+          </div>
+        )}
         {tab === 'subtitles' ? (
           <div ref={subtitleNavigationRef} className="h-full min-h-0" />
         ) : tab === 'info' ? (
           <div className={'space-y-4'}>
+            <VideoTechnicalInfo video={video} />
             {!isRemoved && (
               <button
                 type="button"
@@ -550,36 +593,12 @@ function DetailPanel({
                 썸네일 진행 상태를 갱신하지 못했습니다.
               </p>
             )}
-            <SubtitleGenerationPanel
-              key={`${libraryId}:${video.id}`}
-              libraryId={libraryId}
-              videoId={video.id}
-              disabled={isRemoved}
-            />
             <div className={'space-y-1 text-xs text-zinc-400'}>
               {video.title?.trim() && (
                 <p>
                   <span className={'text-zinc-500'}>{'제목:'}</span> {video.title}
                 </p>
               )}
-              <p>
-                <span className={'text-zinc-500'}>{'길이:'}</span> {durationStr}
-              </p>
-              {video.width != null && video.height != null && (
-                <p>
-                  <span className={'text-zinc-500'}>{'해상도:'}</span> {video.width}
-                  {'x'}
-                  {video.height}
-                </p>
-              )}
-              {video.codec && (
-                <p>
-                  <span className={'text-zinc-500'}>{'코덱:'}</span> {video.codec}
-                </p>
-              )}
-              <p>
-                <span className={'text-zinc-500'}>{'크기:'}</span> {fileSizeMb}
-              </p>
               <p>
                 <span className={'text-zinc-500'}>{'재생 횟수:'}</span>{' '}
                 {video.playCount.toLocaleString()}
@@ -662,7 +681,7 @@ function DetailPanel({
               </div>
             )}
           </div>
-        ) : highlights.length === 0 ? (
+        ) : tab === 'generation' ? null : highlights.length === 0 ? (
           <p className={'text-xs text-zinc-500'}>
             {'아직 하이라이트가 없습니다. 재생 중 H 키로 추가할 수 있습니다.'}
           </p>

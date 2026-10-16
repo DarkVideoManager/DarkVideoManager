@@ -4,41 +4,56 @@ import { useQueryClient } from '@tanstack/react-query'
 import ThumbnailJobStatus, { isThumbnailJobActive } from './ThumbnailJobStatus'
 
 export function useLibraryWorkProgress(libraryId) {
-  const [progress, setProgress] = React.useState(null)
-  const [isCancelling, setIsCancelling] = React.useState(false)
-  const [cancelError, setCancelError] = React.useState(null)
-  const activeRef = React.useRef(false)
+  const [workByLibrary, setWorkByLibrary] = React.useState({})
+  const activeLibraries = React.useRef(new Set())
+  const subscribeToProgress = window.api.on.importProgress
+  const currentLibrary = React.useRef(libraryId)
+  currentLibrary.current = libraryId
+  const {
+    progress = null,
+    isCancelling = false,
+    cancelError = null,
+  } = workByLibrary[libraryId] ?? {}
+  function updateWork(id, patch) {
+    setWorkByLibrary((previous) => ({ ...previous, [id]: { ...previous[id], ...patch } }))
+  }
   React.useEffect(
     () =>
-      window.api.on.importProgress((next) => {
-        if (!activeRef.current || (next.libraryId && next.libraryId !== libraryId)) return
-        setProgress(next)
+      subscribeToProgress((next) => {
+        const id = next.libraryId ?? currentLibrary.current
+        if (!activeLibraries.current.has(id)) return
+        setWorkByLibrary((previous) => ({ ...previous, [id]: { ...previous[id], progress: next } }))
       }),
-    [libraryId],
+    [subscribeToProgress],
   )
   function begin(phase = 'preparing') {
-    activeRef.current = true
-    setProgress({ libraryId, phase, current: 0, total: 0, errors: [] })
-    setIsCancelling(false)
-    setCancelError(null)
+    activeLibraries.current.add(libraryId)
+    updateWork(libraryId, {
+      progress: { libraryId, phase, current: 0, total: 0, errors: [] },
+      isCancelling: false,
+      cancelError: null,
+    })
   }
-  function finish() {
-    activeRef.current = false
-    setIsCancelling(false)
+  function finish(id = libraryId) {
+    activeLibraries.current.delete(id)
+    updateWork(id, { isCancelling: false })
   }
   async function cancel() {
-    if (!activeRef.current || isCancelling) return
-    setIsCancelling(true)
-    setCancelError(null)
+    if (!activeLibraries.current.has(libraryId) || isCancelling) return
+    updateWork(libraryId, { isCancelling: true, cancelError: null })
     try {
       const response = await window.api.library.cancelWork(libraryId)
       if (!response.ok) throw new Error(response.error)
-      if (!response.value && activeRef.current) {
-        setCancelError('취소할 작업이 없습니다. 완료 결과를 기다리고 있습니다.')
+      if (!response.value && activeLibraries.current.has(libraryId)) {
+        updateWork(libraryId, {
+          cancelError: '취소할 작업이 없습니다. 완료 결과를 기다리고 있습니다.',
+        })
       }
     } catch (error) {
-      setCancelError(error instanceof Error ? error.message : '취소 요청에 실패했습니다.')
-      setIsCancelling(false)
+      updateWork(libraryId, {
+        cancelError: error instanceof Error ? error.message : '취소 요청에 실패했습니다.',
+        isCancelling: false,
+      })
     }
   }
   return { progress, isCancelling, cancelError, begin, finish, cancel }
@@ -119,7 +134,7 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
   const dialogRef = React.useRef(null)
   const filesMode = mode === 'files'
   const title = filesMode ? '영상 파일 추가' : '폴더 가져오기'
-  const [folderPath, setFolderPath] = React.useState(null)
+  const [folderPaths, setFolderPaths] = React.useState([])
   const [filePaths, setFilePaths] = React.useState([])
   const work = useLibraryWorkProgress(libraryId)
   const [isImporting, setIsImporting] = React.useState(false)
@@ -140,13 +155,16 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
     try {
       const res = filesMode
         ? await window.api.library.selectFiles()
-        : await window.api.library.selectFolder()
+        : await window.api.library.selectFolders()
       if (!res.ok) throw new Error(res.error)
       if (!res.value) return
       if (filesMode && res.value.length > 1000)
         throw new Error('한 번에 영상 파일 1,000개까지 추가할 수 있습니다. 나누어 선택해 주세요.')
       if (filesMode) setFilePaths(res.value)
-      else setFolderPath(res.value)
+      else {
+        if (res.value.length > 100) throw new Error('폴더는 한 번에 100개까지 선택해 주세요.')
+        setFolderPaths(res.value)
+      }
       setDone(false)
       setCancelled(false)
       setResult(null)
@@ -156,7 +174,7 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
     }
   }
   async function handleImport() {
-    if ((filesMode ? !filePaths.length : !folderPath) || isImporting) return
+    if ((filesMode ? !filePaths.length : !folderPaths.length) || isImporting) return
     setIsImporting(true)
     setDone(false)
     setCancelled(false)
@@ -166,7 +184,7 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
     try {
       const result = filesMode
         ? await window.api.library.importFiles(libraryId, filePaths)
-        : await window.api.library.importFolder(libraryId, folderPath)
+        : await window.api.library.importFolders(libraryId, folderPaths)
       if (!result.ok) throw new Error(result.error)
       setResult(result.value)
       setCancelled(Boolean(result.value.cancelled))
@@ -174,6 +192,7 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
       await qc.invalidateQueries({ queryKey: ['videos', libraryId] })
       await qc.invalidateQueries({ queryKey: ['video', libraryId] })
       await qc.invalidateQueries({ queryKey: ['subtitles', libraryId] })
+      await qc.invalidateQueries({ queryKey: ['libraries'] })
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '가져오기에 실패했습니다.')
     } finally {
@@ -199,7 +218,7 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
       <p className="mb-4 text-xs leading-relaxed text-zinc-400">
         {filesMode
           ? '영상 한 개 또는 여러 개를 골라 추가합니다. 선택한 영상만 처리하며, 해당 폴더의 다른 영상은 가져오지 않습니다. 폴더를 계속 갱신하려면 폴더 가져오기를 이용하세요.'
-          : '이 폴더와 하위 폴더의 영상을 가져오고 갱신 대상으로 등록합니다. 이후 새 영상은 목록 업데이트를 눌러 반영하세요. 폴더 자동 감시는 지원하지 않습니다.'}
+          : '폴더 여러 개 또는 드라이브 전체를 선택할 수 있습니다. 선택한 폴더와 하위 폴더의 영상을 가져오고 갱신 대상으로 등록합니다. 접근할 수 없는 폴더가 있으면 중단되므로 접근 가능한 영상 폴더를 선택해 주세요. 이후 새 영상은 목록 업데이트로 반영합니다. 폴더 자동 감시는 지원하지 않습니다.'}
       </p>
       {errorMessage && (
         <p role="alert" className="mb-3 text-sm text-red-400">
@@ -212,7 +231,9 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
             ? filePaths.length
               ? `${filePaths.length}개 영상 선택됨`
               : '추가할 영상 파일을 선택하세요'
-            : (folderPath ?? '가져올 폴더를 선택하세요')}
+            : folderPaths.length
+              ? `${folderPaths.length}개 폴더 선택됨`
+              : '가져올 폴더 또는 드라이브를 선택하세요'}
         </div>
         <button
           onClick={handleSelectFolder}
@@ -224,12 +245,12 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
           {filesMode ? '파일 선택' : '선택'}
         </button>
       </div>
-      {filesMode && filePaths.length > 0 && (
+      {(filesMode ? filePaths : folderPaths).length > 0 && (
         <ul
-          aria-label="선택한 영상 파일"
+          aria-label={filesMode ? '선택한 영상 파일' : '선택한 폴더'}
           className="mb-4 max-h-32 overflow-y-auto text-xs text-zinc-400"
         >
-          {filePaths.map((file) => (
+          {(filesMode ? filePaths : folderPaths).map((file) => (
             <li key={file} className="break-all">
               {file}
             </li>
@@ -303,7 +324,7 @@ function ImportDialog({ libraryId, mode = 'folder', thumbnailJobs, onClose }) {
         </button>
         <button
           onClick={handleImport}
-          disabled={(filesMode ? !filePaths.length : !folderPath) || isImporting || done}
+          disabled={(filesMode ? !filePaths.length : !folderPaths.length) || isImporting || done}
           className={
             'rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40'
           }
