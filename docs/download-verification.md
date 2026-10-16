@@ -2,29 +2,24 @@
 
 [공식 GitHub 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 앱과 **같은 버전**의 `SHA256SUMS.txt`, `VERIFICATION.md`를 받습니다. 설치형은 `Setup`, 설치 없이 실행하는 파일은 `Portable`입니다. `VERIFICATION.md`에는 해당 배포에서 실제로 확인한 범위가 기록됩니다.
 
-현재 예시 기준은 **v0.3.1, 2026-10-16 KST**입니다. [공식 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.1) · [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.1/SHA256SUMS.txt) · [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.1/VERIFICATION.md)
+현재 예시 기준은 **v0.3.2, 2026-10-16 KST**입니다. [공식 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.2) · [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.2/SHA256SUMS.txt) · [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.2/VERIFICATION.md)
 
 ## 파일이 공식 배포본과 같은지 확인
 
 Windows PowerShell에서 받은 파일의 SHA-256을 확인합니다. 파일 이름과 폴더는 실제 다운로드 위치에 맞춥니다.
 
 ```powershell
-Get-FileHash -LiteralPath 'C:\Downloads\DarkVideoManager-Portable-0.3.1-x64.exe' -Algorithm SHA256
+Get-FileHash -LiteralPath 'C:\Downloads\DarkVideoManager-Portable-0.3.2-x64.exe' -Algorithm SHA256
 ```
 
 출력의 `Hash`를 같은 릴리스의 `SHA256SUMS.txt`에서 **같은 파일 이름** 옆에 있는 값과 비교합니다. 해시의 영문 대소문자는 구분하지 않습니다. 파일이 변경되면 해시도 달라집니다. [Microsoft Get-FileHash 안내](https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/get-filehash)
 
-v0.3.1의 공식 SHA256SUMS.txt와 검증 기록에 수록된 기준값은 다음과 같습니다. 다른 버전에는 해당 버전의 기준값을 사용합니다. 이 표는 현재 배포 파일을 확인하기 위한 값이며, 원래 V3 차단을 제보한 파일을 직접 검사한 결과는 아닙니다. 이전 v0.2.4 파일은 [해당 버전의 해시 목록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.2.4/SHA256SUMS.txt)으로 확인합니다.
-
-| v0.3.1 파일                               | SHA-256                                                            |
-| ----------------------------------------- | ------------------------------------------------------------------ |
-| `DarkVideoManager-Portable-0.3.1-x64.exe` | `e286229174af278b148288b66921909fd392c59650a829ba601ab7ae7719418e` |
-| `DarkVideoManager-Setup-0.3.1-x64.exe`    | `1f14a6d92d467db2946ab13874c46f957fc29be9faf2158e98e624476e33b4bf` |
+v0.3.2의 파일별 기준 해시는 같은 릴리스의 [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.2/SHA256SUMS.txt)에, 실제 배포 검증 범위는 [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.2/VERIFICATION.md)에 수록합니다. 다른 버전에는 해당 버전의 기준값을 사용합니다. 이 자료는 원래 V3 차단을 제보한 파일을 직접 검사한 결과가 아닙니다.
 
 소스를 받은 경우 검증 도우미로 선택한 파일 하나를 자동 대조할 수 있습니다. 릴리스의 다른 파일을 모두 내려받을 필요는 없습니다.
 
 ```powershell
-powershell -NoProfile -File .\scripts\verify-release.ps1 -FilePath 'C:\Downloads\DarkVideoManager-Portable-0.3.1-x64.exe' -ChecksumFile 'C:\Downloads\SHA256SUMS.txt'
+powershell -NoProfile -File .\scripts\verify-release.ps1 -FilePath 'C:\Downloads\DarkVideoManager-Portable-0.3.2-x64.exe' -ChecksumFile 'C:\Downloads\SHA256SUMS.txt'
 ```
 
 도우미는 파일을 읽어 해시와 Windows 서명 상태를 표시하며 실행하지 않습니다. 목록의 형식·파일 이름이 잘못됐거나 해시가 다르면 실패합니다. 해시가 일치한다는 것은 공식 목록에 적힌 파일과 바이트가 같다는 뜻이며, 악성 여부나 백신의 탐지 결과를 판정하지 않습니다.
@@ -32,12 +27,12 @@ powershell -NoProfile -File .\scripts\verify-release.ps1 -FilePath 'C:\Downloads
 ## Windows 서명 상태 확인
 
 ```powershell
-Get-AuthenticodeSignature -LiteralPath 'C:\Downloads\DarkVideoManager-Portable-0.3.1-x64.exe' | Format-List Status,StatusMessage,SignerCertificate
+Get-AuthenticodeSignature -LiteralPath 'C:\Downloads\DarkVideoManager-Portable-0.3.2-x64.exe' | Format-List Status,StatusMessage,SignerCertificate
 ```
 
 `Valid`이면 서명 인증서의 발급 대상도 확인합니다. `NotSigned`는 서명이 없다는 상태입니다. 서명 유무만으로 악성 여부를 판단하지 않습니다. 저장소의 배포 후보 빌드는 코드 서명을 자동 적용하지 않으므로, 실제로 받은 파일의 결과를 기록합니다. [Microsoft 서명 확인 안내](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/get-authenticodesignature)
 
-**위 해시의 v0.3.1 설치형·포터블 EXE는 모두 `NotSigned`이며 서명자가 없습니다.** 포함된 Python의 유효한 서명은 그 구성 요소에만 적용되며 앱 전체의 게시자 서명을 대신하지 않습니다. 실제 포터블 시작·종료와 설치형·포터블의 내부 파일 일치를 검사했지만, 새 Windows에서 설치 마법사를 실행하거나 V3 차단이 해소됐는지 검사한 결과는 아닙니다.
+**v0.3.2 설치형·포터블 EXE는 모두 `NotSigned`이며 서명자가 없습니다.** 포함된 Python의 유효한 서명은 그 구성 요소에만 적용되며 앱 전체의 게시자 서명을 대신하지 않습니다. 실제 포터블 시작·종료와 설치형·포터블의 내부 파일 일치를 검사했지만, 새 Windows에서 설치 마법사를 실행하거나 V3 차단이 해소됐는지 검사한 결과는 아닙니다.
 
 ## V3 등에서 차단한 경우
 
