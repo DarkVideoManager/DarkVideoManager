@@ -1,3 +1,4 @@
+import { probeWslPrerequisites, requireWslVirtualization } from './SubtitleWslPrerequisites'
 import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -112,7 +113,7 @@ function installFailure(
       'Windows 권한 승인이 취소되었습니다. 자동 설치를 다시 누르고 권한 승인 창에서 허용해 주세요.'
   else if (/HCS_E_HYPERV_NOT_INSTALLED|0x80370102/i.test(diagnostics))
     message =
-      'Windows 가상 머신을 시작하지 못했습니다. Windows의 가상 머신 플랫폼 기능과 BIOS/UEFI의 CPU 가상화를 확인해 주세요. 가상 PC에서는 중첩 가상화도 필요합니다.'
+      'Windows 가상 머신을 시작하지 못했습니다. Windows의 가상 머신 플랫폼 기능, BIOS/UEFI의 CPU 가상화와 하이퍼바이저 부팅 시작 설정을 확인해 주세요. 가상 PC에서는 중첩 가상화도 필요합니다.'
   else if (
     /WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED|WSL_E_VIRTUAL_MACHINE_PLATFORM_REQUIRED|0x8007019e/i.test(
       diagnostics,
@@ -485,6 +486,7 @@ if (([DateTimeOffset]$boot).ToUnixTimeMilliseconds() -gt ${record.createdAt}) { 
     signal.throwIfAborted()
     return undefined
   })
+  requireWslVirtualization(await probeWslPrerequisites(capture, signal))
   // An existing distro that cannot boot needs its actual diagnostic, not another
   // installation attempt or a reboot prompt inferred from failed readiness.
   if (distributionListed(listed))
@@ -515,11 +517,18 @@ export async function installSubtitleWsl(
   if (resumed && resumed.code !== 0)
     throw installFailure('이전 Windows 설치를 완료하지 못했습니다.', resumed)
   signal?.throwIfAborted()
+  const prerequisites = await probeWslPrerequisites(capture, signal)
+  requireWslVirtualization(prerequisites)
+  if (prerequisites.platform === 'unknown')
+    progress?.(
+      '가상 머신 플랫폼의 활성 상태를 확인하지 못했습니다. WSL 실행 결과로 다시 확인하며, 문제가 있으면 Windows 기능과 가상화 설정을 점검해 주세요.',
+    )
   const listed = await capture('wsl.exe', ['--list', '--quiet'], signal).catch(() => {
     signal?.throwIfAborted()
     return undefined
   })
-  if (distributionListed(listed)) {
+  const alreadyInstalled = distributionListed(listed)
+  if (alreadyInstalled && prerequisites.platform !== 'disabled') {
     await requireWslStartup(capture, signal)
     return false
   }
@@ -527,7 +536,8 @@ export async function installSubtitleWsl(
     signal?.throwIfAborted()
     return undefined
   })
-  if (!platform || platform.code !== 0) {
+  // `wsl --status` may print a virtualization warning and still exit zero.
+  if (prerequisites.platform === 'disabled' || !platform || platform.code !== 0) {
     signal?.throwIfAborted()
     await launchInstall(capture, 'platform')
     const result = await waitForInstall(capture, progress, signal)
@@ -545,6 +555,10 @@ export async function installSubtitleWsl(
       })
   }
   signal?.throwIfAborted()
+  if (alreadyInstalled) {
+    await requireWslStartup(capture, signal)
+    return false
+  }
   await launchInstall(capture, 'distribution')
   const installed = await waitForInstall(capture, progress, signal)
   if (installed?.restartRequired || [3010, 1641].includes(installed?.code ?? -1)) return true
