@@ -40,8 +40,8 @@ test('missing-subtitle filter preserves search and sort across playback, navigat
   await openLibrary(page)
   await expect(subtitleFilter(page)).not.toBeChecked()
   await page.getByPlaceholder('영상 검색...').fill('Sample')
-  await page.getByRole('combobox').nth(0).selectOption('title')
-  await page.getByRole('combobox').nth(1).selectOption('asc')
+  await page.getByRole('combobox', { name: '영상 정렬 기준', exact: true }).selectOption('title')
+  await page.getByRole('combobox', { name: '영상 정렬 방향', exact: true }).selectOption('asc')
   await videoCard(page).click()
   await expect(page.getByPlaceholder('이 영상에 대한 메모를 적어보세요...')).toBeVisible()
 
@@ -60,8 +60,12 @@ test('missing-subtitle filter preserves search and sort across playback, navigat
   await page.getByRole('button', { name: '닫기', exact: true }).click()
   await expect(subtitleFilter(page)).toBeChecked()
   await expect(page.getByPlaceholder('영상 검색...')).toHaveValue('Sample')
-  await expect(page.getByRole('combobox').nth(0)).toHaveValue('title')
-  await expect(page.getByRole('combobox').nth(1)).toHaveValue('asc')
+  await expect(page.getByRole('combobox', { name: '영상 정렬 기준', exact: true })).toHaveValue(
+    'title',
+  )
+  await expect(page.getByRole('combobox', { name: '영상 정렬 방향', exact: true })).toHaveValue(
+    'asc',
+  )
 
   await page.getByRole('link', { name: '통계', exact: true }).click()
   await expect(page.getByRole('heading', { name: '통계', exact: true })).toBeVisible()
@@ -73,8 +77,12 @@ test('missing-subtitle filter preserves search and sort across playback, navigat
   await openLibrary(page)
   await expect(subtitleFilter(page)).toBeChecked()
   await expect(page.getByPlaceholder('영상 검색...')).toHaveValue('Sample')
-  await expect(page.getByRole('combobox').nth(0)).toHaveValue('title')
-  await expect(page.getByRole('combobox').nth(1)).toHaveValue('asc')
+  await expect(page.getByRole('combobox', { name: '영상 정렬 기준', exact: true })).toHaveValue(
+    'title',
+  )
+  await expect(page.getByRole('combobox', { name: '영상 정렬 방향', exact: true })).toHaveValue(
+    'asc',
+  )
   await expect(videoCard(page)).toBeVisible()
 })
 
@@ -85,8 +93,8 @@ test('existing subtitle tracks are excluded and unchecking restores the current 
   await generateSubtitles(page)
   await openLibrary(page)
   await page.getByPlaceholder('영상 검색...').fill('Sample')
-  await page.getByRole('combobox').nth(0).selectOption('title')
-  await page.getByRole('combobox').nth(1).selectOption('asc')
+  await page.getByRole('combobox', { name: '영상 정렬 기준', exact: true }).selectOption('title')
+  await page.getByRole('combobox', { name: '영상 정렬 방향', exact: true }).selectOption('asc')
   await videoCard(page).click()
   await expect(videoCard(page).getByText('자막 있음', { exact: true })).toBeVisible()
   await subtitleFilter(page).check()
@@ -94,8 +102,12 @@ test('existing subtitle tracks are excluded and unchecking restores the current 
   await expect(page.getByText('0개 영상', { exact: true })).toBeVisible()
   await expect(page.getByPlaceholder('이 영상에 대한 메모를 적어보세요...')).toHaveCount(0)
   await expect(page.getByPlaceholder('영상 검색...')).toHaveValue('Sample')
-  await expect(page.getByRole('combobox').nth(0)).toHaveValue('title')
-  await expect(page.getByRole('combobox').nth(1)).toHaveValue('asc')
+  await expect(page.getByRole('combobox', { name: '영상 정렬 기준', exact: true })).toHaveValue(
+    'title',
+  )
+  await expect(page.getByRole('combobox', { name: '영상 정렬 방향', exact: true })).toHaveValue(
+    'asc',
+  )
 
   await subtitleFilter(page).uncheck()
   await expect(videoCard(page)).toBeVisible()

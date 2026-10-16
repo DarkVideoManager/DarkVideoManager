@@ -26,13 +26,23 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export default function SubtitleGenerationPanel({ libraryId, videoId, disabled = false }) {
+export default function SubtitleGenerationPanel({
+  libraryId,
+  videoId,
+  disabled = false,
+  visible = true,
+}) {
   const queryClient = useQueryClient()
   const [model, setModel] = React.useState('base')
   const [language, setLanguage] = React.useState('auto')
   const [translateToKorean, setTranslateToKorean] = React.useState(true)
   const [regeneration, setRegeneration] = React.useState(null)
   const regenerationSubmitted = React.useRef(false)
+  React.useEffect(() => {
+    // Hidden confirmations must not block shortcuts or survive a tab change.
+    // Submitted jobs already belong to the queue and continue independently.
+    if (!visible) setRegeneration(null)
+  }, [visible])
   const confirmationTitleId = React.useId()
   const handledCompletion = React.useRef(null)
   const queryKey = ['subtitle-generation', libraryId, videoId]
@@ -389,7 +399,7 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
           {regenerate.isPending ? '재생성 큐에 추가 중...' : '기존 자막 삭제 후 재생성'}
         </button>
       )}
-      {regeneration && (
+      {visible && regeneration && (
         <div
           role="dialog"
           aria-modal="true"

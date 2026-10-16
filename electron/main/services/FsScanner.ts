@@ -1,5 +1,5 @@
 import { opendir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { isVideoFile } from '../infra/fs'
 import { throwIfWorkCancelled, yieldLibraryWork } from './LibraryWorkService'
 
@@ -12,6 +12,17 @@ export interface ScanOptions {
   signal?: AbortSignal
   onFile?: (filePath: string) => void
   onProgress?: (progress: ScanProgress) => void
+}
+
+const driveMetadataDirectories = new Set(['$recycle.bin', 'system volume information'])
+export function isDriveMetadataDirectory(root: string, currentPath: string, name: string): boolean {
+  const resolvedRoot = resolve(root)
+  return (
+    process.platform === 'win32' &&
+    /^[a-z]:[\\/]$/i.test(resolvedRoot) &&
+    resolve(currentPath) === resolvedRoot &&
+    driveMetadataDirectories.has(name.toLowerCase())
+  )
 }
 
 /** Errors abort the complete traversal; an unreadable folder is never an empty snapshot. */
@@ -34,8 +45,9 @@ export class FsScanner {
         throwIfWorkCancelled(options.signal)
         if (!entry.name.startsWith('.')) {
           const fullPath = join(currentPath, entry.name)
-          if (entry.isDirectory()) pending.push(fullPath)
-          else if (entry.isFile()) {
+          if (entry.isDirectory()) {
+            if (!isDriveMetadataDirectory(dirPath, currentPath, entry.name)) pending.push(fullPath)
+          } else if (entry.isFile()) {
             files++
             options.onFile?.(fullPath)
             if (isVideoFile(fullPath)) results.push(fullPath)

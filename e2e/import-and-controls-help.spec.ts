@@ -20,7 +20,7 @@ test('single-file entry imports only the selected file and reports completion', 
       calls.push({ libraryId, paths })
       return { ok: true, value: { added: 1, skipped: 0, removed: 0, errors: [] } }
     }
-    window.api.library.importFolder = async () => {
+    window.api.library.importFolders = async () => {
       throw new Error('Unexpected folder scan')
     }
     window.api.library.refresh = async () => {

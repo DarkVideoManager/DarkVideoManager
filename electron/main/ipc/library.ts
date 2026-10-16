@@ -9,6 +9,7 @@ import {
   closeLibrary,
   deleteLibrary,
   importFolder,
+  importFolders,
   importFiles,
   refreshLibrary,
 } from '../services/LibraryService'
@@ -36,6 +37,21 @@ export function registerLibraryHandlers(): void {
     if (!win) return err('윈도우를 찾을 수 없습니다')
     return ok(await importFiles(libraryId, filePaths, win))
   })
+  registerIpcHandler(IPC.LIBRARY.SELECT_FOLDERS, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return err('윈도우를 찾을 수 없습니다')
+    const result = await dialog.showOpenDialog(win, {
+      title: '라이브러리 폴더 또는 드라이브 선택 (여러 개 선택 가능)',
+      properties: ['openDirectory', 'multiSelections'],
+    })
+    if (result.filePaths.length > 100) return err('폴더는 한 번에 100개까지 선택해 주세요.')
+    return ok(result.canceled || !result.filePaths.length ? null : result.filePaths)
+  })
+  registerIpcHandler(IPC.LIBRARY.IMPORT_FOLDERS, async (event, libraryId, folderPaths) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return err('윈도우를 찾을 수 없습니다')
+    return ok(await importFolders(libraryId, folderPaths, win))
+  })
   registerIpcHandler(IPC.LIBRARY.CANCEL_WORK, (_event, libraryId) =>
     ok(cancelLibraryWork(libraryId)),
   )
@@ -62,7 +78,7 @@ export function registerLibraryHandlers(): void {
     }
   })
 
-  registerIpcHandler(IPC.LIBRARY.CREATE, (_e, name: string, folderPath: string) => {
+  registerIpcHandler(IPC.LIBRARY.CREATE, (_e, name: string, folderPath: string | string[]) => {
     try {
       return ok(createLibrary(name, folderPath))
     } catch (e) {

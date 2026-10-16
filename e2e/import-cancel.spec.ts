@@ -28,11 +28,11 @@ async function prepareWorkHarness(page: Page) {
       }
     }
     const pending = () =>
-      new Promise<Awaited<ReturnType<typeof window.api.library.importFolder>>>((resolve) => {
+      new Promise<Awaited<ReturnType<typeof window.api.library.importFolders>>>((resolve) => {
         state.finish = (cancelled = false) =>
           resolve({ ok: true, value: { added: 2, skipped: 0, removed: 0, errors: [], cancelled } })
       })
-    window.api.library.importFolder = pending
+    window.api.library.importFolders = pending
     window.api.library.refresh = pending
     window.api.library.cancelWork = async (libraryId) => {
       state.cancelCalls.push(libraryId)

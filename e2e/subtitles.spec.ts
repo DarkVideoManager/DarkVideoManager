@@ -79,6 +79,7 @@ async function prepareControlledJobs(page: Page, available = true) {
   }, available)
   await page.getByRole('button', { name: '열기', exact: true }).click()
   await videoCard(page).click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   return page.getByRole('region', { name: 'AI 자막 생성', exact: true })
 }
 
@@ -118,6 +119,7 @@ test('generates original and Korean subtitles asynchronously and refreshes the v
   })
   await page.getByRole('button', { name: '열기', exact: true }).click()
   await videoCard(page).click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   const panel = page.getByRole('region', { name: 'AI 자막 생성', exact: true })
   await expect(panel.getByLabel('음성 인식 모델')).toHaveValue('base')
   await expect(panel.getByLabel('영상 언어')).toHaveValue('auto')
@@ -231,11 +233,13 @@ test('cancels an active job, reports cancellation errors, and displays a later t
   await expect(panel.getByRole('button', { name: '자막 생성 시작', exact: true })).toBeEnabled()
 })
 
-test('resumes polling after the details panel remounts', async ({ page }) => {
+test('keeps generation polling and selected options when switching detail tabs', async ({
+  page,
+}) => {
   const panel = await prepareControlledJobs(page)
   await panel.getByRole('button', { name: '자막 생성 시작', exact: true }).click()
   await expect(panel.getByRole('progressbar')).toBeVisible()
-  await page.getByRole('button', { name: '하이라이트', exact: true }).click()
+  await page.getByRole('tab', { name: '하이라이트', exact: true }).click()
   await expect(panel).toHaveCount(0)
   await page.evaluate(() => {
     const state = (window as unknown as SubtitleWindow).subtitleHarness
@@ -245,7 +249,7 @@ test('resumes polling after the details panel remounts', async ({ page }) => {
       percent: 80,
     }
   })
-  await page.getByRole('button', { name: '정보', exact: true }).click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   await expect(panel.getByRole('status')).toContainText('한국어 번역 중 · 80%')
   await page.evaluate(() => {
     const state = (window as unknown as SubtitleWindow).subtitleHarness
@@ -307,11 +311,13 @@ test('a delayed start response stays attached to its original video after select
     panel.getByRole('button', { name: '자막 생성 시작 중...', exact: true }),
   ).toBeDisabled()
   await videoCard(page, 'Second video').click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   await expect(panel.getByRole('button', { name: '자막 생성 시작', exact: true })).toBeEnabled()
   await page.evaluate(() => (window as unknown as SubtitleWindow).subtitleHarness.releaseStart?.())
   await expect(panel.getByRole('progressbar')).toHaveCount(0)
   await expect(panel.getByRole('status')).toHaveCount(0)
   await videoCard(page).click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   await expect(panel.getByRole('status')).toContainText('mock-video-1 음성 인식 진행 중')
 })
 
@@ -321,6 +327,7 @@ test('removed videos cannot start subtitle generation', async ({ page }) => {
   await page.getByRole('button', { name: '열기', exact: true }).click()
   await page.getByRole('button', { name: '제거한 항목', exact: true }).click()
   await videoCard(page).click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   const panel = page.getByRole('region', { name: 'AI 자막 생성', exact: true })
   await expect(panel.getByRole('button', { name: '자막 생성 시작', exact: true })).toBeDisabled()
   await expect(

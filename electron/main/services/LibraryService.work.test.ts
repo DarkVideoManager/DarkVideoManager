@@ -20,15 +20,19 @@ vi.mock('../infra/logger', () => ({
 }))
 vi.mock('../ffmpeg/ffprobe', () => ({ probeVideo: vi.fn() }))
 vi.mock('../ffmpeg/thumbnail', () => ({ generateThumbnails: vi.fn() }))
+vi.mock('./NativePlayerService', () => ({ closeManagedNativePlayers: vi.fn() }))
+vi.mock('./MpvSessionService.js', () => ({ closeAllMpvSessions: vi.fn() }))
 
 import {
   createLibrary,
   importFolder,
+  importFolders,
   importFiles,
   listLibraries,
   refreshLibrary,
   closeLibrary,
   deleteLibrary,
+  openLibrary,
 } from './LibraryService'
 import {
   withLibraryWork,
@@ -47,6 +51,8 @@ import { generateThumbnails } from '../ffmpeg/thumbnail'
 import { createAbortError, thumbnailQueue } from '../ffmpeg/queue'
 import { cancelThumbnailJob, listThumbnailJobs } from './ThumbnailJobService'
 import { ThumbnailRepository } from '../db/repositories/ThumbnailRepository'
+import { closeManagedNativePlayers } from './NativePlayerService'
+import { closeAllMpvSessions } from './MpvSessionService.js'
 
 let root: string
 const events: Array<{ libraryId?: string; phase: string; currentFile?: string; current?: number }> =
@@ -61,6 +67,8 @@ const win = {
   },
 } as unknown as Electron.BrowserWindow
 beforeEach(() => {
+  vi.mocked(closeManagedNativePlayers).mockReset()
+  vi.mocked(closeAllMpvSessions).mockReset()
   root = mkdtempSync(join(tmpdir(), 'dvm-library-work-test-'))
   state.userData = join(root, 'data')
   mkdirSync(state.userData)
@@ -95,6 +103,140 @@ function makeLibrary() {
   const db = getDatabase(library.id)!
   return { library, db, directory, repository: new VideoRepository(db) }
 }
+
+describe('multi-folder libraries and live switching', () => {
+  it('creates one library from distinct roots and removes duplicate or contained selections', async () => {
+    const first = join(root, 'first')
+    const nested = join(first, 'nested')
+    const second = join(root, 'second')
+    mkdirSync(nested, { recursive: true })
+    mkdirSync(second)
+    movie(first, 'one')
+    movie(nested, 'nested')
+    movie(second, 'two')
+    const library = createLibrary('Combined', [nested, first, first, second])
+    expect(library.folderPath).toBe(first)
+    expect(library.folderPaths).toEqual([first, second])
+    expect(await refreshLibrary(library.id, win)).toMatchObject({ added: 3, errors: [] })
+    expect(probeVideo).toHaveBeenCalledTimes(3)
+    expect(listLibraries()).toHaveLength(1)
+  })
+
+  it('validates every selected root before creating or registering a library', () => {
+    const first = join(root, 'first')
+    mkdirSync(first)
+    const before = loadConfig()
+    expect(() => createLibrary('Invalid', [first, join(root, 'offline')])).toThrow()
+    expect(loadConfig()).toEqual(before)
+    expect(() => createLibrary('Empty', [])).toThrow()
+    const file = movie(first, 'file')
+    expect(() => createLibrary('Not a folder', [first, file])).toThrow()
+    expect(listLibraries()).toHaveLength(0)
+  })
+
+  it('imports selected roots together and refreshes them after reopening a legacy library', async () => {
+    const { library, directory, repository } = makeLibrary()
+    updateConfig((config) => ({
+      ...config,
+      libraries: config.libraries.map((entry) => ({ ...entry, folderPaths: undefined })),
+    }))
+    const second = join(root, 'second')
+    const third = join(root, 'third')
+    mkdirSync(second)
+    mkdirSync(third)
+    movie(second, 'two')
+    movie(third, 'three')
+    expect(await importFolders(library.id, [second, third, second], win)).toMatchObject({
+      added: 2,
+      errors: [],
+    })
+    expect(repository.count()).toBe(2)
+    expect(listLibraries()[0].folderPaths).toEqual([directory, second, third])
+    closeLibrary(library.id)
+    openLibrary(library.id)
+    movie(third, 'later')
+    expect(await refreshLibrary(library.id, win)).toMatchObject({
+      added: 1,
+      skipped: 2,
+      errors: [],
+    })
+  })
+
+  it('does not import or register any selected root when another selected root is inaccessible', async () => {
+    const { library, repository } = makeLibrary()
+    const valid = join(root, 'valid')
+    mkdirSync(valid)
+    movie(valid, 'not-imported')
+    const before = loadConfig()
+    await expect(importFolders(library.id, [valid, join(root, 'offline')], win)).rejects.toThrow()
+    expect(repository.count()).toBe(0)
+    expect(probeVideo).not.toHaveBeenCalled()
+    expect(loadConfig()).toEqual(before)
+    const originalScan = FsScanner.prototype.scan
+    vi.spyOn(FsScanner.prototype, 'scan').mockImplementation(async function (
+      this: FsScanner,
+      folder,
+      options,
+    ) {
+      if (folder === root) throw new Error('Unreadable child folder')
+      return originalScan.call(this, folder, options)
+    })
+    await expect(importFolders(library.id, [valid, root], win)).rejects.toThrow(
+      'Unreadable child folder',
+    )
+    expect(repository.count()).toBe(0)
+    expect(loadConfig()).toEqual(before)
+  })
+
+  it('opens another library while background work keeps its original database and cancellation scope', async () => {
+    const { library, db } = makeLibrary()
+    const secondFolder = join(root, 'second')
+    mkdirSync(secondFolder)
+    const second = createLibrary('Second', secondFolder)
+    await withLibraryWork(
+      library.id,
+      async (signal) => {
+        expect(openLibrary(second.id).id).toBe(second.id)
+        expect(getDatabase(library.id)).toBe(db)
+        expect(isLibraryBusy(library.id)).toBe(true)
+        expect(isLibraryBusy(second.id)).toBe(false)
+        expect(signal.aborted).toBe(false)
+        expect(() => closeLibrary(library.id)).toThrow('진행 중')
+        expect(loadConfig().lastActiveLibraryId).toBe(second.id)
+        expect(() => openLibrary('missing')).toThrow()
+        expect(loadConfig().lastActiveLibraryId).toBe(second.id)
+        expect(getDatabase(library.id)).toBe(db)
+      },
+      'subtitles',
+    )
+  })
+})
+
+describe('managed playback during library switching', () => {
+  it('stops playback on switching and preserves the current library when stopping fails', () => {
+    const { library, db } = makeLibrary()
+    const secondFolder = join(root, 'second')
+    mkdirSync(secondFolder)
+    const second = createLibrary('Second', secondFolder)
+    openLibrary(library.id)
+    closeLibrary(second.id)
+    vi.mocked(closeManagedNativePlayers)
+      .mockClear()
+      .mockImplementationOnce(() => {
+        throw new Error('외부 플레이어를 종료하지 못했습니다.')
+      })
+    vi.mocked(closeAllMpvSessions).mockClear()
+    expect(() => openLibrary(second.id)).toThrow('외부 플레이어를 종료하지 못했습니다.')
+    expect(loadConfig().lastActiveLibraryId).toBe(library.id)
+    expect(getDatabase(library.id)).toBe(db)
+    expect(getDatabase(second.id)).toBeNull()
+    expect(closeAllMpvSessions).not.toHaveBeenCalled()
+    expect(openLibrary(second.id).id).toBe(second.id)
+    expect(closeManagedNativePlayers).toHaveBeenCalledTimes(2)
+    expect(closeAllMpvSessions).toHaveBeenCalledTimes(1)
+    expect(loadConfig().lastActiveLibraryId).toBe(second.id)
+  })
+})
 
 describe('selected video file imports', () => {
   it('imports only selected files and matching sidecars without scanning or registering folders', async () => {

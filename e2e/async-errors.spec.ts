@@ -61,7 +61,7 @@ for (const captureRejects of [true, false]) {
       .getByRole('button')
       .filter({ has: page.getByText('Sample video', { exact: true }) })
       .click()
-    await page.getByRole('button', { name: '하이라이트', exact: true }).click()
+    await page.getByRole('tab', { name: '하이라이트', exact: true }).click()
     await expect
       .poll(() => page.evaluate(() => (window as unknown as ErrorWindow).errorHarness.captures))
       .toBeGreaterThan(0)
@@ -70,12 +70,12 @@ for (const captureRejects of [true, false]) {
         .poll(() => page.evaluate(() => (window as unknown as ErrorWindow).errorHarness.updates))
         .toBeGreaterThan(0)
     }
-    await page.getByRole('button', { name: '정보', exact: true }).click()
+    await page.getByRole('tab', { name: '정보', exact: true }).click()
     await page.getByRole('button', { name: '다시 생성', exact: true }).click()
     await expect(page.getByRole('alert')).toContainText('수동 썸네일 IPC 테스트 실패')
     await page.getByPlaceholder('이 영상에 대한 메모를 적어보세요...').fill('저장 실패 테스트')
     await expect(page.getByRole('alert')).toContainText('메타데이터 작업 중입니다.')
-    await page.getByRole('button', { name: '하이라이트', exact: true }).click()
+    await page.getByRole('tab', { name: '하이라이트', exact: true }).click()
     await page.getByRole('button', { name: '삭제', exact: true }).click()
     await expect(page.getByRole('alert')).toContainText('하이라이트 작업 중입니다.')
     expect(

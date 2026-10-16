@@ -172,6 +172,7 @@ test('opens setup from unavailable video controls and refreshes engine readiness
   await prepareSetup(page)
   await page.getByRole('button', { name: '열기', exact: true }).click()
   await sampleCard(page).click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   await expect(
     generationPanel(page).getByRole('button', { name: '자막 생성 시작', exact: true }),
   ).toBeDisabled()
@@ -189,6 +190,7 @@ test('opens setup from unavailable video controls and refreshes engine readiness
   )
   await page.getByRole('link', { name: '라이브러리', exact: true }).click()
   await sampleCard(page).click()
+  await page.getByRole('tab', { name: '자막 생성', exact: true }).click()
   await expect(
     generationPanel(page).getByRole('button', { name: '자막 생성 시작', exact: true }),
   ).toBeEnabled()

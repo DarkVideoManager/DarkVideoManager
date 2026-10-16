@@ -18,6 +18,7 @@ export { IPC } from './channels'
 
 const IdZ = z.string().min(1)
 const FilePathZ = z.string().min(1)
+const FolderPathsZ = z.array(FilePathZ).min(1).max(100)
 const EmptyArgsZ = z.tuple([])
 const LibraryIdArgsZ = z.tuple([IdZ])
 const VideoArgsZ = z.tuple([IdZ, IdZ])
@@ -198,14 +199,16 @@ export const IPC_SCHEMAS = {
   [IPC.METADATA_IMPORT.APPLY]: z.tuple([IdZ, IdZ, MetadataApplyZ]),
   [IPC.LIBRARY.LIST]: EmptyArgsZ,
   [IPC.LIBRARY.OPEN]: LibraryIdArgsZ,
-  [IPC.LIBRARY.CREATE]: z.tuple([z.string().min(1), FilePathZ]),
+  [IPC.LIBRARY.CREATE]: z.tuple([z.string().min(1), z.union([FilePathZ, FolderPathsZ])]),
   [IPC.LIBRARY.CLOSE]: LibraryIdArgsZ,
   [IPC.LIBRARY.IMPORT_FOLDER]: z.tuple([IdZ, FilePathZ]),
+  [IPC.LIBRARY.IMPORT_FOLDERS]: z.tuple([IdZ, FolderPathsZ]),
   [IPC.LIBRARY.IMPORT_FILES]: z.tuple([IdZ, z.array(FilePathZ).min(1).max(1000)]),
   [IPC.LIBRARY.SELECT_FILES]: EmptyArgsZ,
   [IPC.LIBRARY.REFRESH]: LibraryIdArgsZ,
   [IPC.LIBRARY.CANCEL_WORK]: LibraryIdArgsZ,
   [IPC.LIBRARY.SELECT_FOLDER]: EmptyArgsZ,
+  [IPC.LIBRARY.SELECT_FOLDERS]: EmptyArgsZ,
   [IPC.LIBRARY.DELETE]: LibraryIdArgsZ,
   [IPC.VIDEOS.SEARCH]: z.tuple([IdZ, SearchQueryZ]),
   [IPC.VIDEOS.METADATA_OPTIONS]: z.tuple([IdZ, z.boolean().optional()]),

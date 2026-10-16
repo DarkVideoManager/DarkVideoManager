@@ -11,6 +11,9 @@ interface LibraryState {
   activeLibraryId: string | null
   openedLibraryId: string | null
   selectedVideoId: string | null
+  libraryTransitionPending: boolean
+  setLibraryTransitionPending: (pending: boolean) => void
+  activateLibrary: (library: Library | null) => void
   sortPreferencesByLibraryId: Record<string, SortPreference>
   searchTextByLibraryId: Record<string, string>
   withoutSubtitlesByLibraryId: Record<string, boolean>
@@ -39,6 +42,14 @@ export const useLibraryStore = create<LibraryState>()(
       activeLibraryId: null,
       openedLibraryId: null,
       selectedVideoId: null,
+      libraryTransitionPending: false,
+      setLibraryTransitionPending: (libraryTransitionPending) => set({ libraryTransitionPending }),
+      activateLibrary: (library) =>
+        set({
+          activeLibraryId: library?.id ?? null,
+          openedLibraryId: library?.id ?? null,
+          selectedVideoId: null,
+        }),
       sortPreferencesByLibraryId: {},
       searchTextByLibraryId: {},
       withoutSubtitlesByLibraryId: {},

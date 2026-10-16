@@ -1,16 +1,20 @@
 // Restored application logic from the packaged 0.1.0 release; vendor code is imported from npm.
 import * as React from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useLibraries } from '../../api/useLibraries'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLibraries, useOpenLibrary } from '../../api/useLibraries'
 import { useLibraryStore } from '../../store/libraryStore'
 import SettingsDialog from '../settings/SettingsDialog'
 import PlaybackHelpButton from '../player/PlaybackHelpButton'
 import { requestPrivacyExit } from '../privacy/PrivacyBoundary'
 function AppHeader() {
   const { data: libraries = [], isLoading } = useLibraries()
-  const { activeLibraryId } = useLibraryStore()
+  const { activeLibraryId, libraryTransitionPending } = useLibraryStore()
   const location = useLocation()
+  const navigate = useNavigate()
+  const openLibrary = useOpenLibrary()
+  const [switchError, setSwitchError] = React.useState(null)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  React.useEffect(() => setSwitchError(null), [activeLibraryId])
   const activeLibrary = libraries.find((library) => library.id === activeLibraryId) ?? null
   return (
     <header
@@ -25,6 +29,46 @@ function AppHeader() {
             ? `라이브러리: ${activeLibrary.name}`
             : '시작하려면 라이브러리를 선택하세요.'}
         </p>
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        <select
+          aria-label="라이브러리 전환"
+          value={activeLibraryId ?? ''}
+          disabled={isLoading || libraryTransitionPending || !libraries.length}
+          onChange={(event) => {
+            const libraryId = event.target.value
+            if (!libraryId || libraryId === activeLibraryId || libraryTransitionPending) return
+            setSwitchError(null)
+            openLibrary.mutate(libraryId, {
+              onSuccess: () => navigate('/'),
+              onError: (error) => setSwitchError(error.message),
+            })
+          }}
+          className="max-w-52 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 disabled:opacity-50"
+        >
+          {!activeLibraryId && <option value="">라이브러리 선택</option>}
+          {libraries.map((library) => (
+            <option key={library.id} value={library.id}>
+              {library.name}
+            </option>
+          ))}
+        </select>
+        <Link
+          to="/?manage=1"
+          className="rounded px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800"
+        >
+          라이브러리 관리
+        </Link>
+        {libraryTransitionPending && (
+          <span role="status" className="text-xs text-zinc-400">
+            라이브러리 여는 중...
+          </span>
+        )}
+        {switchError && (
+          <span role="alert" className="max-w-64 text-xs text-red-300">
+            {switchError}
+          </span>
+        )}
       </div>
       <nav className={'ml-2 flex items-center gap-2'}>
         <Link

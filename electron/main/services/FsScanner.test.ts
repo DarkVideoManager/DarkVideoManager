@@ -1,8 +1,8 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
+import { join, resolve, sep, parse } from 'node:path'
 import { tmpdir } from 'node:os'
 import { beforeEach, afterEach, expect, it } from 'vitest'
-import { FsScanner } from './FsScanner'
+import { FsScanner, isDriveMetadataDirectory } from './FsScanner'
 
 let root: string
 beforeEach(() => {
@@ -56,4 +56,18 @@ it('propagates missing directory errors instead of treating the directory as emp
   await expect(new FsScanner().scan(join(root, 'offline'))).rejects.toMatchObject({
     code: 'ENOENT',
   })
+})
+
+it('only excludes Windows metadata directories at a selected drive root', () => {
+  const drive = parse(resolve(root)).root
+  expect(isDriveMetadataDirectory(drive, drive, '$RECYCLE.BIN')).toBe(process.platform === 'win32')
+  expect(isDriveMetadataDirectory(drive, drive, 'System Volume Information')).toBe(
+    process.platform === 'win32',
+  )
+  expect(isDriveMetadataDirectory(root, root, '$RECYCLE.BIN')).toBe(false)
+  expect(isDriveMetadataDirectory(drive, root, 'System Volume Information')).toBe(false)
+  expect(isDriveMetadataDirectory(drive, drive, 'Videos')).toBe(false)
+  expect(
+    isDriveMetadataDirectory('\\\\server\\share\\', '\\\\server\\share\\', '$RECYCLE.BIN'),
+  ).toBe(false)
 })
