@@ -1358,6 +1358,7 @@ export function createDemoAdapter(
       },
       getNativePlayerInfo: async () => ok(null),
       openInNativePlayer: unsupported,
+      setActivePlaybackRate: unsupported,
       seekActivePlayback: unsupported,
       updateMeta: async (libraryId: string, videoId: string, meta: VideoMeta) => {
         if (!savedVideo(libraryId, videoId)) return err('샘플 영상을 찾을 수 없습니다.')
@@ -1654,6 +1655,8 @@ export function createDemoAdapter(
       thumbnailReady: (listener: (event: VideoEvent) => void) => listen(thumbnails, listener),
       highlightChanged: (listener: (event: VideoEvent) => void) => listen(highlights, listener),
       nativePlayerEscape: (_listener: Parameters<WindowApi['on']['nativePlayerEscape']>[0]) => () =>
+        undefined,
+      nativePlayerSpeed: (_listener: Parameters<WindowApi['on']['nativePlayerSpeed']>[0]) => () =>
         undefined,
       nativePlayerAction: (_listener: Parameters<WindowApi['on']['nativePlayerAction']>[0]) => () =>
         undefined,

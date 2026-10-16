@@ -79,6 +79,7 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     throw new Error('network must not be used')
   })
   const calls = [
+    () => api.videos.setActivePlaybackRate(libraryId, videoId, 1.5),
     () => api.library.selectFiles(),
     () => api.library.importFiles(libraryId, ['C:\\private.mp4']),
     () => api.videos.revealSource(libraryId, videoId),
@@ -106,6 +107,10 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     assert.equal(result.ok, false)
     assert.match(result.error, /브라우저 데모.*지원하지.*Windows/)
   }
+  const unsubscribe = api.on.nativePlayerSpeed(() => { throw new Error('browser must not emit native speed events') })
+  assert.equal(typeof unsubscribe, 'function')
+  unsubscribe()
+  unsubscribe()
   assert.equal(globalThis.fetch.mock.callCount(), 0)
   assert.equal(storage.value, null)
   assert.deepEqual(await api.thumbnails.listJobs(libraryId), { ok: true, value: [] })
