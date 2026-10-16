@@ -79,7 +79,6 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     throw new Error('network must not be used')
   })
   const calls = [
-    () => api.videos.setActivePlaybackRate(libraryId, videoId, 1.5),
     () => api.library.selectFiles(),
     () => api.library.importFiles(libraryId, ['C:\\private.mp4']),
     () => api.videos.revealSource(libraryId, videoId),
@@ -101,6 +100,7 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     () => api.maintenance.findDuplicates(libraryId),
     () => api.maintenance.cancel(libraryId),
     () => api.privacy.save({ exitAction: 'website', exitUrl: 'https://private.invalid' }),
+    () => api.videos.setActivePlaybackRate(libraryId, videoId, 1.5),
   ]
   for (const call of calls) {
     const result = await call()
