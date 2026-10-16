@@ -2,6 +2,7 @@ import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import SubtitleProcessingStatus from './SubtitleProcessingStatus'
+import SubtitleGpuGuidance from './SubtitleGpuGuidance'
 import { SubtitleStartGuidance, SubtitlePrivacyGuidance } from './SubtitleGuidance'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
@@ -162,6 +163,7 @@ export default function SubtitleGenerationPanel({ libraryId, videoId, disabled =
     >
       <h3 className="text-sm font-semibold text-zinc-100">AI 자막 생성</h3>
       <SubtitleStartGuidance />
+      <SubtitleGpuGuidance />
       <p className="text-xs leading-relaxed text-zinc-400">
         시작하면 작업 큐에 추가해 순서대로 처리합니다. 다른 영상도 이어서 추가할 수 있습니다.
       </p>
