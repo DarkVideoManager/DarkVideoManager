@@ -1,3 +1,5 @@
+import PlaybackRateControl from './PlaybackRateControl'
+import { PlaybackRateZ } from '../../../shared/playbackRate'
 // Restored application logic from the packaged 0.1.0 release; vendor code is imported from npm.
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -82,11 +84,15 @@ function VideoPlayer({
     !video.filePath.toLowerCase().endsWith('.avi'),
   )
   const enableInAppPlayback = React.useCallback(() => {
+    setPlaybackRate((value) => (PlaybackRateZ.safeParse(value).success ? value : 1))
     if (!useInAppPlayback) setPlaybackSourceEpoch((value) => value + 1)
     setUseInAppPlayback(true)
   }, [useInAppPlayback])
   const [currentTimeSec, setCurrentTimeSec] = React.useState(0)
   const [durationSec, setDurationSec] = React.useState(video.durationSec ?? 0)
+  const [playbackRate, setPlaybackRate] = React.useState(1)
+  const [speedPending, setSpeedPending] = React.useState(false)
+  const [activeNativePlayer, setActiveNativePlayer] = React.useState(null)
   const [isPaused, setIsPaused] = React.useState(true)
   const [isSeekingWithMouse, setIsSeekingWithMouse] = React.useState(false)
   const [decodedSize, setDecodedSize] = React.useState({ width: 0, height: 0 })
@@ -395,6 +401,9 @@ function VideoPlayer({
       const outerTop = typeof window.screenY === 'number' ? window.screenY : 0
       const res = await window.api.videos.openInNativePlayer(libraryId, video.id, {
         startTimeSec: currentTime,
+        ...(nativePlayerInfo?.name === 'mpv'
+          ? { playbackRate: PlaybackRateZ.safeParse(playbackRate).success ? playbackRate : 1 }
+          : {}),
         width: bounds ? Math.floor(bounds.width) : window.innerWidth,
         height: bounds ? Math.floor(bounds.height) : window.innerHeight,
         x: bounds ? Math.floor(outerLeft + bounds.left) : outerLeft,
@@ -404,6 +413,7 @@ function VideoPlayer({
       return res.value
     },
     onSuccess: (player) => {
+      setActiveNativePlayer(player.name)
       nativePlaybackRef.current = true
       setMediaPlaybackError(null)
       pendingSeekRecordRef.current = false
@@ -423,6 +433,46 @@ function VideoPlayer({
       onNativeLaunchPendingChange?.(false)
     },
   })
+  React.useEffect(() => {
+    const element = videoRef.current
+    if (!element || !useInAppPlayback || !playbackSource) return
+    const rate = PlaybackRateZ.safeParse(playbackRate).success ? playbackRate : 1
+    element.preservesPitch = true
+    element.playbackRate = rate
+  }, [playbackRate, playbackSource, useInAppPlayback])
+  React.useEffect(
+    () =>
+      window.api.on.nativePlayerSpeed?.((event) => {
+        if (event.videoId === video.id && nativePlaybackRef.current && Number.isFinite(event.rate))
+          setPlaybackRate(event.rate)
+      }),
+    [video.id],
+  )
+  async function changePlaybackRate(rate) {
+    if (!PlaybackRateZ.safeParse(rate).success || speedPending) return
+    setPlayerActionError(null)
+    if (useInAppPlayback) {
+      if (videoRef.current) {
+        videoRef.current.preservesPitch = true
+        videoRef.current.playbackRate = rate
+      }
+      setPlaybackRate(rate)
+      return
+    }
+    if (activeNativePlayer !== 'mpv') return
+    setSpeedPending(true)
+    try {
+      const result = await window.api.videos.setActivePlaybackRate(libraryId, video.id, rate)
+      if (!result.ok) throw new Error(result.error)
+      setPlaybackRate(result.value)
+    } catch (error) {
+      setPlayerActionError(
+        '배속을 적용하지 못했습니다: ' + (error instanceof Error ? error.message : String(error)),
+      )
+    } finally {
+      setSpeedPending(false)
+    }
+  }
   const requestNativePlayback = React.useCallback(() => {
     if (nativeLaunchPendingRef.current) return
     stopSmoothSeek()
@@ -1162,6 +1212,23 @@ function VideoPlayer({
         seekStepSec={seekStepSec}
         settingsError={settingsError}
       />
+      <PlaybackRateControl
+        rate={playbackRate}
+        onChange={changePlaybackRate}
+        pending={speedPending || openInNativePlayer.isPending}
+        disabled={!useInAppPlayback && activeNativePlayer !== 'mpv'}
+        hint={
+          useInAppPlayback
+            ? '인앱 0.25–4× · 음성·자막 함께 적용'
+            : !activeNativePlayer
+              ? '외부 플레이어를 연 뒤 배속을 조절하세요. 인앱·mpv는 앱에서 0.25–4×를 지원합니다.'
+              : activeNativePlayer === 'mpv'
+                ? 'mpv 앱 조절 0.25–4× · mpv에서 변경한 값도 표시'
+                : activeNativePlayer === 'vlc'
+                  ? 'VLC의 재생 → 속도 메뉴에서 조절하세요. 앱에서는 변경·조회할 수 없습니다.'
+                  : 'FFplay 배속 변경은 앱에서 지원하지 않습니다. 인앱 또는 mpv를 사용하세요.'
+        }
+      />
       {subtitleNavigationTarget &&
         createPortal(
           <SubtitleNavigator
@@ -1196,6 +1263,9 @@ function VideoPlayer({
               width: event.currentTarget.videoWidth,
               height: event.currentTarget.videoHeight,
             })
+            event.currentTarget.playbackRate = PlaybackRateZ.safeParse(playbackRate).success
+              ? playbackRate
+              : 1
             handleVideoMetadata()
           }}
           onResize={(event) =>

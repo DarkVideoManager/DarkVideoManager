@@ -1,3 +1,4 @@
+import { PlaybackRateZ } from '../../../src/shared/playbackRate'
 // Recovered from the shipped 0.1.0 implementation and maintained as a focused service.
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
@@ -25,7 +26,9 @@ export async function openInMpv(
   x,
   y,
   webContents,
+  playbackRate = 1,
 ) {
+  PlaybackRateZ.parse(playbackRate)
   const sessionId = `${libraryId}-${video.id}`
   const previousPending = pendingSessions.get(sessionId)
   if (previousPending) {
@@ -43,6 +46,8 @@ export async function openInMpv(
     fs.writeFileSync(eventFilePath, '', 'utf8')
     const args = [
       ...MPV_HARDWARE_DECODING_ARGS,
+      `--speed=${playbackRate}`,
+      '--audio-pitch-correction=yes',
       '--force-window=yes',
       '--autofit-larger=100%x100%',
       ...(width && height
@@ -127,6 +132,13 @@ export async function seekMpvSession(libraryId, videoId, timeSec) {
   })
   return true
 }
+export async function setMpvPlaybackRate(libraryId, videoId, rate) {
+  PlaybackRateZ.parse(rate)
+  const session = sessions.get(libraryId + '-' + videoId)
+  if (!session) return false
+  await sendMpvCommand(session.ipcPipePath, { command: ['set_property', 'speed', rate] }, true)
+  return true
+}
 function closeSession(sessionId, stopPlayer = true) {
   const session = sessions.get(sessionId)
   if (!session) return
@@ -152,6 +164,16 @@ async function flushSessionEvents(sessionId, libraryId, video, webContents) {
   for (const line of lines) {
     try {
       const event = JSON.parse(line)
+      if (
+        event.type === 'speed' &&
+        Number.isFinite(event.rate) &&
+        event.rate >= 0.01 &&
+        event.rate <= 100 &&
+        !webContents.isDestroyed()
+      ) {
+        webContents.send(IPC.EVENTS.NATIVE_PLAYER_SPEED, { videoId: video.id, rate: event.rate })
+        continue
+      }
       const timeSec = typeof event.timeSec === 'number' ? event.timeSec : 0
       session.lastPosition = timeSec
       if (event.type === 'heartbeat') {
@@ -216,10 +238,10 @@ local function emit(event_type)
     return
   end
 
-  file:write(utils.format_json({ type = event_type, timeSec = time_pos }), "\\n")
+  file:write(utils.format_json({ type = event_type, timeSec = time_pos, rate = mp.get_property_number('speed', 1) }), "\\n")
   file:close()
 
-  if event_type == "heartbeat" or event_type == "seek" then return end
+  if event_type == "heartbeat" or event_type == "seek" or event_type == "speed" then return end
 
   local message = ({
     ['thumbnail'] = 'Updated thumbnail',
@@ -343,6 +365,7 @@ mp.register_event('shutdown', function() emit('heartbeat') end)
 mp.register_event('file-loaded', function() finish_held_seek(false); seek_anchor = nil end)
 mp.register_event('end-file', function() finish_held_seek(false); seek_anchor = nil end)
 mp.register_event('shutdown', function() finish_held_seek(false); seek_anchor = nil end)
+mp.observe_property('speed', 'number', function() emit('speed') end)
 mp.observe_property('pause', 'bool', function() emit('heartbeat') end)
 mp.register_script_message('darkvideomanager-seek-to', function(value)
   local target = tonumber(value)
@@ -422,17 +445,41 @@ function safeRemove(filePath) {
     log.warn({ err: err2, filePath }, 'Failed to remove mpv runtime file')
   }
 }
-function sendMpvCommand(ipcPipePath, command) {
+function sendMpvCommand(ipcPipePath, command, waitForReply = false) {
   return new Promise((resolve, reject) => {
     const client = net.createConnection(ipcPipePath)
     client.setTimeout(5000, () => client.destroy(new Error('mpv IPC timed out')))
     client.on('connect', () => {
       client.write(`${JSON.stringify(command)}
 `)
-      client.end()
+      if (!waitForReply) client.end()
+    })
+    let reply = ''
+    let acknowledged = false
+    client.on('data', (chunk) => {
+      if (!waitForReply) return
+      reply += chunk.toString()
+      if (reply.length > 65536) {
+        client.destroy(new Error('mpv IPC response too large'))
+        return
+      }
+      const newline = reply.indexOf('\n')
+      if (newline === -1) return
+      try {
+        const response = JSON.parse(reply.slice(0, newline))
+        if (response.error !== 'success') throw new Error('mpv 배속 적용 실패: ' + response.error)
+        acknowledged = true
+        resolve()
+        client.end()
+      } catch (error) {
+        client.destroy(error)
+      }
     })
     client.on('error', (error) => reject(error))
-    client.on('close', () => resolve())
+    client.on('close', () => {
+      if (waitForReply && !acknowledged) reject(new Error('mpv 배속 적용 응답이 없습니다.'))
+      else resolve()
+    })
   })
 }
 

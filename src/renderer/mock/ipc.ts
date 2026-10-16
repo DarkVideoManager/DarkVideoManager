@@ -769,6 +769,7 @@ export const mockApi: WindowApi = {
       ok(mockSettings.nativePlayer ?? { name: 'mpv', path: '/mock/mpv.exe' }),
     openInNativePlayer: async () =>
       ok(mockSettings.nativePlayer ?? { name: 'mpv', path: '/mock/mpv.exe' }),
+    setActivePlaybackRate: async (_libraryId, _videoId, rate) => ok(rate),
     seekActivePlayback: async () => ok(true),
     updateMeta: async (libraryId, videoId, meta) => {
       const video = findVideo(libraryId, videoId)
@@ -1004,6 +1005,7 @@ export const mockApi: WindowApi = {
     },
     highlightChanged: () => () => undefined,
     nativePlayerEscape: () => () => undefined,
+    nativePlayerSpeed: () => () => undefined,
     nativePlayerAction: () => () => undefined,
   },
 }

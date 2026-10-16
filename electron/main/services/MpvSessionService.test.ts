@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import net from 'node:net'
 import childProcess, { type ChildProcess } from 'node:child_process'
 import { appendFileSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -8,6 +9,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import type { Video } from '@shared/types'
 
 const state = vi.hoisted(() => ({ runtime: '', seekStepSec: undefined as number | undefined }))
+vi.mock('node:net', () => ({ default: { createConnection: vi.fn() } }))
 vi.mock('node:child_process', () => ({ default: { spawn: vi.fn() } }))
 vi.mock('../infra/paths', () => ({ getNativePlayerDir: () => state.runtime }))
 vi.mock('../infra/config', () => ({
@@ -23,7 +25,7 @@ vi.mock('./PlaybackService', () => ({
 vi.mock('./HighlightService', () => ({ createHighlight: vi.fn() }))
 vi.mock('./ThumbnailService', () => ({ captureThumbnailAtTime: vi.fn() }))
 
-import { openInMpv, closeAllMpvSessions } from './MpvSessionService.js'
+import { openInMpv, closeAllMpvSessions, setMpvPlaybackRate } from './MpvSessionService.js'
 import { heartbeat, endPlayback, startPlayback } from './PlaybackService'
 
 // Fengari has no bundled TypeScript definitions; keep the tiny C-API surface typed here.
@@ -442,4 +444,61 @@ it('ignores repeats from an inactive key without stealing the current direction 
     key('a', 'repeat'); key('d', 'repeat'); advance(1)
     assert(#seeks == 4, 'repeat without an active key must not restart seeking')
   `)
+})
+
+async function launchAtRate(rate: number) {
+  const pending = openInMpv(
+    'fake-mpv.exe',
+    'library',
+    video,
+    0,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    webContents,
+    rate,
+  )
+  child.emit('spawn')
+  await vi.advanceTimersByTimeAsync(500)
+  await pending
+}
+it('passes validated launch rate to mpv and reflects native speed events without altering playback position', async () => {
+  await launchAtRate(1.5)
+  expect(vi.mocked(childProcess.spawn).mock.calls.at(-1)?.[1]).toContain('--speed=1.5')
+  const eventFile = readdirSync(state.runtime).find((name) => name.endsWith('.events.log'))!
+  appendFileSync(
+    join(state.runtime, eventFile),
+    JSON.stringify({ type: 'speed', rate: 2.5, timeSec: 7 }) + '\n',
+  )
+  await vi.advanceTimersByTimeAsync(500)
+  expect(webContents.send).toHaveBeenCalledWith('event:nativePlayerSpeed', {
+    videoId: 'video',
+    rate: 2.5,
+  })
+  expect(heartbeat).not.toHaveBeenCalled()
+})
+it('validates rates and requires mpv success acknowledgement instead of reporting an unconfirmed speed', async () => {
+  for (const rate of [0, -1, 0.24, 4.01, NaN, Infinity]) {
+    await expect(setMpvPlaybackRate('library', 'video', rate)).rejects.toThrow()
+  }
+  expect(await setMpvPlaybackRate('library', 'video', 1)).toBe(false)
+  await launchAtRate(1)
+  const socket = Object.assign(new EventEmitter(), {
+    setTimeout: vi.fn(),
+    write: vi.fn(),
+    end: vi.fn(),
+    destroy: vi.fn(),
+  })
+  vi.mocked(net.createConnection).mockReturnValue(
+    socket as unknown as ReturnType<typeof net.createConnection>,
+  )
+  const pending = setMpvPlaybackRate('library', 'video', 2)
+  socket.emit('connect')
+  expect(JSON.parse(socket.write.mock.calls[0][0]).command).toEqual(['set_property', 'speed', 2])
+  socket.emit('data', Buffer.from('{"error":"success"}\n'))
+  await expect(pending).resolves.toBe(true)
+  const failed = setMpvPlaybackRate('library', 'video', 3)
+  socket.emit('close')
+  await expect(failed).rejects.toThrow('응답이 없습니다')
 })
