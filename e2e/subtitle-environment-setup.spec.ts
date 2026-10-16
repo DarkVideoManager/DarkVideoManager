@@ -310,6 +310,8 @@ test('shows elapsed time for the current step and guidance when progress stops u
       currentComponent: 'wsl',
       stepStartedAt: new Date(Date.now() - 6 * 60_000).toISOString(),
       updatedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+      lastProgressAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+      previousDiagnostics: [{ at: new Date().toISOString(), message: '이전 오류 코드 0x80370102' }],
       canCancel: false,
       components: state.status.components.map((component) => ({
         ...component,
@@ -337,6 +339,13 @@ test('shows elapsed time for the current step and guidance when progress stops u
     const state = (window as unknown as SetupWindow).setupHarness
     state.status.updatedAt = new Date().toISOString()
     state.status.message = 'Windows 설치 진행 상태를 확인했습니다.'
+  })
+  await expect(panel).toContainText('동안 새 진행 안내가 없습니다.')
+  await panel.getByText('이전 설치 진단 (최근 3회)').click()
+  await expect(panel.getByLabel('이전 설치 진단')).toContainText('이전 오류 코드 0x80370102')
+  await page.evaluate(() => {
+    const state = (window as unknown as SetupWindow).setupHarness
+    state.status.lastProgressAt = new Date().toISOString()
   })
   await expect(panel).not.toContainText('동안 새 진행 안내가 없습니다.')
   await expect(panel.getByLabel('설치 단계 경과')).toContainText(/경과 (?:[6-9]|\d{2,})분/)

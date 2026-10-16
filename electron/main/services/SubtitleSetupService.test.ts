@@ -237,6 +237,54 @@ describe('subtitle environment setup lifecycle', () => {
     expect(dependencies.environment).not.toHaveBeenCalled()
   })
 
+  it('updates monitoring without treating recurring Windows heartbeats as actual progress', async () => {
+    vi.useFakeTimers()
+    const windows = deferred<boolean>()
+    const { controller, dependencies } = create({
+      wslReady: vi.fn().mockResolvedValue(false),
+      installWsl: vi.fn(() => windows.promise),
+    })
+    controller.start(true)
+    await vi.waitFor(() => expect(dependencies.installWsl).toHaveBeenCalledOnce())
+    const report = dependencies.installWsl.mock.calls[0][0]
+    report('Windows 설치 도구가 실행 중입니다.', false)
+    const progressAt = controller.snapshot().lastProgressAt
+    await vi.advanceTimersByTimeAsync(3 * 60_000)
+    report('Windows 설치 도구가 실행 중입니다. 경과 3분.', true)
+    expect(controller.snapshot().updatedAt).not.toBe(progressAt)
+    expect(controller.snapshot().lastProgressAt).toBe(progressAt)
+    report('Ubuntu 다운로드 시작', false)
+    expect(controller.snapshot().lastProgressAt).not.toBe(progressAt)
+    windows.resolve(true)
+    await finished(controller)
+  })
+
+  it('retains only three bounded redacted failure diagnostics across retries', async () => {
+    const download = deferred<void>()
+    const { controller, dependencies } = create()
+    const privatePath = ['C:', 'Users', 'private', 'video.mp4'].join('\\')
+    for (let index = 0; index < 4; index++) {
+      dependencies.native.mockRejectedValueOnce(
+        new Error(
+            `오류 ${index}\n${'a'.repeat(2000)}\n${privatePath}\ntoken=private-token\nHCS_E_HYPERV_NOT_INSTALLED`,
+        ),
+      )
+      controller.start(true)
+      await finished(controller)
+    }
+    dependencies.native.mockImplementationOnce(() => download.promise)
+    controller.start(true)
+    const history = controller.snapshot().previousDiagnostics!
+    expect(history).toHaveLength(3)
+    expect(history.every((item) => item.message.length <= 1600)).toBe(true)
+    expect(JSON.stringify(history)).not.toMatch(/private|video\.mp4/)
+    expect(history.at(-1)?.message).toContain('HCS_E_HYPERV_NOT_INSTALLED')
+    history.length = 0
+    expect(controller.snapshot().previousDiagnostics).toHaveLength(3)
+    download.resolve()
+    await finished(controller)
+  })
+
   it('does not start an operation when subtitle work prevents installation', () => {
     const { controller, dependencies } = create({
       canInstall: vi.fn(() => {
