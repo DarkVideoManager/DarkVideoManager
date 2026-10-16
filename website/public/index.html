@@ -78,17 +78,102 @@
           <a href="#features">주요 기능</a><a href="#experience">미리 체험하기</a
           ><a href="#privacy">로컬 우선</a>
         </nav>
-        <a class="nav-cta" href="#start"
-          >시작 안내 <svg><use href="#i-arrow" /></svg
+        <a class="nav-cta" href="#downloads"
+          >Windows 다운로드 <svg><use href="#i-arrow" /></svg
         ></a>
       </div>
     </header>
     <main id="main">
+      <section class="download-intro container" aria-label="앱 받기와 데모 구분">
+        <div class="download-intro-copy">
+          <p class="spec-index">WINDOWS 10/11 · X64</p>
+          <h1>내 PC에서 사용하려면<br />Windows 앱을 받으세요</h1>
+          <p>
+            설치형과 포터블 중 하나만 받으면 됩니다. 아래 브라우저 데모는 샘플 체험용이며 내 영상
+            관리와 실제 AI 자막 생성에는 Windows 앱이 필요합니다.
+          </p>
+          <a class="text-button" href="#experience">다운로드 없이 브라우저 데모 체험 ↓</a>
+          <p class="download-source-help">
+            GitHub 릴리스에서는 <strong>Assets</strong>의 Setup 또는 Portable
+            <strong>.exe</strong>를 선택하세요. <strong>Source code (zip / tar.gz)</strong>는 개발용
+            소스이며 실행 파일이 아닙니다.
+          </p>
+        </div>
+        <article class="download-panel" id="downloads" aria-labelledby="download-heading">
+          <div class="download-heading">
+            <h2 id="download-heading">Windows 앱 다운로드</h2>
+            <span>Windows 10/11 · x64</span>
+          </div>
+          <p class="download-status" data-download-status role="status">
+            최신 파일은 아래 GitHub 링크에서 받을 수 있습니다.
+          </p>
+          <div data-download-details hidden>
+            <p class="download-version">최신 정식 버전 <strong data-release-version></strong></p>
+            <div class="download-total">
+              <span>누적 다운로드</span>
+              <strong><span data-download-total></span><small>회</small></strong>
+            </div>
+          </div>
+          <div class="download-options">
+            <div data-download-option="setup">
+              <a
+                class="button primary"
+                data-download="setup"
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                >설치 파일 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
+              ></a>
+              <span class="download-count" data-download-count="setup"></span>
+              <p class="download-choice-help">
+                설치형: Setup .exe를 실행하고 설치 안내를 따릅니다. 시작 메뉴에서 자주 실행할 때
+                선택하세요.
+              </p>
+            </div>
+            <div data-download-option="portable">
+              <a
+                class="button secondary"
+                data-download="portable"
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                >포터블 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
+              ></a>
+              <span class="download-count" data-download-count="portable"></span>
+              <p class="download-choice-help">
+                포터블: Portable .exe를 받아 바로 실행합니다. 설치 마법사 없이 사용하지만
+                설정·캐시는 PC에 저장됩니다.
+              </p>
+            </div>
+          </div>
+          <p class="download-caption">
+            누적 횟수는 전체 정식 버전의 설치형·포터블 합계입니다. 반복 다운로드와 테스트 요청이
+            포함되며, 사용자 수와는 다릅니다.
+          </p>
+          <p class="download-updated" data-download-updated></p>
+          <p>
+            설치형과 포터블 실행 파일에는 코드 서명이 없습니다. 공식 릴리스의 SHA-256과 비교하는
+            방법은
+            <a
+              href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/download-verification.md"
+              >다운로드 확인 안내</a
+            >를 참고하세요.
+          </p>
+          <p>
+            <a
+              data-release-link
+              href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+              >릴리스 안내 및 소스</a
+            >에서 파일 목록과 검증 내용을 확인할 수 있습니다.
+          </p>
+          <noscript
+            ><p>
+              자동 집계에는 JavaScript가 필요합니다. 위 링크에서 최신 파일을 받을 수 있습니다.
+            </p></noscript
+          >
+        </article>
+      </section>
       <section class="demo-intro container">
         <div class="product-preview live-demo" id="experience">
           <div class="live-demo-heading">
             <div>
-              <h1>브라우저 데모</h1>
+              <h2>브라우저 데모 · 샘플 체험</h2>
               <span>샘플 영상으로 재생, 하이라이트 저장, 자막 탐색 기능 테스트</span>
             </div>
             <a href="/demo/" class="demo-expand" target="_blank" rel="noopener"
@@ -555,67 +640,6 @@
                 >0.3.0 검증 기록</a
               >에서 확인할 수 있습니다.
             </p>
-          </article>
-          <article class="download-panel" id="downloads" aria-labelledby="download-heading">
-            <div class="download-heading">
-              <h3 id="download-heading">다운로드</h3>
-              <span>Windows 10/11 · x64</span>
-            </div>
-            <p class="download-status" data-download-status role="status">
-              최신 파일은 아래 GitHub 링크에서 받을 수 있습니다.
-            </p>
-            <div data-download-details hidden>
-              <p class="download-version">최신 정식 버전 <strong data-release-version></strong></p>
-              <div class="download-total">
-                <span>누적 다운로드</span>
-                <strong><span data-download-total></span><small>회</small></strong>
-              </div>
-            </div>
-            <div class="download-options">
-              <div data-download-option="setup">
-                <a
-                  class="button primary"
-                  data-download="setup"
-                  href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
-                  >설치 파일 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
-                ></a>
-                <span class="download-count" data-download-count="setup"></span>
-              </div>
-              <div data-download-option="portable">
-                <a
-                  class="button secondary"
-                  data-download="portable"
-                  href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
-                  >포터블 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
-                ></a>
-                <span class="download-count" data-download-count="portable"></span>
-              </div>
-            </div>
-            <p class="download-caption">
-              누적 횟수는 전체 정식 버전의 설치형·포터블 합계입니다. 반복 다운로드와 테스트 요청이
-              포함되며, 사용자 수와는 다릅니다.
-            </p>
-            <p class="download-updated" data-download-updated></p>
-            <p>
-              설치형과 포터블 실행 파일에는 코드 서명이 없습니다. 공식 릴리스의 SHA-256과 비교하는
-              방법은
-              <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/download-verification.md"
-                >다운로드 확인 안내</a
-              >를 참고하세요.
-            </p>
-            <p>
-              <a
-                data-release-link
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
-                >릴리스 안내 및 소스</a
-              >에서 파일 목록과 검증 내용을 확인할 수 있습니다.
-            </p>
-            <noscript
-              ><p>
-                자동 집계에는 JavaScript가 필요합니다. 위 링크에서 최신 파일을 받을 수 있습니다.
-              </p></noscript
-            >
           </article>
         </div>
       </section>
