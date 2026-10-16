@@ -25,6 +25,18 @@ function fixture() {
   return { folder, path, canonical: realpathSync(path) }
 }
 describe('temporary playback grants', () => {
+  it('preserves active playback when stopping an external player fails and validates before stopping', () => {
+    const previous = fixture()
+    const next = fixture()
+    const first = openTemporaryPlayback(1, previous.path)
+    const stop = vi.fn(() => {
+      throw new Error('player cannot stop')
+    })
+    expect(() => openTemporaryPlayback(1, next.path, stop)).toThrow('player cannot stop')
+    expect(isTemporaryMediaAllowed(previous.canonical, first.token)).toBe(true)
+    expect(() => openTemporaryPlayback(1, join(next.folder, 'missing.mp4'), stop)).toThrow()
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
   it('serves authorized ranges only until close without granting arbitrary protocol paths', async () => {
     const { path } = fixture()
     const session = openTemporaryPlayback(1, path)

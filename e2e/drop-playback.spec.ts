@@ -115,3 +115,30 @@ test('rejects multiple files, text/URL drops and reports desktop open failures',
   await expect(page.getByRole('alert')).toContainText('파일을 찾거나 읽을 수 없습니다')
   await expect(page.locator('video')).toHaveCount(0)
 })
+
+test('rejected cleanup requests remain contained when closing and hiding temporary playback', async ({
+  page,
+}) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.goto('/')
+  await page.evaluate(() => {
+    window.api.temporaryPlayback.openDroppedFiles = async (files) => ({
+      ok: true,
+      value: { token: crypto.randomUUID(), fileName: files[0].name, sourceUrl: '/unavailable.mp4' },
+    })
+    window.api.temporaryPlayback.close = async () => {
+      throw new Error('IPC detached')
+    }
+    window.api.privacy.exit = async () => ({ ok: true, value: 'blank' })
+  })
+  await drop(page, ['first.mp4'])
+  await expect(page.getByRole('main', { name: '임시 영상 재생' })).toBeVisible()
+  await page.getByRole('button', { name: '재생 닫기' }).click()
+  await expect(page.getByRole('main', { name: '임시 영상 재생' })).toHaveCount(0)
+  await drop(page, ['second.mp4'])
+  await expect(page.getByRole('main', { name: '임시 영상 재생' })).toBeVisible()
+  await page.keyboard.press('Control+Shift+h')
+  await expect(page.getByRole('region', { name: '가림 화면' })).toBeVisible()
+  expect(errors).toEqual([])
+})
