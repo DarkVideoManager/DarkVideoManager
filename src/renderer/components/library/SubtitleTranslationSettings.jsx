@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { SubtitlePrivacyGuidance } from './SubtitleGuidance'
+import SubtitleGpuGuidance from './SubtitleGpuGuidance'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 const queryKey = ['subtitle-translation-settings']
@@ -207,6 +208,7 @@ export default function SubtitleTranslationSettings() {
         </p>
       </div>
       <SubtitlePrivacyGuidance />
+      <SubtitleGpuGuidance />
       {settings.isPending && (
         <p role="status" className="text-xs text-zinc-400">
           번역 설정을 불러오는 중...
