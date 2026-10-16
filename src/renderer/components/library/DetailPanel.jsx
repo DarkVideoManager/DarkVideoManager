@@ -8,6 +8,7 @@ import SubtitleGenerationPanel from './SubtitleGenerationPanel'
 import ThumbnailJobStatus, { isThumbnailJobActive } from './ThumbnailJobStatus'
 import VideoMetadataEditor from './VideoMetadataEditor'
 import MetadataImportDialog from './MetadataImportDialog'
+import ThumbnailSelector from './ThumbnailSelector'
 const STAR_COUNT = 5
 function StarRating({ value, onChange, disabled = false }) {
   const [hovered, setHovered] = React.useState(0)
@@ -119,13 +120,15 @@ function DetailPanel({
     },
     enabled: tab === 'highlights',
   })
-  const { data: thumbnails = [] } = useQuery({
+  const thumbnailQuery = useQuery({
     queryKey: ['thumbnails', libraryId, video.id],
     queryFn: async () => {
       const res = await thumbnailsApi.getForVideo(libraryId, video.id)
-      return res.ok ? res.value : []
+      if (!res.ok) throw new Error(res.error)
+      return res.value
     },
   })
+  const thumbnails = thumbnailQuery.data ?? []
   React.useEffect(() => {
     if (isRemoved) return
     if (tab !== 'highlights') return
@@ -487,6 +490,30 @@ function DetailPanel({
               >
                 {'썸네일이 없습니다'}
               </div>
+            )}
+            {thumbnailQuery.isError ? (
+              <p role="alert" className="text-xs text-amber-200">
+                썸네일 후보를 불러오지 못했습니다.
+                <button
+                  type="button"
+                  onClick={() => void thumbnailQuery.refetch()}
+                  className="ml-1 underline"
+                >
+                  후보 다시 불러오기
+                </button>
+              </p>
+            ) : thumbnailQuery.isPending ? (
+              <p role="status" className="text-xs text-zinc-400">
+                썸네일 후보를 불러오는 중...
+              </p>
+            ) : (
+              <ThumbnailSelector
+                key={`${libraryId}:${video.id}`}
+                libraryId={libraryId}
+                videoId={video.id}
+                thumbnails={thumbnails}
+                disabled={isRemoved || ensureThumbnail.isPending || isThumbnailActive}
+              />
             )}
             <div
               className={
