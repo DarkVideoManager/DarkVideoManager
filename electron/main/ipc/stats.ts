@@ -5,9 +5,15 @@ import { getStats } from '../services/StatsService'
 import { getDatabase } from '../db/connection'
 import { SubtitleRepository } from '../db/repositories/SubtitleRepository'
 import { VideoRepository } from '../db/repositories/VideoRepository'
-import { convertSmiToVtt, convertSrtToVtt, syncSidecarSubtitlesForVideo, readFileSmart } from '../services/SubtitleService'
+import {
+  convertSmiToVtt,
+  convertSrtToVtt,
+  syncSidecarSubtitlesForVideo,
+  readFileSmart,
+} from '../services/SubtitleService'
 import { getThumbnailsDir } from '../infra/paths'
 import { createLogger } from '../infra/logger'
+import { isLibraryBusy } from '../services/LibraryWorkService'
 import { join } from 'path'
 import { readFileSync } from 'fs'
 
@@ -15,7 +21,11 @@ const log = createLogger('ipc:stats')
 
 export function registerStatsHandlers(): void {
   registerIpcHandler(IPC.SUBTITLES.READ_TEXT, (_event, _libraryId, subtitlePath) =>
-    ok(subtitlePath.toLowerCase().endsWith('.vtt') ? readFileSync(subtitlePath, 'utf-8') : readFileSmart(subtitlePath)),
+    ok(
+      subtitlePath.toLowerCase().endsWith('.vtt')
+        ? readFileSync(subtitlePath, 'utf-8')
+        : readFileSmart(subtitlePath),
+    ),
   )
   registerIpcHandler(IPC.STATS.GET, (_e, libraryId: string, days?: number) => {
     try {
@@ -31,9 +41,17 @@ export function registerStatsHandlers(): void {
       const db = getDatabase(libraryId)
       if (!db) return err('라이브러리가 열려 있지 않습니다')
       let subtitles = new SubtitleRepository(db).findByVideoId(videoId)
-      if (subtitles.length === 0) {
-        const video = new VideoRepository(db).findById(videoId)
-        if (video) subtitles = syncSidecarSubtitlesForVideo(db, video.id, video.filePath)
+      // Discovery mutates the index; an active job owns its snapshot until cleanup finishes.
+      if (isLibraryBusy(libraryId)) return ok(subtitles)
+      const video = new VideoRepository(db).findById(videoId)
+      if (video && !video.removalMode) {
+        try {
+          subtitles = syncSidecarSubtitlesForVideo(db, video.id, video.filePath)
+        } catch (e) {
+          // An offline drive must not erase or hide a previously indexed track list.
+          if (!subtitles.length) throw e
+          log.error({ err: e }, '외부 자막 재확인 실패, 저장된 자막 목록 유지')
+        }
       }
       return ok(subtitles)
     } catch (e) {
@@ -42,17 +60,20 @@ export function registerStatsHandlers(): void {
     }
   })
 
-  registerIpcHandler(IPC.SUBTITLES.CONVERT_TO_VTT, (_e, libraryId: string, subtitlePath: string, type: 'smi' | 'srt') => {
-    try {
-      const outputDir = join(getThumbnailsDir(libraryId), '..', 'subtitles')
-      const vttPath =
-        type === 'smi'
-          ? convertSmiToVtt(subtitlePath, outputDir)
-          : convertSrtToVtt(subtitlePath, outputDir)
-      return ok(vttPath)
-    } catch (e) {
-      log.error({ err: e }, 'subtitles:convertToVtt 오류')
-      return err((e as Error).message)
-    }
-  },)
+  registerIpcHandler(
+    IPC.SUBTITLES.CONVERT_TO_VTT,
+    (_e, libraryId: string, subtitlePath: string, type: 'smi' | 'srt') => {
+      try {
+        const outputDir = join(getThumbnailsDir(libraryId), '..', 'subtitles')
+        const vttPath =
+          type === 'smi'
+            ? convertSmiToVtt(subtitlePath, outputDir)
+            : convertSrtToVtt(subtitlePath, outputDir)
+        return ok(vttPath)
+      } catch (e) {
+        log.error({ err: e }, 'subtitles:convertToVtt 오류')
+        return err((e as Error).message)
+      }
+    },
+  )
 }

@@ -539,7 +539,7 @@ describe('IPC dispatch', () => {
     )
   })
 
-  it('discovers sidecar subtitles when a video has no indexed subtitles', async () => {
+  it('rediscovers sidecars even when a video already has indexed tracks', async () => {
     const subtitles = [
       { id: 'sub', videoId: 'video', filePath: 'movie.srt', type: 'srt', isEmbedded: false },
     ]
@@ -554,6 +554,123 @@ describe('IPC dispatch', () => {
     mocks.syncSidecarSubtitlesForVideo.mockClear()
     mocks.subtitleRows.mockReturnValue(subtitles)
     await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')
+    expect(mocks.syncSidecarSubtitlesForVideo).toHaveBeenCalledWith(mocks.db, 'video', 'movie.mp4')
+    mocks.syncSidecarSubtitlesForVideo.mockReturnValue([])
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: [],
+    })
+  })
+
+  it.each(['exclusive', 'subtitles', 'thumbnails'] as const)(
+    'returns stored subtitle tracks without rediscovery during %s work, including an empty index',
+    async (kind) => {
+      const stored = [
+        { id: 'sub', videoId: 'video', filePath: 'movie.srt', type: 'srt', isEmbedded: false },
+      ]
+      mocks.videoRow.mockReturnValue({ id: 'video', filePath: 'movie.mp4' })
+      await withLibraryWork(
+        'lib',
+        async () => {
+          for (const tracks of [stored, []]) {
+            mocks.subtitleRows.mockReturnValue(tracks)
+            expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+              ok: true,
+              value: tracks,
+            })
+          }
+          expect(mocks.syncSidecarSubtitlesForVideo).not.toHaveBeenCalled()
+        },
+        kind,
+      )
+    },
+  )
+
+  it('preserves subtitle snapshots across cancellation cleanup and resumes discovery after draining', async () => {
+    const stored = [
+      { id: 'sub', videoId: 'video', filePath: 'movie.srt', type: 'srt', isEmbedded: false },
+    ]
+    const refreshed = [...stored, { ...stored[0], id: 'new', filePath: 'movie.ko.srt', lang: 'ko' }]
+    mocks.subtitleRows.mockReturnValue(stored)
+    mocks.videoRow.mockReturnValue({ id: 'video', filePath: 'movie.mp4' })
+    mocks.syncSidecarSubtitlesForVideo.mockReset().mockReturnValue(refreshed)
+    let release!: () => void
+    const cleanup = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const work = withLibraryWork('lib', async () => cleanup, 'subtitles')
+    const drain = drainLibraryWork()
+    try {
+      for (const libraryId of ['lib', 'other-library']) {
+        expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, libraryId, 'video')).toEqual({
+          ok: true,
+          value: stored,
+        })
+      }
+      expect(mocks.syncSidecarSubtitlesForVideo).not.toHaveBeenCalled()
+    } finally {
+      release()
+      await Promise.all([work, drain])
+    }
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: refreshed,
+    })
+    expect(mocks.syncSidecarSubtitlesForVideo).toHaveBeenCalledExactlyOnceWith(
+      mocks.db,
+      'video',
+      'movie.mp4',
+    )
+  })
+
+  it('rediscovers subtitles in an idle library while a different library has an active job', async () => {
+    mocks.subtitleRows.mockReturnValue([])
+    mocks.videoRow.mockReturnValue({ id: 'video', filePath: 'movie.mp4' })
+    mocks.syncSidecarSubtitlesForVideo.mockReset().mockReturnValue([])
+    await withLibraryWork(
+      'other-library',
+      async () => {
+        expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+          ok: true,
+          value: [],
+        })
+        expect(mocks.syncSidecarSubtitlesForVideo).toHaveBeenCalledExactlyOnceWith(
+          mocks.db,
+          'video',
+          'movie.mp4',
+        )
+      },
+      'subtitles',
+    )
+  })
+
+  it('keeps stored tracks when a subtitle directory is inaccessible and reports an initial scan failure', async () => {
+    const subtitles = [
+      { id: 'sub', videoId: 'video', filePath: 'movie.srt', type: 'srt', isEmbedded: false },
+    ]
+    mocks.subtitleRows.mockReturnValue(subtitles)
+    mocks.videoRow.mockReturnValue({ id: 'video', filePath: 'movie.mp4' })
+    mocks.syncSidecarSubtitlesForVideo.mockImplementation(() => {
+      throw new Error('Drive offline')
+    })
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: subtitles,
+    })
+    mocks.subtitleRows.mockReturnValue([])
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: false,
+      error: 'Drive offline',
+    })
+  })
+
+  it('does not rediscover subtitles for a deliberately removed video', async () => {
+    mocks.subtitleRows.mockReturnValue([])
+    mocks.videoRow.mockReturnValue({ id: 'video', filePath: 'movie.mp4', removalMode: 'keep' })
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: [],
+    })
     expect(mocks.syncSidecarSubtitlesForVideo).not.toHaveBeenCalled()
   })
 
@@ -585,5 +702,11 @@ describe('IPC dispatch', () => {
       })
       expect(service).not.toHaveBeenCalled()
     }
+    mocks.subtitleRows.mockReturnValue([])
+    expect(await invoke(IPC.SUBTITLES.GET_FOR_VIDEO, 'lib', 'video')).toEqual({
+      ok: true,
+      value: [],
+    })
+    expect(mocks.syncSidecarSubtitlesForVideo).not.toHaveBeenCalled()
   })
 })
