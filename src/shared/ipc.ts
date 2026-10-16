@@ -1,3 +1,4 @@
+import { PlaybackRateZ } from './playbackRate'
 import { z } from 'zod'
 import { SeekStepSecZ } from './playerSettings'
 
@@ -53,6 +54,7 @@ export const CsvImportOptionsZ = z
 export const NativePlayerOptionsZ = z
   .object({
     startTimeSec: TimeZ.optional(),
+    playbackRate: PlaybackRateZ.optional(),
     width: z.number().finite().positive().optional(),
     height: z.number().finite().positive().optional(),
     x: z.number().finite().optional(),
@@ -212,6 +214,7 @@ export const IPC_SCHEMAS = {
   [IPC.VIDEOS.GET_PLAYBACK_SOURCE]: VideoArgsZ,
   [IPC.VIDEOS.GET_NATIVE_PLAYER_INFO]: EmptyArgsZ,
   [IPC.VIDEOS.OPEN_IN_NATIVE_PLAYER]: z.tuple([IdZ, IdZ, NativePlayerOptionsZ.optional()]),
+  [IPC.VIDEOS.SET_ACTIVE_PLAYBACK_RATE]: z.tuple([IdZ, IdZ, PlaybackRateZ]),
   [IPC.VIDEOS.SEEK_ACTIVE_PLAYBACK]: z.tuple([IdZ, IdZ, TimeZ]),
   [IPC.VIDEOS.UPDATE_META]: z.tuple([IdZ, IdZ, VideoMetaZ]),
   [IPC.VIDEOS.DELETE]: z.tuple([IdZ, IdZ, z.enum(['trash', 'remove']).optional()]),
@@ -276,6 +279,9 @@ export const IPC_EVENT_SCHEMAS = {
   [IPC.EVENTS.THUMBNAIL_READY]: VideoEventZ,
   [IPC.EVENTS.HIGHLIGHT_CHANGED]: VideoEventZ,
   [IPC.EVENTS.NATIVE_PLAYER_ESCAPE]: VideoEventZ,
+  [IPC.EVENTS.NATIVE_PLAYER_SPEED]: VideoEventZ.extend({
+    rate: z.number().finite().min(0.01).max(100),
+  }).strict(),
   [IPC.EVENTS.NATIVE_PLAYER_ACTION]: NativePlayerActionEventZ,
 } as const
 

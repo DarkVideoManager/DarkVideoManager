@@ -107,6 +107,7 @@ describe('preload bridge', () => {
       api.videos.getPlaybackSource('lib', 'video'),
       api.videos.getNativePlayerInfo(),
       api.videos.openInNativePlayer('lib', 'video'),
+      api.videos.setActivePlaybackRate('lib', 'video', 1.5),
       api.videos.seekActivePlayback('lib', 'video', 8),
       api.videos.updateMeta('lib', 'video', { tags: 'tag' }),
       api.videos.delete('lib', 'video'),
@@ -196,6 +197,7 @@ describe('preload bridge', () => {
       api.on.thumbnailReady(callback),
       api.on.highlightChanged(callback),
       api.on.nativePlayerEscape(callback),
+      api.on.nativePlayerSpeed(callback),
       api.on.nativePlayerAction(callback),
     ]
     expect(new Set(bridge.on.mock.calls.map(([channel]) => channel))).toEqual(

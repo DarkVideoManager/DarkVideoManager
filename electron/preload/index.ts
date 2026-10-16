@@ -207,6 +207,12 @@ const api = {
       options?: NativePlayerOptions,
     ): Promise<Result<NativePlayerInfo, string>> =>
       ipcRenderer.invoke(IPC.VIDEOS.OPEN_IN_NATIVE_PLAYER, libraryId, videoId, options),
+    setActivePlaybackRate: (
+      libraryId: string,
+      videoId: string,
+      rate: number,
+    ): Promise<Result<number, string>> =>
+      ipcRenderer.invoke(IPC.VIDEOS.SET_ACTIVE_PLAYBACK_RATE, libraryId, videoId, rate),
     seekActivePlayback: (
       libraryId: string,
       videoId: string,
@@ -394,6 +400,12 @@ const api = {
       const listener = (_: Electron.IpcRendererEvent, data: VideoEvent) => cb(data)
       ipcRenderer.on(IPC.EVENTS.NATIVE_PLAYER_ESCAPE, listener)
       return () => ipcRenderer.removeListener(IPC.EVENTS.NATIVE_PLAYER_ESCAPE, listener)
+    },
+    nativePlayerSpeed: (cb: (data: { videoId: string; rate: number }) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: { videoId: string; rate: number }) =>
+        cb(data)
+      ipcRenderer.on(IPC.EVENTS.NATIVE_PLAYER_SPEED, listener)
+      return () => ipcRenderer.removeListener(IPC.EVENTS.NATIVE_PLAYER_SPEED, listener)
     },
     nativePlayerAction: (cb: (data: NativePlayerActionEvent) => void): (() => void) => {
       const listener = (_: Electron.IpcRendererEvent, data: NativePlayerActionEvent) => cb(data)

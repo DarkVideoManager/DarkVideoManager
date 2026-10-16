@@ -66,6 +66,11 @@ function PlaybackHelpDialog({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div className="space-y-4 text-sm leading-relaxed">
+        <p>
+          플레이어 위쪽 배속 메뉴에서 인앱·mpv의 속도를 0.25–4배로 바꾸고 1배속으로 복귀할 수
+          있습니다. 음성과 자막도 영상 시간에 맞춰 재생됩니다. VLC는 자체 재생 → 속도 메뉴를
+          사용하며 FFplay 배속은 앱에서 지원하지 않습니다.
+        </p>
         <section aria-label="왼손 조작">
           <h3 className="font-semibold text-indigo-200">왼손 조작</h3>
           <p className="mt-1 text-zinc-300">

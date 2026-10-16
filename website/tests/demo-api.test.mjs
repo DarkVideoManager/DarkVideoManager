@@ -102,12 +102,17 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     () => api.maintenance.findDuplicates(libraryId),
     () => api.maintenance.cancel(libraryId),
     () => api.privacy.save({ exitAction: 'website', exitUrl: 'https://private.invalid' }),
+    () => api.videos.setActivePlaybackRate(libraryId, videoId, 1.5),
   ]
   for (const call of calls) {
     const result = await call()
     assert.equal(result.ok, false)
     assert.match(result.error, /브라우저 데모.*지원하지.*Windows/)
   }
+  const unsubscribe = api.on.nativePlayerSpeed(() => { throw new Error('browser must not emit native speed events') })
+  assert.equal(typeof unsubscribe, 'function')
+  unsubscribe()
+  unsubscribe()
   assert.equal(globalThis.fetch.mock.callCount(), 0)
   assert.equal(storage.value, null)
   assert.deepEqual(await api.thumbnails.listJobs(libraryId), { ok: true, value: [] })
