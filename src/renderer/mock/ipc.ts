@@ -825,7 +825,15 @@ export const mockApi: WindowApi = {
   },
   thumbnails: {
     getForVideo: async (_libraryId, videoId) => ok(thumbnailsByVideo.get(videoId) ?? []),
-    setPrimary: async () => ok(null),
+    setPrimary: async (libraryId, thumbnailId, videoId) => {
+      const candidates = thumbnailsByVideo.get(videoId) ?? []
+      const selected = candidates.find((thumbnail) => thumbnail.id === thumbnailId)
+      if (!selected) return err('썸네일을 찾을 수 없습니다.')
+      for (const thumbnail of candidates) thumbnail.isPrimary = thumbnail.id === thumbnailId
+      const video = findVideo(libraryId, videoId)
+      if (video) video.primaryThumbnailPath = selected.filePath
+      return ok(null)
+    },
     ensureForVideo: ensureMockThumbnails,
     listJobs: async (libraryId) =>
       ok(
