@@ -189,6 +189,45 @@ export default function MetadataImportDialog({
         지정한 Stash 서버에서 후보를 조회한 뒤, 확인·수정한 항목만 저장합니다. 표지 다운로드와 외부
         사이트 자동 수집은 지원하지 않습니다.
       </p>
+      <details className="mt-3 rounded border border-zinc-700 p-3 text-sm text-zinc-300">
+        <summary className="cursor-pointer font-medium text-zinc-100">
+          처음 사용하시나요? Stash 준비와 적용 방법
+        </summary>
+        <div className="mt-3 space-y-3 leading-relaxed">
+          <p>
+            Stash는 별도로 실행하는 영상·메타데이터 관리 프로그램입니다. 이 앱에 포함되어 있지
+            않으며, 본인 PC 또는 접속 권한이 있는 다른 서버에서 Stash를 실행하고 그 안에 영상 항목과
+            제목·설명·태그 등의 정보를 먼저 등록해야 합니다. 빈 서버에서는 후보가 나오지 않습니다.
+          </p>
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>
+              실행 중인 Stash의 주소를 입력합니다. 같은 PC라면 보통 http://localhost:9999이며, 다른
+              PC·서버는 HTTPS 주소가 필요합니다. /graphql은 자동으로 붙습니다.
+            </li>
+            <li>
+              인증을 사용하는 서버라면 Stash의 Settings → Security → Authentication에서 발급한 API
+              키를 입력합니다. Stash 연결 사용을 켠 뒤 연결 설정 저장을 누릅니다.
+            </li>
+            <li>
+              파일명·제목 검색에서는 확장자를 뺀 파일명을 고쳐 조회할 수 있습니다. 작품 식별자는
+              작품 코드 (정확히 일치)를 선택하고 Stash의 code 값과 같은 코드를 입력합니다.
+            </li>
+            <li>
+              후보의 제목·코드·날짜·스튜디오를 비교합니다. 제목, 설명을 옮길 메모, 태그를 직접
+              수정한 뒤 필요한 항목만 체크하고 선택한 항목 적용을 누릅니다. 인물 이름은 선택해서
+              태그에 추가할 수 있습니다.
+            </li>
+          </ol>
+          <p>
+            저장할 수 있는 항목은 제목·메모·태그입니다. 코드·날짜·스튜디오는 후보 확인용이고,
+            인물·장르 전용 필드, 카테고리 가져오기, 표지·썸네일 다운로드는 지원하지 않습니다.
+          </p>
+          <p>
+            잘못 적용했다면 이 창을 닫기 전에 방금 적용 되돌리기를 누릅니다. 마지막 적용 한 번에만
+            사용할 수 있으며, 창을 닫은 뒤에는 이 창을 다시 열어 후보와 적용할 값을 수정하세요.
+          </p>
+        </div>
+      </details>
       <fieldset
         disabled={!ready || busy}
         className="mt-4 space-y-3 rounded border border-zinc-700 p-4"
@@ -322,9 +361,14 @@ export default function MetadataImportDialog({
         </p>
       )}
       {error && (
-        <p role="alert" className="mt-3 text-sm text-red-300">
-          {error}
-        </p>
+        <div role="alert" className="mt-3 space-y-2 text-sm text-red-300">
+          <p>{error}</p>
+          <p className="text-xs leading-relaxed text-zinc-300">
+            연결·인증 실패라면 Stash 실행 상태, 서버 주소와 API 키를 확인하고 설정을 다시 저장한 뒤
+            조회하세요. 시간 초과는 서버 응답과 네트워크를 확인하세요. 적용 충돌은 창을 닫고 다시
+            열어 현재 값을 확인하세요. 실패한 작업은 기존 정보를 변경하지 않습니다.
+          </p>
+        </div>
       )}
       {notice && (
         <p role="status" className="mt-3 text-sm text-emerald-300">
@@ -335,7 +379,7 @@ export default function MetadataImportDialog({
         <section className="mt-4 space-y-2" aria-label="Stash 조회 결과">
           <p className="text-sm">
             {result.total === 0
-              ? '일치하는 후보가 없습니다. 검색어를 바꿔보세요.'
+              ? '일치하는 후보가 없습니다. Stash에 해당 영상 정보가 등록되어 있는지 확인하고 검색어를 바꿔보세요. 작품 코드는 정확히 일치하는 코드 조회를 사용하세요.'
               : `후보 ${result.candidates.length}개 표시 (전체 ${result.total}개)`}
           </p>
           {result.candidates.map((item) => (
