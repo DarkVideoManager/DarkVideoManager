@@ -82,6 +82,30 @@ async function prepareControlledJobs(page: Page, available = true) {
   return page.getByRole('region', { name: 'AI 자막 생성', exact: true })
 }
 
+test('explains model selection at the selector and keeps recognition separate from translation', async ({
+  page,
+}) => {
+  const panel = await prepareControlledJobs(page)
+  await expect(panel.getByLabel('선택한 모델 안내')).toContainText('base')
+  await panel.getByText('내 PC·영상에 맞는 모델 선택', { exact: true }).click()
+  await expect(panel).toContainText('한국어 번역은 별도의 Ollama qwen3:8b')
+  await expect(panel.getByRole('table')).toContainText('large-v2')
+  await expect(panel.getByRole('table')).toContainText('large-v3')
+  await expect(panel.getByRole('table').getByRole('row')).toHaveCount(7)
+  await expect(panel).toContainText('GPU 메모리가 부족하거나')
+  await expect(panel).toContainText('CPU로 자동 전환하지 않습니다.')
+  await panel.getByLabel('음성 인식 모델', { exact: true }).selectOption('tiny')
+  await expect(panel.getByLabel('선택한 모델 안내')).toContainText('자원 부담이 가장 작은')
+  await panel.getByLabel('음성 인식 모델', { exact: true }).selectOption('large-v3')
+  await expect(panel.getByLabel('선택한 모델 안내')).toContainText('항상 더 정확한 것은 아닙니다.')
+  await panel.getByLabel('영상 언어', { exact: true }).selectOption('ja')
+  await panel.getByRole('checkbox', { name: '한국어 번역 자막도 생성' }).uncheck()
+  await panel.getByRole('button', { name: '자막 생성 시작', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as SubtitleWindow).subtitleHarness.options))
+    .toEqual({ model: 'large-v3', language: 'ja', translateToKorean: false })
+})
+
 test('generates original and Korean subtitles asynchronously and refreshes the video badge', async ({
   page,
 }) => {

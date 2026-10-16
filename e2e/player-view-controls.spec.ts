@@ -69,6 +69,7 @@ async function openPlayer(
     }),
   )
   await page.goto('/')
+  await page.waitForFunction(() => Boolean(window.api?.videos))
   await page.evaluate(async ({ native, missingMetadata, portrait, nativeAvailable }) => {
     const result = await window.api.videos.get('mock-library', 'mock-video-1')
     if (!result.ok || !result.value) throw new Error('Missing video fixture')
