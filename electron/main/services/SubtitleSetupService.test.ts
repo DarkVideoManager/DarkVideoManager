@@ -62,6 +62,25 @@ async function finished(controller: SubtitleSetupController): Promise<SubtitleSe
 }
 
 describe('subtitle environment setup lifecycle', () => {
+  it('stops a known virtualization blocker before downloading native models', async () => {
+    const { controller, dependencies } = create({
+      preflightWsl: vi.fn().mockRejectedValue(new Error('BIOS/UEFI 가상화 확인 필요')),
+    })
+    controller.start(true)
+    expect((await finished(controller)).message).toContain('BIOS/UEFI')
+    expect(dependencies.native).not.toHaveBeenCalled()
+    expect(dependencies.installWsl).not.toHaveBeenCalled()
+    expect(dependencies.environment).not.toHaveBeenCalled()
+  })
+
+  it('does not run installation preflight on a read-only setup check', async () => {
+    const preflightWsl = vi.fn().mockResolvedValue(undefined)
+    const { controller } = create({ preflightWsl })
+    controller.start(false)
+    expect((await finished(controller)).phase).toBe('ready')
+    expect(preflightWsl).not.toHaveBeenCalled()
+  })
+
   it('checks an existing environment without invoking installation steps', async () => {
     const { controller, dependencies } = create()
     expect(controller.start(false).phase).toBe('checking')

@@ -5,7 +5,18 @@ import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 const state = vi.hoisted(() => ({ userData: '' }))
+const prerequisites = vi.hoisted(() => ({
+  platform: 'enabled',
+  hypervisorPresent: true,
+  firmwareVirtualization: null,
+  slat: null,
+  hypervisorLaunch: 'unknown',
+}))
 vi.mock('electron', () => ({ app: { getPath: () => state.userData } }))
+vi.mock('./SubtitleWslPrerequisites', async (original) => ({
+  ...(await original<typeof import('./SubtitleWslPrerequisites')>()),
+  probeWslPrerequisites: vi.fn(async () => ({ ...prerequisites })),
+}))
 import {
   ensureSubtitleWslUser,
   checkSubtitleWslReady,
@@ -17,6 +28,7 @@ import {
 } from './SubtitleWslEnvironment'
 
 beforeEach(() => {
+  Object.assign(prerequisites, { platform: 'enabled', hypervisorPresent: true })
   state.userData = mkdtempSync(join(tmpdir(), 'dvm-wsl-bindings-'))
   vi.stubEnv('DVM_WSL_DISTRO', 'Ubuntu-24.04')
 })
@@ -90,6 +102,29 @@ function installerCapture(
 }
 
 describe('subtitle WSL installation on a fresh Windows account', () => {
+  it('repairs a disabled VM platform even when wsl --status exits zero', async () => {
+    prerequisites.platform = 'disabled'
+    const { capture, helpers } = installerCapture({ platform: true })
+    expect(await installSubtitleWsl(capture)).toBe(false)
+    expect(helpers).toHaveLength(2)
+    expect(helpers[0]).toContain("@('--install','--no-distribution','--web-download')")
+    expect(helpers[1]).toContain("'--distribution'")
+  })
+
+  it('repairs the platform without reinstalling an already registered distro', async () => {
+    prerequisites.platform = 'disabled'
+    const { capture, helpers } = installerCapture({ platform: true })
+    const implementation = capture.getMockImplementation()!
+    capture.mockImplementation((command, args, signal, timeout) =>
+      command === 'wsl.exe' && args[0] === '--list'
+        ? Promise.resolve(result('Ubuntu-24.04'))
+        : implementation(command, args, signal, timeout),
+    )
+    expect(await installSubtitleWsl(capture)).toBe(false)
+    expect(helpers).toHaveLength(1)
+    expect(helpers[0]).toContain('--no-distribution')
+  })
+
   it.each([3010, 1641])(
     'honors a resumed reboot code without a restart flag (%i)',
     async (code) => {
