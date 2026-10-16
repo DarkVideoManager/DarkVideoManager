@@ -7,6 +7,7 @@ import { join, dirname, basename, extname, resolve } from 'path'
 import { mkdirSync } from 'fs'
 import * as chardet from 'chardet'
 import * as iconv from 'iconv-lite'
+import { isUtf8 } from 'node:buffer'
 import { createLogger } from '../infra/logger'
 import { isVideoFile } from '../infra/fs'
 
@@ -40,7 +41,8 @@ export function convertSrtToVtt(srtPath: string, outputDir?: string): string {
 /** 파일 인코딩 자동 감지 후 UTF-8 문자열 반환 */
 export function readFileSmart(filePath: string): string {
   const buf = readFileSync(filePath)
-  const detected = chardet.detect(buf) ?? 'UTF-8'
+  // Short UTF-8 subtitles can look like a legacy encoding to a statistical detector.
+  const detected = isUtf8(buf) ? 'UTF-8' : (chardet.detect(buf) ?? 'UTF-8')
   // 한국어 파일의 경우 EUC-KR / CP949가 자주 오탐되므로 iconv-lite로 디코딩
   const encoding = normalizeEncoding(detected)
   try {
@@ -54,6 +56,7 @@ function normalizeEncoding(detected: string): string {
   const upper = detected.toUpperCase()
   if (upper.includes('EUC-KR') || upper.includes('KSC') || upper === 'CP949') return 'CP949'
   if (upper.includes('UTF-8') || upper.includes('UTF8')) return 'UTF-8'
+  if (upper === 'UTF-16LE' || upper === 'UTF-16BE') return upper
   if (upper.includes('UTF-16')) return 'UTF-16'
   return detected
 }
@@ -123,6 +126,79 @@ export function subtitleVideoKey(filePath: string): string {
   return subtitlePathKey(filePath.slice(0, -extname(filePath).length))
 }
 
+const sidecarLanguages: Readonly<Record<string, string>> = {
+  ko: 'ko',
+  kor: 'ko',
+  ja: 'ja',
+  jpn: 'ja',
+  en: 'en',
+  eng: 'en',
+  zh: 'zh',
+  zho: 'zh',
+  chi: 'zh',
+  fr: 'fr',
+  fra: 'fr',
+  fre: 'fr',
+  de: 'de',
+  deu: 'de',
+  ger: 'de',
+  es: 'es',
+  spa: 'es',
+  pt: 'pt',
+  por: 'pt',
+  it: 'it',
+  ita: 'it',
+  ru: 'ru',
+  rus: 'ru',
+  ar: 'ar',
+  ara: 'ar',
+  hi: 'hi',
+  hin: 'hi',
+  th: 'th',
+  tha: 'th',
+  vi: 'vi',
+  vie: 'vi',
+  id: 'id',
+  ind: 'id',
+  nl: 'nl',
+  nld: 'nl',
+  dut: 'nl',
+  pl: 'pl',
+  pol: 'pl',
+  tr: 'tr',
+  tur: 'tr',
+  sv: 'sv',
+  swe: 'sv',
+  uk: 'uk',
+  ukr: 'uk',
+}
+const sidecarFlags = new Set(['forced', 'sdh', 'cc', 'default', 'signs'])
+
+/** Only known language/track suffixes can be removed; arbitrary title words cannot. */
+function matchNamedSidecar(
+  key: string,
+  videoKeys: ReadonlySet<string>,
+): { videoKey: string; lang?: string } | undefined {
+  let candidate = key
+  let lang: string | undefined
+  while (candidate.length) {
+    const dot = candidate.lastIndexOf('.')
+    if (dot < 0) return undefined
+    const suffix = candidate.slice(dot + 1).toLowerCase()
+    const language = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/.test(suffix)
+      ? sidecarLanguages[suffix.split('-')[0]]
+      : undefined
+    if (language) {
+      // Two different language suffixes are ambiguous unless the nearer video owns the stem.
+      if (lang && lang !== language) return undefined
+      lang = language
+    } else if (!sidecarFlags.has(suffix)) return undefined
+    candidate = candidate.slice(0, dot)
+    if (videoKeys.has(candidate)) return { videoKey: candidate, lang }
+  }
+  return undefined
+}
+
 export function matchSidecarSubtitle(
   filePath: string,
   videoKeys: ReadonlySet<string>,
@@ -134,9 +210,14 @@ export function matchSidecarSubtitle(
   // A video named movie.ai.ko.mp4 owns movie.ai.ko.srt, even if movie.mp4 exists.
   if (videoKeys.has(key)) return { videoKey: key, subtitle }
   const generated = key.match(/^(.+)\.ai(?:\.([1-9]\d*))?(\.ko)?$/i)
-  if (!generated || !videoKeys.has(generated[1])) return undefined
-  if (generated[3]) subtitle.lang = 'ko'
-  return { videoKey: generated[1], subtitle }
+  if (generated && videoKeys.has(generated[1])) {
+    if (generated[3]) subtitle.lang = 'ko'
+    return { videoKey: generated[1], subtitle }
+  }
+  const named = matchNamedSidecar(key, videoKeys)
+  if (!named) return undefined
+  if (named.lang) subtitle.lang = named.lang
+  return { videoKey: named.videoKey, subtitle }
 }
 
 /** Retain detected language, identity and embedded tracks when a directory is rescanned. */
