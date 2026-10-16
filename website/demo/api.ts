@@ -1215,6 +1215,7 @@ export function createDemoAdapter(
   })
 
   const api = {
+    temporaryPlayback: { openDroppedFiles: unsupported, close: unsupported },
     privacy: {
       get: async () =>
         ok({
