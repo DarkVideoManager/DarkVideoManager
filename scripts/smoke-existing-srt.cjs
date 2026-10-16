@@ -176,7 +176,10 @@ async function main() {
     await page
       .getByLabel('자막 선택', { exact: true })
       .selectOption(tracks.find((item) => item.lang === 'ja').id)
-    await page.getByRole('button', { name: '자막 탐색', exact: true }).click()
+    await page
+      .getByRole('tab', { name: '자막 탐색', exact: true })
+      .or(page.getByRole('button', { name: '자막 탐색', exact: true }))
+      .click()
     const navigator = page.getByRole('region', { name: '자막 탐색', exact: true })
     const destination = navigator.getByRole('button', { name: /既存の日本語字幕/ })
     await destination.waitFor()
