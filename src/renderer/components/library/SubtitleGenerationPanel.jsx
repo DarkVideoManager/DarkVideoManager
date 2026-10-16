@@ -1,8 +1,8 @@
+import SubtitleGpuGuidance from './SubtitleGpuGuidance'
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import SubtitleProcessingStatus from './SubtitleProcessingStatus'
-import SubtitleGpuGuidance from './SubtitleGpuGuidance'
 import { SubtitleStartGuidance, SubtitlePrivacyGuidance } from './SubtitleGuidance'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
