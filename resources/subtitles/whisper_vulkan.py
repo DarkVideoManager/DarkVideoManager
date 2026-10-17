@@ -212,8 +212,6 @@ def _load_native_result(path):
     # in language, timestamps, or other metadata.
     raw = path.read_bytes().decode("utf-8", errors="surrogateescape")
     damaged_bytes = sum("\udc80" <= char <= "\udcff" for char in raw)
-    if damaged_bytes > 32:
-        raise _NativeResultError("결과 파일의 문자 인코딩 손상이 허용 범위를 초과했습니다")
 
     # Native b5454 escapes quotes/backslashes, but not literal newlines or tabs
     # inside strings. strict=False admits those characters without relaxing
@@ -238,6 +236,18 @@ def _load_native_result(path):
         return preview, []
 
     result = parse(raw)
+    # On Windows whisper.cpp writes params.model using the native code page.
+    # A Korean user directory can therefore be non-UTF-8 even when every cue
+    # is valid. This diagnostic path is never used to interpret the transcript.
+    params = result.get("params") if isinstance(result, dict) else None
+    model_path = params.get("model") if isinstance(params, dict) else None
+    if isinstance(model_path, str):
+        path_bytes = sum("\udc80" <= char <= "\udcff" for char in model_path)
+        if path_bytes:
+            damaged_bytes -= path_bytes
+            params["model"] = ""
+    if damaged_bytes > 32:
+        raise _NativeResultError("결과 파일의 문자 인코딩 손상이 허용 범위를 초과했습니다")
     repairs = []
     pending = [(result, ())]
     while pending:
