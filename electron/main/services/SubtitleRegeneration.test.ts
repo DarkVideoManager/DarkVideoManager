@@ -38,6 +38,7 @@ import {
   resumeSubtitleJob,
   shutdownSubtitleQueue,
   startSubtitleGeneration,
+  setSubtitleConcurrency,
 } from './SubtitleGenerationService'
 
 const options = { model: 'base', language: 'auto', translateToKorean: true } as const
@@ -188,6 +189,32 @@ afterEach(async () => {
 })
 
 describe('subtitle regeneration', () => {
+  beforeEach(() => setSubtitleConcurrency(1))
+
+  it('regenerates separate videos concurrently and leaves a waiting replacement untouched', async () => {
+    setSubtitleConcurrency(2)
+    const first = external('.srt')
+    const second = external('.srt', 'second')
+    const third = external('.srt', 'third')
+    const one = await regenerateSubtitles(root, 'first', [first.id], options)
+    const two = await regenerateSubtitles(root, 'second', [second.id], options)
+    const three = await regenerateSubtitles(root, 'third', [third.id], options)
+    const firstWorker = await worker(0)
+    const secondWorker = await worker(1)
+    expect(firstWorker.directory).toContain(one.id)
+    expect(secondWorker.directory).toContain(two.id)
+    expect(existsSync(first.path)).toBe(false)
+    expect(existsSync(second.path)).toBe(false)
+    expect(existsSync(third.path)).toBe(true)
+    expect(job(three.id)?.phase).toBe('queued')
+    await complete(secondWorker)
+    const thirdWorker = await worker(2)
+    expect(thirdWorker.directory).toContain(three.id)
+    expect(existsSync(third.path)).toBe(false)
+    await complete(firstWorker)
+    await complete(thirdWorker)
+  })
+
   it('replaces confirmed sidecars with a fresh job, drops old checkpoints, and preserves embedded tracks', async () => {
     const previous = await failedJob()
     const tracks = ['.srt', '.ai.srt', '.ai.ko.srt'].map((suffix) => external(suffix))

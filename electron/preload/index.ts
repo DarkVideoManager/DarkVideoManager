@@ -340,6 +340,10 @@ const api = {
       ipcRenderer.invoke(IPC.SUBTITLES.UPDATE_TRANSLATION_SETTINGS, patch),
     listQueue: (): Promise<Result<SubtitleGenerationJob[], string>> =>
       ipcRenderer.invoke(IPC.SUBTITLES.LIST_QUEUE),
+    getConcurrency: (): Promise<Result<number, string>> =>
+      ipcRenderer.invoke(IPC.SUBTITLES.GET_CONCURRENCY),
+    setConcurrency: (limit: number): Promise<Result<number, string>> =>
+      ipcRenderer.invoke(IPC.SUBTITLES.SET_CONCURRENCY, limit),
     pauseJob: (jobId: string): Promise<Result<boolean, string>> =>
       ipcRenderer.invoke(IPC.SUBTITLES.PAUSE_JOB, jobId),
     resumeJob: (jobId: string): Promise<Result<boolean, string>> =>

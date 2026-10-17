@@ -399,6 +399,28 @@ class VulkanTests(unittest.TestCase):
             with patch.object(vulkan.urllib.request, "urlopen", side_effect=AssertionError("cached download")):
                 vulkan.ensure_model(cache, entry, Mock())
 
+    def test_parallel_model_download_reuses_only_another_workers_verified_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            target = cache / "model.bin"
+            entry = {"filename": "model.bin", "url": "https://huggingface.co/example",
+                     "size": 4, "sha256": hashlib.sha256(b"good").hexdigest()}
+            for competing_bytes in (b"good", b"evil"):
+                with self.subTest(competing_bytes=competing_bytes):
+                    target.unlink(missing_ok=True)
+                    def competing_worker(_temporary, destination):
+                        Path(destination).write_bytes(competing_bytes)
+                        raise PermissionError("model opened by another worker")
+                    with patch.object(vulkan.urllib.request, "urlopen", return_value=io.BytesIO(b"good")), \
+                         patch.object(vulkan.os, "replace", side_effect=competing_worker):
+                        if competing_bytes == b"good":
+                            self.assertEqual(vulkan.ensure_model(cache, entry, Mock()), target)
+                        else:
+                            with self.assertRaises(RuntimeError):
+                                vulkan.ensure_model(cache, entry, Mock())
+                    self.assertEqual(target.read_bytes(), competing_bytes)
+                    self.assertEqual(list(cache.glob("*.part")), [])
+
     def test_registry_kills_real_child_and_rejects_spawn_after_cancellation(self):
         registry = vulkan.ChildProcesses()
         child = registry.start([sys.executable, "-c", "import time; time.sleep(30)"], stdout=subprocess.DEVNULL)

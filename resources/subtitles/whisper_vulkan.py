@@ -161,7 +161,13 @@ def ensure_model(cache, entry, emit):
             os.fsync(output.fileno())
         if size != entry["size"] or digest.hexdigest() != entry["sha256"]:
             raise ValueError("checksum")
-        os.replace(temporary, target)
+        try:
+            os.replace(temporary, target)
+        except OSError:
+            # Another worker can publish and open the same verified model first.
+            # Windows denies replacing that open file; reuse only identical bytes.
+            if not file_matches(target, entry):
+                raise
         emit(phase="loading", percent=100, message=f"GPU 모델 준비 완료: {entry['filename']}")
         return target
     except Exception as error:

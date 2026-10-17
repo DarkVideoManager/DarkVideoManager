@@ -94,6 +94,8 @@ export const IPC = {
     GET_TRANSLATION_SETTINGS: 'subtitles:getTranslationSettings',
     UPDATE_TRANSLATION_SETTINGS: 'subtitles:updateTranslationSettings',
     LIST_QUEUE: 'subtitles:listQueue',
+    GET_CONCURRENCY: 'subtitles:getConcurrency',
+    SET_CONCURRENCY: 'subtitles:setConcurrency',
     PAUSE_JOB: 'subtitles:pauseJob',
     RESUME_JOB: 'subtitles:resumeJob',
     REMOVE_JOB: 'subtitles:removeJob',

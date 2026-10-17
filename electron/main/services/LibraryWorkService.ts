@@ -32,7 +32,7 @@ export function isLibraryWorkBlocked(
   resourceKey?: string,
 ): boolean {
   if (shuttingDown || draining > 0) return true
-  // Different videos may queue thumbnail work together. Unscoped mutations and
+  // Different videos may run subtitle or thumbnail work together. Unscoped mutations and
   // same-video writes remain serialized; imports and closure stay exclusive.
   for (const active of activeWork.get(libraryId) ?? []) {
     if (
@@ -40,10 +40,7 @@ export function isLibraryWorkBlocked(
       kind === 'exclusive' ||
       active.kind === 'exclusive' ||
       (active.kind === kind &&
-        (kind !== 'thumbnails' ||
-          !resourceKey ||
-          !active.resourceKey ||
-          active.resourceKey === resourceKey))
+        (!resourceKey || !active.resourceKey || active.resourceKey === resourceKey))
     )
       return true
   }

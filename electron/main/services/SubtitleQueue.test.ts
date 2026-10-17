@@ -57,7 +57,7 @@ import { runMigrations } from '../db/migrator'
 import { VideoRepository } from '../db/repositories/VideoRepository'
 import { SubtitleRepository } from '../db/repositories/SubtitleRepository'
 import { createAbortError } from '../ffmpeg/queue'
-import { drainLibraryWork, isLibraryBusy } from './LibraryWorkService'
+import { drainLibraryWork, isLibraryBusy, withLibraryWork } from './LibraryWorkService'
 import {
   initializeSubtitleQueue,
   listSubtitleQueue,
@@ -66,6 +66,9 @@ import {
   resumeSubtitleJob,
   shutdownSubtitleQueue,
   startSubtitleGeneration,
+  getSubtitleConcurrency,
+  setSubtitleConcurrency,
+  cancelSubtitleGeneration,
 } from './SubtitleGenerationService'
 
 const options = { model: 'base', language: 'auto', translateToKorean: true } as const
@@ -140,7 +143,7 @@ beforeEach(() => {
   workers = []
   db = openDatabase(libraryId, ':memory:')
   runMigrations(db, ':memory:')
-  for (const videoId of ['first', 'second', 'third']) {
+  for (const videoId of ['first', 'second', 'third', 'fourth']) {
     writeFileSync(source(videoId), 'video fixture ' + videoId)
     new VideoRepository(db).insert({
       id: videoId,
@@ -205,7 +208,257 @@ afterEach(async () => {
   }
 })
 
+describe('parallel subtitle jobs', () => {
+  it('runs two videos in the same library by default and fills freed slots in FIFO order', async () => {
+    expect(getSubtitleConcurrency()).toBe(2)
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const second = startSubtitleGeneration(libraryId, 'second', options)
+    const third = startSubtitleGeneration(libraryId, 'third', options)
+    const one = await worker(0)
+    const two = await worker(1)
+    expect([one.directory, two.directory]).toEqual([
+      expect.stringContaining(first.id),
+      expect.stringContaining(second.id),
+    ])
+    expect(one.directory).not.toBe(two.directory)
+    expect(job(third.id)?.phase).toBe('queued')
+    await complete(two)
+    const three = await worker(2)
+    expect(three.directory).toContain(third.id)
+    expect(one.signal.aborted).toBe(false)
+    expect(isLibraryBusy(libraryId)).toBe(true)
+    await complete(one)
+    await complete(three)
+    for (const videoId of ['first', 'second', 'third']) {
+      const tracks = new SubtitleRepository(db).findByVideoId(videoId)
+      expect(tracks).toHaveLength(2)
+      expect(tracks.every((track) => basename(track.filePath).startsWith(videoId + '.ai'))).toBe(
+        true,
+      )
+    }
+    expect(isLibraryBusy(libraryId)).toBe(false)
+  })
+
+  it('starts waiting work when the limit grows and lets all current work finish when it shrinks', async () => {
+    startSubtitleGeneration(libraryId, 'first', options)
+    startSubtitleGeneration(libraryId, 'second', options)
+    const third = startSubtitleGeneration(libraryId, 'third', options)
+    const fourth = startSubtitleGeneration(libraryId, 'fourth', options)
+    const one = await worker(0)
+    const two = await worker(1)
+    setSubtitleConcurrency(3)
+    const three = await worker(2)
+    expect(three.directory).toContain(third.id)
+    setSubtitleConcurrency(1)
+    expect([one, two, three].every(({ signal }) => !signal.aborted)).toBe(true)
+    await complete(two)
+    expect(job(fourth.id)?.phase).toBe('queued')
+    await complete(three)
+    expect(job(fourth.id)?.phase).toBe('queued')
+    await complete(one)
+    const four = await worker(3)
+    expect(four.directory).toContain(fourth.id)
+    await complete(four)
+  })
+
+  it.each(['pause', 'remove', 'cancel'] as const)(
+    'isolates %s from another running job',
+    async (operation) => {
+      const first = startSubtitleGeneration(libraryId, 'first', options)
+      const second = startSubtitleGeneration(libraryId, 'second', options)
+      const third = startSubtitleGeneration(libraryId, 'third', options)
+      const one = await worker(0)
+      const two = await worker(1)
+      two.update({ phase: 'transcribing', percent: 37 })
+      if (operation === 'pause') expect(await pauseSubtitleJob(first.id)).toBe(true)
+      else if (operation === 'remove') expect(await removeSubtitleJob(first.id)).toBe(true)
+      else expect(cancelSubtitleGeneration(libraryId, 'first')).toBe(true)
+      const three = await worker(2)
+      expect(three.directory).toContain(third.id)
+      expect(one.signal.aborted).toBe(true)
+      expect(two.signal.aborted).toBe(false)
+      expect(job(second.id)).toMatchObject({ phase: 'transcribing', percent: 37 })
+      await complete(two)
+      await complete(three)
+    },
+  )
+
+  it('keeps a stopping worker in its slot until its process has actually exited', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    startSubtitleGeneration(libraryId, 'second', options)
+    const third = startSubtitleGeneration(libraryId, 'third', options)
+    const one = await worker(0)
+    await worker(1)
+    one.deferAbort = true
+    const removal = removeSubtitleJob(first.id)
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(one.signal.aborted).toBe(true)
+      expect(workers).toHaveLength(2)
+      expect(job(third.id)?.phase).toBe('queued')
+      expect(existsSync(one.audio)).toBe(true)
+    } finally {
+      one.reject(createAbortError())
+      await removal
+    }
+    expect((await worker(2)).directory).toContain(third.id)
+    expect(existsSync(one.directory)).toBe(false)
+  })
+
+  it('keeps other jobs running after a worker fails and advances the waiting job', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    startSubtitleGeneration(libraryId, 'second', options)
+    const third = startSubtitleGeneration(libraryId, 'third', options)
+    const one = await worker(0)
+    const two = await worker(1)
+    one.reject(new Error('GPU memory fixture failure'))
+    const three = await worker(2)
+    expect(job(first.id)?.phase).toBe('failed')
+    expect(three.directory).toContain(third.id)
+    expect(two.signal.aborted).toBe(false)
+    await complete(two)
+    await complete(three)
+  })
+
+  it('skips an exclusively locked library while filling slots from another library', async () => {
+    let release!: () => void
+    const lock = withLibraryWork(
+      libraryId,
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        }),
+    )
+    const otherId = libraryId + '-other'
+    const otherDb = openDatabase(otherId, ':memory:')
+    runMigrations(otherDb, ':memory:')
+    for (const id of ['first', 'second'])
+      new VideoRepository(otherDb).insert({
+        id,
+        fileName: id + '.mp4',
+        filePath: source(id),
+        rating: 0,
+        memo: '',
+        resumePosSec: 0,
+      })
+    try {
+      const waiting = startSubtitleGeneration(libraryId, 'first', options)
+      startSubtitleGeneration(otherId, 'first', options)
+      startSubtitleGeneration(otherId, 'second', options)
+      await worker(1)
+      expect(workers).toHaveLength(2)
+      expect(job(waiting.id)?.phase).toBe('queued')
+      await complete(workers[0])
+      await complete(workers[1])
+    } finally {
+      release()
+      await lock
+    }
+    expect((await worker(2)).signal.aborted).toBe(false)
+  })
+
+  it('aborts every worker on storage failure and waits for all cleanup before allowing recovery', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const second = startSubtitleGeneration(libraryId, 'second', options)
+    const third = startSubtitleGeneration(libraryId, 'third', options)
+    const one = await worker(0)
+    const two = await worker(1)
+    two.deferAbort = true
+    writeFileSync(join(one.directory, 'checkpoint.json'), 'first checkpoint')
+    writeFileSync(join(two.directory, 'checkpoint.json'), 'second checkpoint')
+    state.failWrites = true
+    expect(() => one.update({ phase: 'transcribing', percent: 14 })).toThrow('EPERM')
+    const writes = state.writes
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(one.signal.aborted && two.signal.aborted).toBe(true)
+      expect(listSubtitleQueue().map(({ phase }) => phase)).toEqual(['paused', 'paused', 'paused'])
+      state.failWrites = false
+      expect(() => resumeSubtitleJob(first.id)).toThrow('정리하고 있습니다')
+      expect(state.writes).toBe(writes)
+    } finally {
+      two.reject(createAbortError())
+      two.deferAbort = false
+    }
+    await vi.waitFor(() => expect(isLibraryBusy(libraryId)).toBe(false))
+    expect(resumeSubtitleJob(first.id)).toBe(true)
+    const resumed = await worker(2)
+    expect(readFileSync(join(resumed.directory, 'checkpoint.json'), 'utf8')).toBe(
+      'first checkpoint',
+    )
+    expect(readFileSync(join(two.directory, 'checkpoint.json'), 'utf8')).toBe('second checkpoint')
+    expect(job(second.id)?.phase).toBe('paused')
+    expect(job(third.id)?.phase).toBe('paused')
+    await complete(resumed)
+  })
+
+  it('waits for all workers on shutdown and restores their progress and concurrency without auto-start', async () => {
+    const first = startSubtitleGeneration(libraryId, 'first', options)
+    const second = startSubtitleGeneration(libraryId, 'second', options)
+    startSubtitleGeneration(libraryId, 'third', options)
+    const one = await worker(0)
+    const two = await worker(1)
+    for (const current of [one, two]) {
+      current.deferAbort = true
+      writeFileSync(
+        join(current.directory, 'checkpoint.json'),
+        'saved ' + basename(current.directory),
+      )
+    }
+    let stopped = false
+    const stopping = shutdownSubtitleQueue().then(() => {
+      stopped = true
+    })
+    try {
+      expect(one.signal.aborted && two.signal.aborted).toBe(true)
+      one.reject(createAbortError())
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(stopped).toBe(false)
+    } finally {
+      one.reject(createAbortError())
+      two.reject(createAbortError())
+      await stopping
+    }
+    state.root = createRoot()
+    initializeSubtitleQueue()
+    state.root = root
+    initializeSubtitleQueue()
+    expect(getSubtitleConcurrency()).toBe(2)
+    expect(listSubtitleQueue().every(({ phase }) => phase === 'paused')).toBe(true)
+    expect(workers).toHaveLength(2)
+    expect(resumeSubtitleJob(first.id)).toBe(true)
+    expect(resumeSubtitleJob(second.id)).toBe(true)
+    const resumedOne = await worker(2)
+    const resumedTwo = await worker(3)
+    expect([resumedOne.directory, resumedTwo.directory]).toEqual([one.directory, two.directory])
+    expect(state.extract).toHaveBeenCalledTimes(2)
+    await complete(resumedOne)
+    await complete(resumedTwo)
+  })
+
+  it('validates and persists the limit and defaults old journals to two workers', () => {
+    writeFileSync(join(root, 'subtitle-queue.json'), JSON.stringify({ version: 1, entries: [] }))
+    expect(getSubtitleConcurrency()).toBe(2)
+    for (const value of [0, 5, 1.5, NaN, Infinity])
+      expect(() => setSubtitleConcurrency(value)).toThrow()
+    setSubtitleConcurrency(4)
+    state.root = createRoot()
+    initializeSubtitleQueue()
+    expect(getSubtitleConcurrency()).toBe(2)
+    state.root = root
+    initializeSubtitleQueue()
+    expect(getSubtitleConcurrency()).toBe(4)
+    state.failWrites = true
+    expect(() => setSubtitleConcurrency(3)).toThrow('EPERM')
+    expect(getSubtitleConcurrency()).toBe(4)
+    state.failWrites = false
+    expect(setSubtitleConcurrency(1)).toBe(1)
+  })
+})
+
 describe('subtitle queue lifecycle', () => {
+  beforeEach(() => setSubtitleConcurrency(1))
+
   it('processes different videos from the same library one at a time in FIFO order', async () => {
     const first = startSubtitleGeneration(libraryId, 'first', options)
     const second = startSubtitleGeneration(libraryId, 'second', options)

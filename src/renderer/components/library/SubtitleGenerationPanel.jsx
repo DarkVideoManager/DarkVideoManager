@@ -176,7 +176,8 @@ export default function SubtitleGenerationPanel({
       <SubtitleStartGuidance />
       <SubtitleGpuGuidance />
       <p className="text-xs leading-relaxed text-zinc-400">
-        시작하면 작업 큐에 추가해 순서대로 처리합니다. 다른 영상도 이어서 추가할 수 있습니다.
+        시작하면 작업 큐에 추가합니다. 여러 영상을 동시에 처리하며 자막 생성 탭에서 실행 수를 조절할
+        수 있습니다.
       </p>
       <Link
         to="/subtitles"

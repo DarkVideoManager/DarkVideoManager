@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto'
 import { basename, dirname, extname, join, relative } from 'node:path'
 import type { Subtitle, SubtitleGenerationJob, SubtitleGenerationOptions } from '@shared/types'
 import { SubtitleGenerationOptionsZ } from '@shared/ipc'
+import { DEFAULT_SUBTITLE_CONCURRENCY, SubtitleConcurrencyZ } from '@shared/subtitleQueue'
 import { SubtitleQueueStorageError, writeSubtitleQueueSnapshot } from './SubtitleQueueStorage'
 import { assertSubtitleEnvironmentIdle } from './SubtitleEnvironmentLock'
 import { getDatabase, openDatabase } from '../db/connection'
@@ -56,7 +57,8 @@ interface ActiveJob {
 }
 const entries = new Map<string, QueueEntry>()
 const listeners = new Set<() => void>()
-let active: ActiveJob | undefined
+const active = new Map<string, ActiveJob>()
+let maxConcurrentJobs = DEFAULT_SUBTITLE_CONCURRENCY
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let storageFile: string | undefined
 let stopping = false
@@ -64,6 +66,7 @@ let storageFailure: SubtitleQueueStorageError | undefined
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const QueueFileZ = z.object({
   version: z.literal(1),
+  maxConcurrentJobs: SubtitleConcurrencyZ.default(DEFAULT_SUBTITLE_CONCURRENCY),
   entries: z
     .array(
       z.object({
@@ -123,7 +126,11 @@ function snapshot(job: SubtitleGenerationJob): SubtitleGenerationJob {
 
 function persist(): void {
   if (!storageFile) return
-  writeSubtitleQueueSnapshot(storageFile, { version: 1, entries: [...entries.values()] })
+  writeSubtitleQueueSnapshot(storageFile, {
+    version: 1,
+    maxConcurrentJobs,
+    entries: [...entries.values()],
+  })
 }
 
 function blockForStorage(error: SubtitleQueueStorageError): void {
@@ -138,7 +145,7 @@ function blockForStorage(error: SubtitleQueueStorageError): void {
         '대기열 저장 실패로 일시정지했습니다. 진행 내용은 보관하며 자동으로 재시도하지 않습니다.'
     }
   }
-  active?.controller.abort()
+  for (const running of active.values()) running.controller.abort()
 }
 
 function changed(save = true): void {
@@ -165,6 +172,8 @@ function changed(save = true): void {
 }
 
 function retryStorage(): void {
+  if (active.size)
+    throw new Error('자막 작업을 정리하고 있습니다. 잠시 후 저장 다시 시도를 눌러 주세요.')
   for (const { job } of entries.values()) delete job.storageError
   changed()
   storageFailure = undefined
@@ -202,11 +211,14 @@ function cleanup(entry: QueueEntry): void {
 export function initializeSubtitleQueue(): void {
   const file = getUserDataPath('subtitle-queue.json')
   if (storageFile === file) return
-  if (active) throw new Error('진행 중인 자막 작업이 있습니다.')
+  if (active.size) throw new Error('진행 중인 자막 작업이 있습니다.')
   let restored: QueueEntry[] = []
+  let restoredConcurrency = DEFAULT_SUBTITLE_CONCURRENCY
   if (existsSync(file)) {
     try {
-      restored = QueueFileZ.parse(JSON.parse(readFileSync(file, 'utf8'))).entries
+      const saved = QueueFileZ.parse(JSON.parse(readFileSync(file, 'utf8')))
+      restored = saved.entries
+      restoredConcurrency = saved.maxConcurrentJobs
       if (new Set(restored.map((item) => item.job.id)).size !== restored.length)
         throw new Error('작업 ID 중복')
     } catch (error) {
@@ -218,6 +230,7 @@ export function initializeSubtitleQueue(): void {
   if (retryTimer) clearTimeout(retryTimer)
   retryTimer = undefined
   entries.clear()
+  maxConcurrentJobs = restoredConcurrency
   storageFile = file
   stopping = false
   storageFailure = undefined
@@ -254,6 +267,30 @@ export function listSubtitleQueue(): SubtitleGenerationJob[] {
   return [...entries.values()].map(({ job }) => snapshot(job))
 }
 
+export function getSubtitleConcurrency(): number {
+  initializeSubtitleQueue()
+  return maxConcurrentJobs
+}
+
+export function setSubtitleConcurrency(value: number): number {
+  const limit = SubtitleConcurrencyZ.parse(value)
+  initializeSubtitleQueue()
+  if (stopping) throw new Error('앱을 종료하고 있습니다.')
+  if (storageFailure && entries.size === 0) retryStorage()
+  if (storageFailure) throw storageFailure
+  const previous = maxConcurrentJobs
+  maxConcurrentJobs = limit
+  try {
+    changed()
+  } catch (error) {
+    maxConcurrentJobs = previous
+    throw error
+  }
+  // Lowering the limit lets existing workers finish before admitting more jobs.
+  pump()
+  return maxConcurrentJobs
+}
+
 export function hasPendingSubtitleJobs(): boolean {
   return [...entries.values()].some(({ job }) => !terminalPhases.has(job.phase))
 }
@@ -277,9 +314,10 @@ export function cancelSubtitleGeneration(libraryId: string, videoId: string): bo
   )
   if (!entry) return false
   if (storageFailure) retryStorage()
-  if (active?.entry === entry) {
-    active.action = 'cancel'
-    active.controller.abort()
+  const running = active.get(entry.job.id)
+  if (running) {
+    running.action = 'cancel'
+    running.controller.abort()
   } else {
     entry.job.phase = 'cancelled'
     entry.job.message = '자막 생성을 취소했습니다.'
@@ -516,7 +554,7 @@ function enqueueSubtitleGeneration(
   return snapshot(entry.job)
 }
 
-/** Regeneration shares the FIFO worker; selected sidecars remain intact while waiting. */
+/** Regeneration shares the bounded FIFO queue; selected sidecars stay intact while waiting. */
 export async function regenerateSubtitles(
   libraryId: string,
   videoId: string,
@@ -527,25 +565,29 @@ export async function regenerateSubtitles(
 }
 
 function pump(): void {
-  if (stopping || active || storageFailure) return
+  if (stopping || storageFailure) return
   if (retryTimer) clearTimeout(retryTimer)
   retryTimer = undefined
-  const pending = [...entries.values()].filter(({ job }) => job.phase === 'queued')
-  const entry = pending.find(({ job }) => !isLibraryWorkBlocked(job.libraryId, 'subtitles'))
-  if (!entry) {
-    if (pending.length) {
-      retryTimer = setTimeout(pump, 500)
-      retryTimer.unref()
+  while (!stopping && !storageFailure && active.size < maxConcurrentJobs) {
+    const pending = [...entries.values()].filter(({ job }) => job.phase === 'queued')
+    const entry = pending.find(
+      ({ job }) => !isLibraryWorkBlocked(job.libraryId, 'subtitles', job.videoId),
+    )
+    if (!entry) {
+      if (pending.length) {
+        retryTimer = setTimeout(pump, 500)
+        retryTimer.unref()
+      }
+      return
     }
-    return
+    const running: ActiveJob = { entry, controller: new AbortController(), done: Promise.resolve() }
+    active.set(entry.job.id, running)
+    entry.job.phase = 'preparing'
+    entry.job.message = entry.audioReady
+      ? '저장한 작업을 다시 준비하고 있습니다.'
+      : '음성을 추출하고 있습니다.'
+    running.done = execute(running)
   }
-  const running: ActiveJob = { entry, controller: new AbortController(), done: Promise.resolve() }
-  active = running
-  entry.job.phase = 'preparing'
-  entry.job.message = entry.audioReady
-    ? '저장한 작업을 다시 준비하고 있습니다.'
-    : '음성을 추출하고 있습니다.'
-  running.done = execute(running)
 }
 
 async function execute(running: ActiveJob): Promise<void> {
@@ -686,6 +728,7 @@ async function execute(running: ActiveJob): Promise<void> {
         }
       },
       'subtitles',
+      job.videoId,
     )
   } catch (error) {
     if (!running.action && !storageFailure) {
@@ -729,7 +772,7 @@ async function execute(running: ActiveJob): Promise<void> {
       log.warn({ err: error }, '자막 작업 정리 실패')
       changed(false)
     } finally {
-      if (active === running) active = undefined
+      active.delete(job.id)
       if (!stopping && !storageFailure) setImmediate(pump)
     }
   }
@@ -739,9 +782,9 @@ export async function pauseSubtitleJob(jobId: string): Promise<boolean> {
   initializeSubtitleQueue()
   const entry = entries.get(jobId)
   if (!entry || terminalPhases.has(entry.job.phase) || entry.job.phase === 'paused') return false
-  if (active?.entry === entry) {
-    if (active.action && active.action !== 'pause') return false
-    const running = active
+  const running = active.get(jobId)
+  if (running) {
+    if (running.action && running.action !== 'pause') return false
     running.action = 'pause'
     entry.job.phase = 'pausing'
     entry.job.message = '진행 내용을 보관하고 일시정지하고 있습니다.'
@@ -769,7 +812,7 @@ export function resumeSubtitleJob(jobId: string): boolean {
   initializeSubtitleQueue()
   if (stopping) throw new Error('앱을 종료하고 있습니다.')
   const entry = entries.get(jobId)
-  if (entry?.job.storageError && active?.entry !== entry) {
+  if (entry?.job.storageError && !active.has(jobId)) {
     retryStorage()
     if (entry.job.phase === 'completed' || entry.job.phase === 'cancelled') {
       try {
@@ -780,11 +823,7 @@ export function resumeSubtitleJob(jobId: string): boolean {
       return true
     }
   }
-  if (
-    !entry ||
-    !['paused', 'failed', 'cancelled'].includes(entry.job.phase) ||
-    active?.entry === entry
-  )
+  if (!entry || !['paused', 'failed', 'cancelled'].includes(entry.job.phase) || active.has(jobId))
     return false
   if (
     [...entries.values()].some(
@@ -815,11 +854,11 @@ export async function removeSubtitleJob(jobId: string): Promise<boolean> {
   const entry = entries.get(jobId)
   if (!entry) return false
   if (storageFailure) {
-    if (active) await active.done
+    await Promise.all([...active.values()].map(({ done }) => done))
     retryStorage()
   }
-  if (active?.entry === entry) {
-    const running = active
+  const running = active.get(jobId)
+  if (running) {
     running.action = 'remove'
     entry.job.phase = 'removing'
     entry.job.message = '작업을 중지하고 대기열에서 삭제하고 있습니다.'
@@ -855,11 +894,11 @@ export async function shutdownSubtitleQueue(): Promise<void> {
       entry.job.message = '앱 종료로 일시정지했습니다. 다시 실행해 재개할 수 있습니다.'
     }
   }
-  if (active) {
-    const running = active
+  const runningJobs = [...active.values()]
+  for (const running of runningJobs) {
     if (!running.action) running.action = 'pause'
     running.controller.abort()
-    await running.done
   }
+  await Promise.all(runningJobs.map(({ done }) => done))
   if (!storageFailure) changed()
 }
