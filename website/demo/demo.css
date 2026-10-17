@@ -151,23 +151,127 @@ body[data-page='player'] #demo-play {
 .demo-fatal p {
   margin: 20px 0;
 }
-@media (max-width: 720px) {
+#demo-more,
+.demo-mobile-detail-actions,
+.demo-mobile-library-tools {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  html,
+  body {
+    height: 100%;
+    height: 100dvh;
+  }
   #demo-toolbar {
-    padding: 8px 10px;
-    flex-wrap: wrap;
-    gap: 5px;
-    font-size: 10px;
+    padding: 0 6px;
+    min-height: 46px;
+    gap: 0;
+    font-size: 12px;
   }
   #demo-toolbar > div:first-child {
-    gap: 8px;
+    display: none;
   }
   .demo-toolbar-actions {
-    margin-left: auto;
-    gap: 3px 14px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    gap: 0 4px;
   }
   .demo-toolbar-actions button,
   .demo-toolbar-actions a {
-    padding: 6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 5px 2px;
+    white-space: normal;
+    word-break: keep-all;
+    text-align: center;
+    touch-action: manipulation;
+  }
+  #demo-more {
+    display: flex;
+  }
+  #demo-play {
+    display: none;
+  }
+  #demo-toolbar:not([data-expanded='true']) .demo-secondary-action,
+  #demo-toolbar:not([data-expanded='true']) .player-action {
+    display: none;
+  }
+  #demo-more {
+    grid-column: 4;
+    grid-row: 1;
+  }
+  #demo-example-notice {
+    padding: 6px 10px;
+  }
+  #root main,
+  #root main > div {
+    min-width: 0;
+    min-height: 0;
+  }
+  #root > div > header {
+    padding: 3px 8px;
+    gap: 4px;
+  }
+  #root > div > header > div:first-child {
+    display: none;
+  }
+  #root > div > header nav {
+    margin-left: 0;
+    gap: 2px;
+  }
+  #root > div > header nav a,
+  #root > div > header > button {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding-inline: 10px;
+  }
+  #root input:not([type='checkbox']):not([type='range']),
+  #root textarea,
+  #root select {
+    font-size: 16px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  #root select {
+    min-height: 40px;
+  }
+  .demo-library-filters {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .demo-library-filters > input {
+    flex-basis: 100%;
+    min-height: 42px;
+  }
+  .demo-library-filters > select {
+    flex: 1 1 calc(50% - 4px);
+    width: calc(50% - 4px);
+    padding-inline: 6px;
+  }
+  .demo-library-filters > label {
+    min-height: 42px;
+    padding-inline: 8px;
+  }
+  .demo-library-filters > span {
+    margin-left: auto;
+  }
+  .demo-library-filters > button {
+    min-height: 42px;
+  }
+  .demo-mobile-library-tools {
+    display: block;
+    color: #c4b5fd;
+    font-size: 12px;
+  }
+  .demo-library-layout[data-mobile-tools='false']
+    .demo-library-filters
+    > button:not(.demo-mobile-library-tools) {
+    display: none;
   }
   body[data-page='library'] #root main {
     position: relative;
@@ -177,37 +281,140 @@ body[data-page='player'] #demo-play {
   }
   body[data-page='library'][data-selected='true'] #root main > div > aside {
     position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: min(320px, 92vw);
+    inset: 0;
+    width: 100%;
     z-index: 40;
-    box-shadow: -20px 0 70px #000b;
+  }
+  body[data-page='library'][data-selected='true'] .demo-library-layout > div:first-child {
+    visibility: hidden;
+  }
+  .demo-mobile-detail-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #3f3f46;
+    background: #18181b;
+  }
+  .demo-mobile-detail-actions button {
+    flex: 1;
+    min-height: 44px;
+    border-radius: 6px;
+    background: #312e81;
+    color: #e0e7ff;
+    font-size: 13px;
+  }
+  #root aside > div > div:first-child {
+    gap: 8px;
+  }
+  #root aside button {
+    min-height: 40px;
+  }
+  #root aside [role='slider'] button {
+    min-height: 0;
+  }
+  body[data-page='player'] #root {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
   }
   body[data-page='player'] #root > div.flex {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
     flex-direction: column;
   }
   body[data-page='player'] #root > div.flex > div:first-child {
     flex: none;
-    height: 48%;
-    min-height: 310px;
+    height: auto;
+    min-height: 0;
+  }
+  .demo-player-media {
+    flex: none;
+    height: clamp(340px, calc(56.25vw + 100px), 590px);
+  }
+  body[data-page='player'] #root > div.flex > div:first-child > button,
+  body[data-page='player'] video + button {
+    min-height: 40px;
+  }
+  body[data-page='player'] video {
+    height: 100%;
+  }
+  .demo-playback-controls {
+    padding: 8px 10px;
+  }
+  .demo-playback-controls > div:first-child {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 5px 8px;
+  }
+  .demo-playback-controls > div:first-child > div {
+    grid-column: 1 / -1;
+    width: 112px;
+  }
+  .demo-playback-controls button {
+    min-height: 40px;
+  }
+  .demo-playback-controls input[type='range'] {
+    height: 20px;
+  }
+  .demo-playback-controls label {
+    margin-top: 4px;
+  }
+  .demo-playback-controls select {
+    min-height: 32px !important;
+    height: 32px;
+  }
+  .demo-highlight-timeline {
+    padding-inline: 10px;
+  }
+  .demo-highlight-timeline > div {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 8px;
+  }
+  .demo-highlight-timeline > div > div {
+    grid-column: 2;
   }
   .demo-player-highlights {
-    max-height: 72px;
+    display: none;
   }
   .demo-player-caption {
     padding-inline: 12px;
+    bottom: 136px;
   }
   .demo-player-caption > div {
-    padding: 6px 10px;
-    font-size: 13px;
+    padding: 4px 8px;
+    font-size: 12px;
     line-height: 1.45;
   }
   body[data-page='player'] #root > div.flex > aside {
     width: 100%;
-    min-height: 0;
-    flex: 1;
+    min-height: 440px;
+    height: 480px;
+    flex: none;
     border-left: 0;
     border-top: 1px solid #3f3f46;
+  }
+  body[data-page='subtitles'] #root main > section {
+    min-width: 0;
+    padding: 12px;
+  }
+  body[data-page='subtitles'] #root button,
+  body[data-page='subtitles'] #root a {
+    min-height: 40px;
+  }
+  #demo-guide {
+    padding: 20px;
+  }
+  #demo-guide h1 {
+    font-size: 18px;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 900px) and (max-height: 480px) {
+  .demo-library-filters > input {
+    flex-basis: 180px;
+  }
+  .demo-library-filters > select {
+    flex: 0 1 160px;
+    width: 160px;
   }
 }

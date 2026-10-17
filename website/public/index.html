@@ -177,7 +177,8 @@
               <span>샘플 영상으로 재생, 하이라이트 저장, 자막 탐색 기능 테스트</span>
             </div>
             <a href="/demo/" class="demo-expand" target="_blank" rel="noopener"
-              >큰 화면으로 열기 ↗</a
+              ><span class="desktop-demo-label">큰 화면으로 열기 ↗</span
+              ><span class="touch-demo-label">데모만 열기 ↗</span></a
             >
           </div>
           <div class="demo-quick-actions" aria-label="체험 바로가기">
@@ -203,6 +204,12 @@
             </div>
             <button type="button" data-open-mode="long-video">
               WASD로 직접 조작하기 <span aria-hidden="true">→</span>
+            </button>
+          </div>
+          <div class="demo-touch-invite">
+            <p>영상과 버튼을 눌러 조작할 수 있습니다.</p>
+            <button type="button" data-open-mode="long-video">
+              샘플 영상 재생 <span aria-hidden="true">→</span>
             </button>
           </div>
           <iframe
@@ -261,6 +268,17 @@
           </article>
         </div>
       </section>
+      <aside class="github-support container" aria-label="GitHub Star 안내">
+        <p>프로그램이 유용했다면 GitHub에서 Star를 눌러 주세요.</p>
+        <a
+          class="button github-star-link"
+          href="https://github.com/DarkVideoManager/DarkVideoManager"
+          target="_blank"
+          rel="noopener noreferrer"
+          ><svg aria-hidden="true"><use href="#i-star" /></svg>GitHub에서 Star 누르기
+          <span aria-hidden="true">↗</span></a
+        >
+      </aside>
       <section
         class="features container section-space spec-section feature-briefs"
         id="features"
