@@ -2616,3 +2616,259 @@ details > p {
     padding-top: 28px;
   }
 }
+
+.github-support {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-top: 24px;
+  padding: 20px 24px;
+  border: 1px solid #4d4432;
+  border-radius: 8px;
+  background: #211e18;
+}
+.github-support p {
+  flex: 1 1 260px;
+  color: #ded7c6;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.github-star-link {
+  min-height: 44px;
+  border: 1px solid #75613b;
+  background: #30291c;
+  color: #f1d99b;
+  font-size: 13px;
+}
+.github-star-link:hover {
+  border-color: #b89c5b;
+  background: #403521;
+}
+@media (max-width: 600px) {
+  .github-support {
+    padding: 18px;
+    gap: 12px;
+  }
+  .github-star-link {
+    width: 100%;
+  }
+}
+
+/* Keep the website readable and its embedded demo usable on phones and tablets. */
+.demo-touch-invite,
+.touch-demo-label {
+  display: none;
+}
+.live-demo-heading .demo-expand span {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+.live-demo-heading .touch-demo-label {
+  display: none;
+}
+@media (max-width: 960px), (pointer: coarse) {
+  :root {
+    scroll-padding-top: 12px;
+  }
+  .text-button {
+    min-height: 44px;
+  }
+  .demo-keyboard-invite {
+    display: none;
+  }
+  .demo-touch-invite {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 14px;
+    padding: 12px 16px;
+    background: #2b2238;
+    border-bottom: 1px solid #554267;
+  }
+  .demo-touch-invite p {
+    color: #d6c7ea;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .demo-touch-invite button {
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1px solid #c7a8ee;
+    border-radius: 6px;
+    background: #d2b5fa;
+    color: #261338;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .live-demo-heading .desktop-demo-label {
+    display: none;
+  }
+  .live-demo-heading .touch-demo-label {
+    display: inline;
+  }
+  .demo-expand,
+  .demo-quick-actions button,
+  .demo-quick-actions a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .demo-quick-actions {
+    gap: 8px;
+  }
+  .live-demo iframe {
+    scroll-margin-top: 0;
+  }
+}
+@media (max-width: 760px) {
+  :root {
+    scroll-padding-top: 16px;
+  }
+  .container {
+    width: calc(100% - 32px);
+  }
+  .header {
+    height: auto;
+  }
+  .nav-wrap {
+    flex-wrap: wrap;
+    gap: 0 12px;
+    padding-top: 10px;
+  }
+  .header .brand,
+  .nav-cta {
+    min-height: 44px;
+  }
+  .header .brand {
+    font-size: 14px;
+  }
+  .nav-cta {
+    font-size: 12px;
+  }
+  .desktop-nav {
+    order: 3;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    gap: 8px;
+    margin: 4px 0 0;
+  }
+  .desktop-nav a {
+    justify-content: center;
+    flex: 1;
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .demo-intro {
+    padding-top: 20px;
+  }
+  .live-demo-heading {
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 16px;
+  }
+  .live-demo-heading > div {
+    flex: 1 1 190px;
+  }
+  .live-demo-heading h2 {
+    font-size: 18px;
+  }
+  .live-demo-heading span {
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .demo-expand {
+    padding: 8px 12px;
+  }
+  .demo-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px;
+  }
+  .demo-quick-actions button {
+    padding: 8px;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .demo-quick-actions a {
+    grid-column: 1 / -1;
+    justify-self: start;
+    min-height: 36px;
+    padding: 6px 8px;
+  }
+  .demo-touch-invite {
+    padding: 12px;
+  }
+  .demo-touch-invite button {
+    width: 100%;
+  }
+  .live-demo iframe {
+    height: 830px;
+    height: max(760px, 100svh);
+  }
+  .live-demo .demo-caption {
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+  }
+  .live-demo .demo-caption > span,
+  .live-demo .demo-caption p {
+    font-size: 12px;
+    line-height: 1.8;
+  }
+  .spec-heading p,
+  .spec-note p,
+  .spec-format p,
+  .storage-grid p,
+  .spec-status-grid p,
+  .install-steps p,
+  .spec-list > div,
+  .data-flow-row dd,
+  details > p {
+    font-size: 14px;
+    line-height: 1.85;
+  }
+  .spec-card,
+  .spec-environment,
+  .spec-note,
+  .spec-format {
+    padding: 20px 18px;
+  }
+  .spec-list dt,
+  .data-flow-row dt,
+  .spec-footnote {
+    font-size: 12px;
+  }
+  .spec-footnote,
+  .footer {
+    overflow-wrap: anywhere;
+  }
+  .download-panel {
+    scroll-margin-top: 16px;
+  }
+  .faq summary {
+    font-size: 14px;
+    gap: 12px;
+  }
+}
+@media (max-width: 360px) {
+  .container {
+    width: calc(100% - 24px);
+  }
+  .header .brand {
+    font-size: 13px;
+    gap: 6px;
+  }
+  .nav-cta {
+    padding-inline: 8px;
+  }
+}

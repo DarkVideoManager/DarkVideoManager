@@ -126,11 +126,51 @@ export function browserCopy(code: string, id: string): string | undefined {
         'max-h-40 shrink-0 overflow-y-auto border-t border-zinc-700 bg-zinc-900 px-3 py-2',
         'demo-player-highlights max-h-40 shrink-0 overflow-y-auto border-t border-zinc-700 bg-zinc-900 px-3 py-2',
       ],
+      ['autoPlay={true}', 'autoPlay={true} playsInline={true}'],
+      [
+        'relative min-h-0 min-w-0 flex-1 overflow-hidden',
+        'demo-player-media relative min-h-0 min-w-0 flex-1 overflow-hidden',
+      ],
+      [
+        'absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/75 px-4 py-3 text-white',
+        'demo-playback-controls absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/75 px-4 py-3 text-white',
+      ],
+      [
+        'h-8 shrink-0 border-t border-zinc-700 bg-zinc-900 px-4',
+        'demo-highlight-timeline h-8 shrink-0 border-t border-zinc-700 bg-zinc-900 px-4',
+      ],
     ]
   } else if (path.endsWith('/src/renderer/components/library/DetailPanel.jsx')) {
     edits = [
       ['Space/P: 일시정지', 'W / Space / P: 재생·일시정지'],
       ['A/D 또는 좌우: 이동', 'A/D: 1초 이동 · Shift: 5초 이동'],
+      [
+        "<div className={'relative flex h-full flex-col bg-zinc-900 text-sm text-zinc-100'}>",
+        `<div className={'relative flex h-full flex-col bg-zinc-900 text-sm text-zinc-100'}>
+          {!subtitleNavigationRef && <div className="demo-mobile-detail-actions">
+            <button type="button" onClick={onClose}>← 영상 목록</button>
+            {!isRemoved && <button type="button" onClick={() => { location.hash = '/player/' + encodeURIComponent(libraryId) + '/' + encodeURIComponent(video.id) }}>이 영상 재생 ▶</button>}
+          </div>}`,
+      ],
+    ]
+  } else if (path.endsWith('/src/renderer/pages/LibraryPage.jsx')) {
+    edits = [
+      [
+        'function LibraryPage() {',
+        'function LibraryPage() {\n  const [mobileToolsOpen, setMobileToolsOpen] = React.useState(false)',
+      ],
+      [
+        "<div className={'flex min-h-0 min-w-0 flex-1 overflow-hidden'}>",
+        "<div className={'demo-library-layout flex min-h-0 min-w-0 flex-1 overflow-hidden'} data-mobile-tools={mobileToolsOpen}>",
+      ],
+      [
+        'flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3',
+        'demo-library-filters flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3',
+      ],
+      [
+        '<button type="button" onClick={toggleRemovedItems}',
+        '<button type="button" className="demo-mobile-library-tools" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? "관리 메뉴 접기" : "목록 관리"}</button><button type="button" onClick={toggleRemovedItems}',
+      ],
     ]
   } else if (path.endsWith('/src/renderer/pages/PlayerPage.jsx')) {
     edits = [
