@@ -264,6 +264,21 @@ class VulkanTests(unittest.TestCase):
         self.assertNotIn("こんにちは", stderr.getvalue())
         self.assertNotIn("private_placeholder_filename", stderr.getvalue())
 
+    def test_cli_json_accepts_windows_model_path_in_native_code_page(self):
+        result = self.native_result([
+            {"offsets": {"from": 125, "to": 875}, "text": "こんにちは。"},
+        ])
+        result["params"] = {"model": "MODEL_PATH", "language": "auto"}
+        # More than the transcript damage budget: path bytes are not speech.
+        path = ("C:/Users/사용자/" + "모델/" * 20 + "ggml-base.bin").encode("cp949")
+        payload = json.dumps(result, ensure_ascii=False).encode("utf-8").replace(b"MODEL_PATH", path)
+        self.assertEqual(self.parse_native_bytes(payload), ([
+            {"start": .125, "end": .875, "text": "こんにちは。"},
+        ], "ja"))
+        result["result"]["language"] = "BAD_BYTES"
+        payload = json.dumps(result).encode().replace(b"MODEL_PATH", path).replace(b"BAD_BYTES", b"j\xff")
+        self.assert_native_result_rejected(payload)
+
     def test_cli_json_accepts_native_raw_text_whitespace_and_keeps_utf8(self):
         result = self.native_result([
             {"offsets": {"from": 125, "to": 875}, "text": 'first "quoted" RAW_CONTROLS last'},
