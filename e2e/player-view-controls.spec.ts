@@ -51,6 +51,7 @@ async function openPlayer(
     missingMetadata?: boolean
     portrait?: boolean
     nativeAvailable?: boolean
+    highlights?: boolean
   } = {},
 ) {
   await page.setViewportSize({ width: 1280, height: 800 })
@@ -70,35 +71,52 @@ async function openPlayer(
   )
   await page.goto('/')
   await page.waitForFunction(() => Boolean(window.api?.videos))
-  await page.evaluate(async ({ native, missingMetadata, portrait, nativeAvailable }) => {
-    const result = await window.api.videos.get('mock-library', 'mock-video-1')
-    if (!result.ok || !result.value) throw new Error('Missing video fixture')
-    Object.assign(result.value, {
-      filePath: native ? '/mock/native.avi' : '/mock/converted-source.mp4',
-      fileName: native ? 'native.avi' : 'converted-source.mp4',
-      width: missingMetadata ? undefined : portrait ? 1080 : 1920,
-      height: missingMetadata ? undefined : portrait ? 1920 : 1080,
-      // The application stores format bitrate in kbps, not bits per second.
-      bitrate: missingMetadata ? undefined : 4500,
-      fps: missingMetadata ? undefined : 30,
-      codec: missingMetadata ? undefined : 'h264',
-      durationSec: 2,
-      resumePosSec: 0,
-    })
-    window.api.videos.getPlaybackSource = async () => ({
-      ok: true,
-      value: '/view-controls-fixture.mp4',
-    })
-    window.api.videos.getNativePlayerInfo = async () => ({
-      ok: true,
-      value: native || nativeAvailable ? { name: 'mpv', path: 'C:\\mock\\mpv.exe' } : null,
-    })
-    window.api.videos.openInNativePlayer = async () => ({
-      ok: true,
-      value: { name: 'mpv', path: 'C:\\mock\\mpv.exe' },
-    })
-    window.api.highlights.list = async () => ({ ok: true, value: [] })
-  }, options)
+  await page.evaluate(
+    async ({ native, missingMetadata, portrait, nativeAvailable, highlights }) => {
+      const result = await window.api.videos.get('mock-library', 'mock-video-1')
+      if (!result.ok || !result.value) throw new Error('Missing video fixture')
+      Object.assign(result.value, {
+        filePath: native ? '/mock/native.avi' : '/mock/converted-source.mp4',
+        fileName: native ? 'native.avi' : 'converted-source.mp4',
+        width: missingMetadata ? undefined : portrait ? 1080 : 1920,
+        height: missingMetadata ? undefined : portrait ? 1920 : 1080,
+        // The application stores format bitrate in kbps, not bits per second.
+        bitrate: missingMetadata ? undefined : 4500,
+        fps: missingMetadata ? undefined : 30,
+        codec: missingMetadata ? undefined : 'h264',
+        durationSec: 2,
+        resumePosSec: 0,
+      })
+      window.api.videos.getPlaybackSource = async () => ({
+        ok: true,
+        value: '/view-controls-fixture.mp4',
+      })
+      window.api.videos.getNativePlayerInfo = async () => ({
+        ok: true,
+        value: native || nativeAvailable ? { name: 'mpv', path: 'C:\\mock\\mpv.exe' } : null,
+      })
+      window.api.videos.openInNativePlayer = async () => ({
+        ok: true,
+        value: { name: 'mpv', path: 'C:\\mock\\mpv.exe' },
+      })
+      window.api.highlights.list = async () => ({
+        ok: true,
+        value: highlights
+          ? [
+              {
+                id: 'fullscreen-highlight',
+                videoId: 'mock-video-1',
+                timeStart: 1,
+                label: '전체화면 위치 예시',
+                color: 'yellow',
+                createdAt: '2026-10-18T00:00:00Z',
+              },
+            ]
+          : [],
+      })
+    },
+    options,
+  )
   await page.getByRole('button', { name: '열기', exact: true }).click()
   await page
     .getByRole('button')
@@ -130,35 +148,110 @@ async function transform(page: Page) {
   })
 }
 
-test('fullscreen keeps player controls and first Escape exits fullscreen without leaving the video', async ({
+test('fullscreen cycles video only, highlight positions and windowed playback without restarting media', async ({
   page,
 }) => {
-  await openPlayer(page)
+  await openPlayer(page, { highlights: true })
+  const player = page.locator('[data-fullscreen-view]')
+  const positions = page.getByRole('group', { name: '하이라이트 위치', exact: true })
+  await page.locator('video').evaluate((video) => {
+    video.dataset.mediaReloads = '0'
+    video.addEventListener('loadedmetadata', () => {
+      video.dataset.mediaReloads = '1'
+    })
+  })
   await page.getByRole('button', { name: '전체화면', exact: true }).click()
   await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
-  await expect(page.getByRole('button', { name: '전체화면 해제', exact: true })).toBeVisible()
+  await expect(player).toHaveAttribute('data-fullscreen-view', 'video')
+  await expect(tools(page)).toBeHidden()
+  await expect(page.getByRole('group', { name: '재생 배속', exact: true })).toBeHidden()
+  await expect(page.getByRole('group', { name: 'A-B 구간 반복', exact: true })).toBeHidden()
+  await expect(page.getByRole('slider', { name: '재생 위치', exact: true })).toBeHidden()
+  await expect(positions).toBeHidden()
+  await expect(player.getByText('하이라이트', { exact: true })).toBeHidden()
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const fullscreen = document.fullscreenElement
+        const fullscreen = document.fullscreenElement!.getBoundingClientRect()
+        const video = document.querySelector('video')!.getBoundingClientRect()
         return Boolean(
-          fullscreen?.contains(document.querySelector('video')) &&
-          fullscreen.contains(document.querySelector('[aria-label="재생 위치"]')),
+          Math.abs(video.top - fullscreen.top) < 1 &&
+          Math.abs(video.left - fullscreen.left) < 1 &&
+          Math.abs(video.width - fullscreen.width) < 1 &&
+          Math.abs(video.height - fullscreen.height) < 1,
         )
       }),
     )
     .toBe(true)
-
-  await page.keyboard.press('Escape')
+  const toggle = page.getByRole('button', { name: '하이라이트 위치 표시', exact: true })
+  await expect(toggle).toHaveCSS('opacity', '0')
+  await page.screenshot({ path: test.info().outputPath('fullscreen-video.png') })
+  await page.keyboard.press('Tab')
+  await expect(toggle).toBeFocused()
+  await expect(toggle).toHaveCSS('opacity', '1')
+  await toggle.click()
+  await expect(player).toHaveAttribute('data-fullscreen-view', 'highlights')
+  await expect(positions).toBeVisible()
+  await expect(player.getByText('하이라이트', { exact: true })).toBeHidden()
+  await expect(page.getByRole('slider', { name: '재생 위치', exact: true })).toBeHidden()
+  await expect
+    .poll(() => page.locator('video').evaluate((video: HTMLVideoElement) => video.paused))
+    .toBe(true)
+  await positions.getByRole('button', { name: '0:01 - 전체화면 위치 예시', exact: true }).click()
+  await expect
+    .poll(() => page.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime))
+    .toBeGreaterThanOrEqual(1)
+  // Jumping to a highlight starts playback as before. Pause to check mode changes independently.
+  const position = await page.locator('video').evaluate((video: HTMLVideoElement) => {
+    video.pause()
+    return video.currentTime
+  })
+  await expect(page.locator('video')).toHaveAttribute('data-media-reloads', '0')
+  await expect
+    .poll(() => page.locator('video').evaluate((video: HTMLVideoElement) => video.paused))
+    .toBe(true)
+  const exit = page.getByRole('button', { name: '전체화면 해제', exact: true })
+  await expect(exit).toHaveCSS('opacity', '0')
+  await page.screenshot({ path: test.info().outputPath('fullscreen-highlights.png') })
+  await page.mouse.move(30, 20)
+  await exit.click()
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
-  await expect(page).toHaveURL(/\/player\//)
-  await expect(page.locator('video')).toBeVisible()
-  await page.keyboard.press('Alt+Enter')
-  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
-  await page.getByRole('button', { name: '전체화면 해제', exact: true }).click()
-  await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
+  await expect(player).toHaveAttribute('data-fullscreen-view', 'windowed')
+  await expect(tools(page)).toBeVisible()
+  await expect(page.getByRole('slider', { name: '재생 위치', exact: true })).toBeVisible()
+  await expect(player.getByText('하이라이트', { exact: true })).toBeVisible()
+  await expect
+    .poll(() => page.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime))
+    .toBeCloseTo(position, 2)
+  await expect
+    .poll(() => page.locator('video').evaluate((video: HTMLVideoElement) => video.paused))
+    .toBe(true)
   await page.keyboard.press('Escape')
   await expect(page).not.toHaveURL(/\/player\//)
+})
+
+test('Alt+Enter cycles all three modes and Escape exits either fullscreen mode without navigating', async ({
+  page,
+}) => {
+  await openPlayer(page)
+  const player = page.locator('[data-fullscreen-view]')
+  for (const mode of ['video', 'highlights']) {
+    await page.keyboard.press('Alt+Enter')
+    await expect(player).toHaveAttribute('data-fullscreen-view', 'video')
+    if (mode === 'highlights') await page.keyboard.press('Alt+Enter')
+    await expect(player).toHaveAttribute('data-fullscreen-view', mode)
+    await page.keyboard.press('Escape')
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
+    await expect(player).toHaveAttribute('data-fullscreen-view', 'windowed')
+    await expect(page).toHaveURL(/\/player\//)
+  }
+  await page.keyboard.press('Alt+Enter')
+  await expect(player).toHaveAttribute('data-fullscreen-view', 'video')
+  await page.keyboard.press('Alt+Enter')
+  await expect(player).toHaveAttribute('data-fullscreen-view', 'highlights')
+  await page.keyboard.press('Alt+Enter')
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
+  await expect(page).toHaveURL(/\/player\//)
 })
 
 test('a denied fullscreen request shows an error and leaves playback usable', async ({ page }) => {
@@ -175,6 +268,38 @@ test('a denied fullscreen request shows an error and leaves playback usable', as
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
   await expect(page.getByRole('button', { name: '전체화면', exact: true })).toBeEnabled()
   await expect(page.getByRole('button', { name: '재생', exact: true })).toBeVisible()
+})
+
+test('a failed fullscreen exit retains the current mode and can be retried', async ({ page }) => {
+  await openPlayer(page)
+  await page.keyboard.press('Alt+Enter')
+  await expect(page.locator('[data-fullscreen-view]')).toHaveAttribute(
+    'data-fullscreen-view',
+    'video',
+  )
+  await page.keyboard.press('Alt+Enter')
+  await expect(page.locator('[data-fullscreen-view]')).toHaveAttribute(
+    'data-fullscreen-view',
+    'highlights',
+  )
+  await page.evaluate(() => {
+    const original = document.exitFullscreen
+    document.exitFullscreen = async () => {
+      document.exitFullscreen = original
+      throw new Error('전체화면 해제 테스트 거부')
+    }
+  })
+  await page.keyboard.press('Alt+Enter')
+  await expect(
+    page.getByRole('alert').filter({ hasText: '전체화면 해제 테스트 거부' }),
+  ).toBeVisible()
+  await expect(page.locator('[data-fullscreen-view]')).toHaveAttribute(
+    'data-fullscreen-view',
+    'highlights',
+  )
+  await page.keyboard.press('Alt+Enter')
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
+  await expect(tools(page)).toBeVisible()
 })
 
 test('zoom is bounded, enlarged video can be panned, and fit resets the transform without resuming playback', async ({
@@ -341,7 +466,7 @@ test('handing fullscreen playback to a native player exits fullscreen and leaves
   await openPlayer(page, { nativeAvailable: true })
   await page.getByRole('button', { name: '전체화면', exact: true }).click()
   await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
-  await page.getByRole('button', { name: 'mpv로 열기', exact: true }).click()
+  await page.keyboard.press('o')
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
   await expect(page.getByRole('button', { name: '전체화면', exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: '영상 확대', exact: true })).toBeDisabled()

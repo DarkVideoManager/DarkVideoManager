@@ -36,7 +36,7 @@ export function PlayerViewControls({
         className={buttonClass}
         disabled={!enabled && !view.isFullscreen}
         onClick={() => void view.toggleFullscreen()}
-        title="Alt+Enter · Esc로 전체화면 해제"
+        title="Alt+Enter · 영상만 → 하이라이트 위치 → 전체화면 해제 · Esc로 해제"
       >
         {view.isFullscreen ? '전체화면 해제' : '전체화면'}
       </button>
@@ -86,6 +86,46 @@ export function PlayerViewControls({
         </span>
       )}
     </div>
+  )
+}
+
+export function FullscreenViewToggle({
+  view,
+  containerRef,
+}: {
+  view: ReturnType<typeof usePlayerView>
+  containerRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const [visible, setVisible] = React.useState(true)
+  React.useEffect(() => {
+    const container = containerRef.current
+    let timer: ReturnType<typeof setTimeout>
+    const reveal = () => {
+      setVisible(true)
+      clearTimeout(timer)
+      timer = setTimeout(() => setVisible(false), 1600)
+    }
+    reveal()
+    container?.addEventListener('pointermove', reveal)
+    container?.addEventListener('pointerdown', reveal)
+    return () => {
+      clearTimeout(timer)
+      container?.removeEventListener('pointermove', reveal)
+      container?.removeEventListener('pointerdown', reveal)
+    }
+  }, [containerRef, view.fullscreenMode])
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        containerRef.current?.focus({ preventScroll: true })
+        void view.toggleFullscreen()
+      }}
+      title="Alt+Enter · 영상만 → 하이라이트 위치 → 전체화면 해제 · Esc로 해제"
+      className={`absolute right-3 top-3 z-40 rounded bg-black/70 px-3 py-2 text-xs text-white transition-opacity hover:bg-black/90 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-indigo-400 ${visible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+    >
+      {view.fullscreenMode === 'video' ? '하이라이트 위치 표시' : '전체화면 해제'}
+    </button>
   )
 }
 
