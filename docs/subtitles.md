@@ -196,6 +196,19 @@ GPU용 모델은 이전 CPU용 모델과 별개이므로 처음 사용할 때 �
 
 이전 버전에서 음성 인식을 시작한 작업은 저장된 진행 내용과 자막 시간을 유지하기 위해 기존 CPU/int8 엔진으로 재개합니다. 이미 원어 인식이 끝난 작업은 음성을 다시 인식하지 않고 남은 한국어 번역만 이어갑니다. 기존 영상을 GPU로 처음부터 다시 인식하려면 기존 작업을 정리한 뒤 새로 생성하거나 **기존 자막 삭제 후 재생성**을 사용합니다.
 
+## 설치한 엔진과 모델 삭제
+
+모델 선택을 바꾸거나 새 모델을 내려받아도 기존 모델은 자동으로 삭제되지 않습니다. GPU용 Whisper 모델, 이전 CPU용 Hugging Face 모델, Ollama 번역 모델은 각각 별도로 저장됩니다. v0.3.2에는 환경 제거 버튼이 없으므로 아래 위치에서 필요한 항목만 정리합니다. 자막 작업을 중지하고 앱을 종료한 뒤 진행하세요. 이미 저장한 SRT 파일은 엔진·모델을 삭제해도 유지됩니다.
+
+- **GPU 음성 인식 모델:** 탐색기 주소창에 `%LOCALAPPDATA%\DarkVideoManager\subtitles\models`를 입력합니다. 사용하지 않는 `ggml-tiny.bin`, `ggml-base.bin`, `ggml-small.bin`, `ggml-medium.bin`, `ggml-large-v2.bin`, `ggml-large-v3.bin` 중 해당 파일만 삭제합니다. `ggml-silero-v6.2.0.bin`은 음성 구간 감지용 공통 모델입니다. 삭제한 모델은 다음에 해당 모델로 자막을 생성할 때 다시 내려받습니다.
+- **Windows Whisper 실행 엔진:** 설치 앱의 `resources/subtitles/native`에 포함됩니다. 설치된 앱은 Windows 설정의 앱 제거로 정리합니다. 소스 실행 환경은 프로젝트의 `resources/subtitles/native`가 해당 위치이며, 다시 쓰려면 `npm run setup:subtitles:gpu`로 준비합니다. 모델 캐시는 앱 제거와 별개로 위 경로에서 정리합니다.
+- **WSL Python·Whisper·PyAV·requests:** Ubuntu 터미널에서 `~/.local/share/dark-video-manager/venv`가 앱 전용 가상환경입니다. 이 폴더를 삭제하면 해당 환경 안의 패키지가 함께 제거됩니다. Ubuntu의 시스템 Python 자체를 지울 필요는 없습니다.
+- **이전 CPU 음성 인식 모델:** 기본 Hugging Face 캐시는 WSL의 `~/.cache/huggingface/hub`입니다. `models--Systran--faster-whisper-base`처럼 `models--Systran--faster-whisper-`로 시작하는 해당 모델 폴더만 정리합니다. `HF_HOME` 또는 `HF_HUB_CACHE`를 별도로 지정했다면 그 위치를 확인하세요. 이 캐시는 다른 프로그램에서도 사용할 수 있습니다.
+- **한국어 번역 모델 `qwen3:8b`:** 해당 Ollama 서버가 실행 중일 때 Ubuntu 터미널에서 `ollama list`로 확인한 후 `ollama rm qwen3:8b`로 제거합니다. 앱 전용 실행 파일은 `~/.local/share/dark-video-manager/ollama/0.40.3/bin/ollama`이므로 `ollama` 명령을 찾지 못하면 이 경로로 실행합니다. 기존 서버를 재사용한 경우 모델은 그 서버에서 제거됩니다. 번역 모델을 지운 뒤에는 앱의 자막 환경 자동 설치로 다시 준비해야 합니다.
+- **앱 전용 Ollama 엔진·모델 저장소:** WSL의 `~/.local/share/dark-video-manager/ollama`와 `~/.local/share/dark-video-manager/ollama-models`입니다. 해당 경로의 Ollama 서버 프로세스를 종료한 뒤 두 폴더를 삭제합니다. 기존에 따로 설치했던 Ollama 서버와 그 저장소는 이 위치와 다를 수 있으므로 별도로 확인하세요.
+
+WSL/Ubuntu 배포판 전체를 삭제할 필요는 없습니다. 같은 배포판의 다른 파일도 함께 사라지는 `wsl --unregister`는 자막 환경 정리에 사용하지 마세요. 엔진이나 모델을 다시 설치해도 앱에 남아 있는 작업 설정·진행 정보는 초기화되지 않습니다.
+
 ## 한국어 번역
 
 음성·영상 파일은 로컬에서 처리합니다. Google 사용은 기본으로 꺼져 있습니다. 사용을 켜고 API 키를 저장한 경우 온라인 번역에 **공식 Google Cloud Translation Basic의 NMT 모델**을 사용하며, 인식된 자막 텍스트를 Google에 전송합니다. 이전 버전의 Google 번역 웹페이지 접근 방식은 사용하지 않습니다.
