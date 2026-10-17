@@ -9,6 +9,15 @@ import { requestPrivacyExit } from '../components/privacy/PrivacyBoundary'
 
 const terminalPhases = new Set(['completed', 'cancelled', 'failed'])
 const transitionPhases = new Set(['pausing', 'removing'])
+const runningPhases = new Set([
+  'preparing',
+  'loading',
+  'transcribing',
+  'translating',
+  'saving',
+  'pausing',
+  'removing',
+])
 const phaseLabels = {
   queued: '대기 중',
   preparing: '음성 준비 중',
@@ -179,6 +188,26 @@ export default function SubtitleQueuePage() {
   const queryClient = useQueryClient()
   const { data: libraries = [] } = useLibraries()
   const completed = React.useRef(new Map())
+  const concurrency = useQuery({
+    queryKey: ['subtitle-concurrency'],
+    queryFn: async () => {
+      const result = await window.api.subtitles.getConcurrency()
+      if (!result.ok) throw new Error(result.error)
+      return result.value
+    },
+    retry: false,
+  })
+  const changeConcurrency = useMutation({
+    mutationFn: async (limit) => {
+      const result = await window.api.subtitles.setConcurrency(limit)
+      if (!result.ok) throw new Error(result.error)
+      return result.value
+    },
+    onSuccess: (limit) => {
+      queryClient.setQueryData(['subtitle-concurrency'], limit)
+      void queryClient.invalidateQueries({ queryKey: ['subtitle-queue'] })
+    },
+  })
   const queue = useQuery({
     queryKey: ['subtitle-queue'],
     queryFn: async () => {
@@ -242,18 +271,64 @@ export default function SubtitleQueuePage() {
           </div>
           <button
             type="button"
-            disabled={queue.isFetching}
-            onClick={() => void queue.refetch()}
+            disabled={queue.isFetching || concurrency.isFetching}
+            onClick={() => {
+              void queue.refetch()
+              void concurrency.refetch()
+            }}
             className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
           >
             새로고침
           </button>
         </div>
         <SubtitleEnvironmentSetup />
+        <div className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-xs text-zinc-400">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2">
+              동시 실행 수
+              <select
+                value={
+                  changeConcurrency.isPending
+                    ? changeConcurrency.variables
+                    : (concurrency.data ?? '')
+                }
+                disabled={
+                  concurrency.isPending || !!concurrency.error || changeConcurrency.isPending
+                }
+                onChange={(event) => changeConcurrency.mutate(Number(event.target.value))}
+                aria-describedby="subtitle-concurrency-help"
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-zinc-100 disabled:opacity-50"
+              >
+                {concurrency.data === undefined && (
+                  <option value="">{concurrency.error ? '불러오기 실패' : '불러오는 중...'}</option>
+                )}
+                {[1, 2, 3, 4].map((limit) => (
+                  <option key={limit} value={limit}>
+                    {limit}개{limit === 2 ? ' (기본)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p role="status" aria-label="자막 실행 현황">
+              실행 중 {jobs.filter((job) => runningPhases.has(job.phase)).length}개 · 대기{' '}
+              {jobs.filter((job) => job.phase === 'queued').length}개
+              {changeConcurrency.isPending && ' · 설정 저장 중...'}
+            </p>
+          </div>
+          <p id="subtitle-concurrency-help" className="leading-relaxed">
+            여러 영상의 자막을 함께 생성합니다. GPU 메모리가 부족하면 동시 실행 수를 줄이세요. 실행
+            수를 줄여도 진행 중인 작업은 계속되며, 다음 작업부터 적용됩니다.
+          </p>
+          {(concurrency.error || changeConcurrency.error) && (
+            <p role="alert" className="break-words text-red-300">
+              동시 실행 설정 실패: {errorMessage(changeConcurrency.error || concurrency.error)}
+            </p>
+          )}
+        </div>
         <div className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-xs leading-relaxed text-zinc-400">
           <p>
-            라이브러리에서 영상 선택 → 정보 → AI 자막 생성으로 작업을 추가하세요. 대기 중인 작업은
-            순서대로 처리합니다.
+            라이브러리에서 영상 선택 → 정보 → AI 자막 생성으로 작업을 추가하세요. 설정한 동시 실행
+            수만큼 함께 처리하고, 빈자리가 생기면 다음 작업을 시작합니다.
           </p>
           <p>
             대기·진행·일시정지 작업이 있으면 ESC 또는 창 닫기(X)로 닫아도 트레이에 남습니다. 트레이

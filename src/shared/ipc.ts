@@ -1,6 +1,7 @@
 import { PlaybackRateZ } from './playbackRate'
 import { z } from 'zod'
 import { SeekStepSecZ } from './playerSettings'
+import { SubtitleConcurrencyZ } from './subtitleQueue'
 
 import { PrivacySettingsZ } from './privacy'
 import { DiscoveryQueryZ, DiscoveryPreferencesZ } from './discovery'
@@ -253,6 +254,8 @@ export const IPC_SCHEMAS = {
   [IPC.SUBTITLES.START_SETUP]: EmptyArgsZ,
   [IPC.SUBTITLES.CANCEL_SETUP]: EmptyArgsZ,
   [IPC.SUBTITLES.LIST_QUEUE]: EmptyArgsZ,
+  [IPC.SUBTITLES.GET_CONCURRENCY]: EmptyArgsZ,
+  [IPC.SUBTITLES.SET_CONCURRENCY]: z.tuple([SubtitleConcurrencyZ]),
   [IPC.SUBTITLES.GET_TRANSLATION_SETTINGS]: EmptyArgsZ,
   [IPC.SUBTITLES.UPDATE_TRANSLATION_SETTINGS]: z.tuple([CloudTranslationSettingsPatchZ]),
   [IPC.SUBTITLES.PAUSE_JOB]: z.tuple([z.string().uuid()]),
