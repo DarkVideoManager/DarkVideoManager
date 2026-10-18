@@ -1,6 +1,6 @@
 {
   "name": "lazy-val",
-  "version": "1.0.5-dvm.1",
+  "version": "1.0.5+darkvm.1",
   "private": true,
   "description": "DarkVideoManager lazy value compatibility adapter",
   "main": "index.cjs",
