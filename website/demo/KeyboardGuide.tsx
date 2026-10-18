@@ -78,7 +78,10 @@ export default function KeyboardGuide() {
             title={`${key.toUpperCase()} · ${label}`}
             onClick={(event) => pressShortcut(event.currentTarget, key)}
           >
-            {key.toUpperCase()}
+            <span className="demo-keycap-letter">{key.toUpperCase()}</span>
+            <span className="demo-keycap-label">
+              {label.replace('재생 / 일시정지', '재생·정지').replace('하이라이트', '장면')}
+            </span>
           </button>
         ))}
       </div>

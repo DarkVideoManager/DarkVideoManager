@@ -20,7 +20,7 @@ export function browserCopy(code: string, id: string): string | undefined {
     edits = [
       ['AI 자막 생성', '자막 생성 시뮬레이션'],
       [
-        '시작하면 작업 큐에 추가해 순서대로 처리합니다. 다른 영상도 이어서 추가할 수 있습니다.',
+        '시작하면 작업 큐에 추가합니다. 여러 영상을 동시에 처리하며 자막 생성 탭에서 실행 수를 조절할 수 있습니다.',
         '약 15초 동안 생성 과정을 체험하고, 준비된 장면 설명 자막을 저장합니다. 다른 영상도 큐에 추가할 수 있습니다.',
       ],
       ['음성 인식 모델', '모델 설정 체험'],
@@ -81,8 +81,12 @@ export function browserCopy(code: string, id: string): string | undefined {
   } else if (path.endsWith('/src/renderer/pages/SubtitleQueuePage.jsx')) {
     edits = [
       [
-        '라이브러리에서 영상 선택 → 정보 → AI 자막 생성으로 작업을 추가하세요. 대기 중인 작업은 순서대로 처리합니다.',
+        '라이브러리에서 영상 선택 → 정보 → AI 자막 생성으로 작업을 추가하세요. 설정한 동시 실행 수만큼 함께 처리하고, 빈자리가 생기면 다음 작업을 시작합니다.',
         '위에서 영상을 고르거나 영상 상세 정보에서 작업을 추가하세요. 대기 중인 체험 작업은 순서대로 진행됩니다.',
+      ],
+      [
+        '여러 영상의 자막을 함께 생성합니다. GPU 메모리가 부족하면 동시 실행 수를 줄이세요. 실행 수를 줄여도 진행 중인 작업은 계속되며, 다음 작업부터 적용됩니다.',
+        '브라우저 체험은 한 번에 하나씩 실행합니다. 동시 실행 수 조절과 실제 GPU 자막 생성은 Windows 앱에서 사용할 수 있습니다.',
       ],
       [
         '대기·진행·일시정지 작업이 있으면 ESC 또는 창 닫기(X)로 닫아도 트레이에 남습니다. 트레이 아이콘을 두 번 클릭하면 다시 열립니다.',
@@ -126,11 +130,51 @@ export function browserCopy(code: string, id: string): string | undefined {
         'max-h-40 shrink-0 overflow-y-auto border-t border-zinc-700 bg-zinc-900 px-3 py-2',
         'demo-player-highlights max-h-40 shrink-0 overflow-y-auto border-t border-zinc-700 bg-zinc-900 px-3 py-2',
       ],
+      ['autoPlay={true}', 'autoPlay={true} playsInline={true}'],
+      [
+        'relative min-h-0 min-w-0 flex-1 overflow-hidden',
+        'demo-player-media relative min-h-0 min-w-0 flex-1 overflow-hidden',
+      ],
+      [
+        'absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/75 px-4 py-3 text-white',
+        'demo-playback-controls absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/75 px-4 py-3 text-white',
+      ],
+      [
+        'h-8 shrink-0 border-t border-zinc-700 bg-zinc-900 px-4',
+        'demo-highlight-timeline h-8 shrink-0 border-t border-zinc-700 bg-zinc-900 px-4',
+      ],
     ]
   } else if (path.endsWith('/src/renderer/components/library/DetailPanel.jsx')) {
     edits = [
       ['Space/P: 일시정지', 'W / Space / P: 재생·일시정지'],
       ['A/D 또는 좌우: 이동', 'A/D: 1초 이동 · Shift: 5초 이동'],
+      [
+        "<div className={'relative flex h-full flex-col bg-zinc-900 text-sm text-zinc-100'}>",
+        `<div className={'relative flex h-full flex-col bg-zinc-900 text-sm text-zinc-100'}>
+          {!subtitleNavigationRef && <div className="demo-mobile-detail-actions">
+            <button type="button" onClick={onClose}>← 영상 목록</button>
+            {!isRemoved && <button type="button" onClick={() => { location.hash = '/player/' + encodeURIComponent(libraryId) + '/' + encodeURIComponent(video.id) }}>이 영상 재생 ▶</button>}
+          </div>}`,
+      ],
+    ]
+  } else if (path.endsWith('/src/renderer/pages/LibraryPage.jsx')) {
+    edits = [
+      [
+        'function LibraryPage() {',
+        'function LibraryPage() {\n  const [mobileToolsOpen, setMobileToolsOpen] = React.useState(false)',
+      ],
+      [
+        "<div className={'flex min-h-0 min-w-0 flex-1 overflow-hidden'}>",
+        "<div className={'demo-library-layout flex min-h-0 min-w-0 flex-1 overflow-hidden'} data-mobile-tools={mobileToolsOpen}>",
+      ],
+      [
+        'flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3',
+        'demo-library-filters flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800 px-4 py-3',
+      ],
+      [
+        '<button type="button" onClick={toggleRemovedItems}',
+        '<button type="button" className="demo-mobile-library-tools" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? "관리 메뉴 접기" : "목록 관리"}</button><button type="button" onClick={toggleRemovedItems}',
+      ],
     ]
   } else if (path.endsWith('/src/renderer/pages/PlayerPage.jsx')) {
     edits = [

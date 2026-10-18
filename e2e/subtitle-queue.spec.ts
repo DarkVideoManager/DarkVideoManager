@@ -10,13 +10,21 @@ interface QueueHarness {
   releaseAction?: () => void
   quitCalls: number
   failQuit: boolean
+  concurrency: number
+  failConcurrency?: boolean
 }
 type QueueWindow = Window & { queueHarness: QueueHarness }
 
-async function prepareQueue(page: Page) {
+async function prepareQueue(page: Page, concurrency = 1) {
   await page.goto('/')
-  await page.evaluate(async () => {
-    const state: QueueHarness = { jobs: [], failList: false, quitCalls: 0, failQuit: false }
+  await page.evaluate(async (limit) => {
+    const state: QueueHarness = {
+      jobs: [],
+      failList: false,
+      quitCalls: 0,
+      failQuit: false,
+      concurrency: limit,
+    }
     ;(window as unknown as QueueWindow).queueHarness = state
     const first = await window.api.videos.get('mock-library', 'mock-video-1')
     if (!first.ok || !first.value) throw new Error('Missing sample fixture')
@@ -42,6 +50,20 @@ async function prepareQueue(page: Page) {
       if (state.failList) throw new Error('큐 조회 IPC 실패')
       return { ok: true, value: structuredClone(state.jobs) }
     }
+    const pump = () => {
+      for (const job of state.jobs) {
+        if (state.jobs.filter((item) => item.phase === 'transcribing').length >= state.concurrency)
+          break
+        if (job.phase === 'queued') job.phase = 'transcribing'
+      }
+    }
+    window.api.subtitles.getConcurrency = async () => ({ ok: true, value: state.concurrency })
+    window.api.subtitles.setConcurrency = async (limit) => {
+      if (state.failConcurrency) return { ok: false, error: '동시 실행 설정 저장 실패' }
+      state.concurrency = limit
+      pump()
+      return { ok: true, value: limit }
+    }
     window.api.subtitles.generate = async (libraryId, videoId, options) => {
       if (
         state.jobs.some(
@@ -60,7 +82,10 @@ async function prepareQueue(page: Page) {
         title: videos.find((video) => video.id === videoId)?.title || videoId,
         options,
         createdAt: new Date().toISOString(),
-        phase: state.jobs.some((item) => item.phase === 'transcribing') ? 'queued' : 'transcribing',
+        phase:
+          state.jobs.filter((item) => item.phase === 'transcribing').length >= state.concurrency
+            ? 'queued'
+            : 'transcribing',
         percent: state.jobs.length ? 0 : 35,
         message: '큐에 추가했습니다.',
       }
@@ -88,10 +113,8 @@ async function prepareQueue(page: Page) {
       if (!job) return { ok: true as const, value: false }
       if (operation === 'remove') state.jobs = state.jobs.filter((item) => item.id !== id)
       else if (operation === 'pause') job.phase = 'paused'
-      else
-        job.phase = state.jobs.some((item) => item.phase === 'transcribing')
-          ? 'queued'
-          : 'transcribing'
+      else job.phase = 'queued'
+      pump()
       return { ok: true as const, value: true }
     }
     window.api.subtitles.pauseJob = (id) => action('pause', id)
@@ -102,7 +125,7 @@ async function prepareQueue(page: Page) {
       if (state.failQuit) throw new Error('창 닫기 IPC 실패')
       return { ok: true, value: null }
     }
-  })
+  }, concurrency)
 }
 
 const card = (page: Page, title: string) =>
@@ -110,8 +133,8 @@ const card = (page: Page, title: string) =>
 const queueItem = (page: Page, title = 'Sample video') =>
   page.getByRole('article', { name: title, exact: true })
 
-async function addJobs(page: Page) {
-  await prepareQueue(page)
+async function addJobs(page: Page, concurrency = 1) {
+  await prepareQueue(page, concurrency)
   await page.getByRole('button', { name: '열기', exact: true }).click()
   const panel = page.getByRole('region', { name: 'AI 자막 생성', exact: true })
   await card(page, 'Sample video').click()
@@ -126,10 +149,42 @@ async function addJobs(page: Page) {
   await panel.getByLabel('음성 인식 모델').selectOption('small')
   await panel.getByLabel('영상 언어').selectOption('ja')
   await panel.getByRole('button', { name: '자막 생성 시작', exact: true }).click()
-  await expect(panel.getByRole('status')).toContainText('대기 중')
+  await expect(panel.getByRole('status')).toContainText(
+    concurrency === 1 ? '대기 중' : '원어 자막 생성 중',
+  )
   await page.getByRole('link', { name: '자막 생성', exact: true }).click()
   await expect(page.getByRole('article')).toHaveCount(2)
 }
+
+test('shows simultaneous progress, applies concurrency changes and preserves the saved selection on failure', async ({
+  page,
+}) => {
+  await addJobs(page, 2)
+  const limit = page.getByRole('combobox', { name: '동시 실행 수', exact: true })
+  const summary = page.getByRole('status', { name: '자막 실행 현황' })
+  const first = queueItem(page)
+  const second = queueItem(page, 'Second video')
+  await expect(limit).toHaveValue('2')
+  await expect(summary).toContainText('실행 중 2개 · 대기 0개')
+  await expect(second.getByRole('status')).toContainText('원어 자막 생성 중')
+  await limit.selectOption('1')
+  await expect(limit).toHaveValue('1')
+  await expect(summary).toContainText('실행 중 2개')
+  await first.getByRole('button', { name: '일시정지', exact: true }).click()
+  await expect(first.getByRole('status')).toContainText('일시정지됨')
+  await expect(second.getByRole('status')).toContainText('원어 자막 생성 중')
+  await first.getByRole('button', { name: '재개', exact: true }).click()
+  await expect(summary).toContainText('실행 중 1개 · 대기 1개')
+  await limit.selectOption('3')
+  await expect(summary).toContainText('실행 중 2개 · 대기 0개')
+  await page.evaluate(() => {
+    ;(window as unknown as QueueWindow).queueHarness.failConcurrency = true
+  })
+  await limit.selectOption('4')
+  await expect(page.getByRole('alert')).toContainText('동시 실행 설정 저장 실패')
+  await expect(limit).toHaveValue('3')
+  await expect(summary).toContainText('실행 중 2개')
+})
 
 test('queues multiple videos in one library and manages pause, resume and deletion from the tab', async ({
   page,

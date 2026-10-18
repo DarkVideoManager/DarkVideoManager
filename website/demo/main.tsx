@@ -103,6 +103,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 ReactDOM.createRoot(document.getElementById('demo-keyboard-guide')!).render(<KeyboardGuide />)
 
 const guide = document.querySelector<HTMLDialogElement>('#demo-guide')!
+document.querySelector('#demo-more')!.addEventListener('click', (event) => {
+  const button = event.currentTarget as HTMLButtonElement
+  const expanded = button.getAttribute('aria-expanded') !== 'true'
+  button.setAttribute('aria-expanded', String(expanded))
+  button.textContent = expanded ? '접기' : '더보기'
+  document.getElementById('demo-toolbar')!.dataset.expanded = String(expanded)
+})
 document.querySelector('#demo-toolbar')!.addEventListener(
   'click',
   (event) => {

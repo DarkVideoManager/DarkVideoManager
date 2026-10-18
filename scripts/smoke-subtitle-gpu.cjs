@@ -224,6 +224,7 @@ async function main() {
     const { app, page, invoke } = session
     const engine = await invoke('subtitles', 'getEngineInfo')
     assert.equal(engine.available, true, engine.message)
+    assert.equal(await invoke('subtitles', 'setConcurrency', 1), 1)
     assert.match(engine.message, /GPU.*Vulkan/)
     const library = await invoke('library', 'create', 'GPU subtitle smoke', media)
     await invoke('library', 'open', library.id)
