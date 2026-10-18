@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   finishPlayback: vi.fn(),
   closeDatabases: vi.fn(),
   logError: vi.fn(),
+  stopUpdates: vi.fn(),
+  finishUpdate: vi.fn(),
 }))
 vi.mock('electron', () => ({
   app: {
@@ -58,6 +60,11 @@ vi.mock('./services/BackgroundService', () => ({
 }))
 vi.mock('./ffmpeg/playback.js', () => ({ drainPlaybackProxyWork: state.drainProxy }))
 vi.mock('./services/CacheService', () => ({ trimPlaybackCache: vi.fn() }))
+vi.mock('./services/AppUpdateRuntime', () => ({
+  initializeAppUpdates: vi.fn(),
+  stopAppUpdateChecks: state.stopUpdates,
+  finishAppUpdateInstall: state.finishUpdate,
+}))
 vi.mock('./ipc/index', () => ({ registerAllHandlers() {} }))
 vi.mock('./db/connection', () => ({ closeAllDatabases: state.closeDatabases }))
 vi.mock('./infra/paths', () => ({ ensureDirectories() {} }))
@@ -139,6 +146,10 @@ describe('application shutdown', () => {
     expect(state.closeDatabases).toHaveBeenCalledOnce()
     expect(state.quit).toHaveBeenCalledOnce()
     expect(state.disposeBackground).toHaveBeenCalledOnce()
+    expect(state.finishUpdate).toHaveBeenCalledWith(true)
+    expect(state.finishUpdate.mock.invocationCallOrder[0]).toBeGreaterThan(
+      state.closeDatabases.mock.invocationCallOrder[0],
+    )
     const finalQuit = { preventDefault: vi.fn() }
     state.handlers.get('before-quit')!(finalQuit)
     expect(finalQuit.preventDefault).not.toHaveBeenCalled()
@@ -165,6 +176,7 @@ describe('application shutdown', () => {
     expect(state.quit).not.toHaveBeenCalled()
     finishDrain()
     await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(state.finishUpdate).toHaveBeenCalledWith(false)
     expect(state.closeMpv).toHaveBeenCalledOnce()
     expect(state.finishPlayback).toHaveBeenCalledOnce()
     expect(state.closeDatabases).toHaveBeenCalledOnce()

@@ -3,6 +3,7 @@ import * as React from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import AppHeader from './AppHeader'
 import GitHubStarNotice from './GitHubStarNotice'
+import AppUpdateNotice from './AppUpdateNotice'
 import PlaybackConversionQueue from '../player/PlaybackConversionQueue'
 import { useLibraries, useOpenLibrary } from '../../api/useLibraries'
 import { useLibraryStore } from '../../store/libraryStore'
@@ -46,6 +47,7 @@ function MainLayout() {
     <div className={'flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100'}>
       <AppHeader />
       <GitHubStarNotice />
+      <AppUpdateNotice />
       {location.pathname === '/' && <PlaybackConversionQueue />}
       <main className={'flex min-h-0 min-w-0 flex-1 overflow-hidden'}>
         <Outlet />

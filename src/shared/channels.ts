@@ -1,5 +1,13 @@
 // Dependency-free channel names are shared with the sandboxed preload.
 export const IPC = {
+  APP_UPDATE: {
+    GET: 'appUpdate:get',
+    CHECK: 'appUpdate:check',
+    DOWNLOAD: 'appUpdate:download',
+    INSTALL: 'appUpdate:install',
+    SET_AUTOMATIC: 'appUpdate:setAutomatic',
+    OPEN_RELEASE: 'appUpdate:openRelease',
+  },
   TEMPORARY_PLAYBACK: { OPEN: 'temporaryPlayback:open', CLOSE: 'temporaryPlayback:close' },
   PRIVACY: { GET: 'privacy:get', SAVE: 'privacy:save', EXIT: 'privacy:exit' },
   DISCOVERY: { QUERY: 'discovery:query', FAVORITE: 'discovery:favorite', TAGS: 'discovery:tags' },
@@ -112,6 +120,7 @@ export const IPC = {
     GET: 'stats:get',
   },
   EVENTS: {
+    APP_UPDATE_CHANGED: 'event:appUpdateChanged',
     IMPORT_PROGRESS: 'event:importProgress',
     THUMBNAIL_READY: 'event:thumbnailReady',
     HIGHLIGHT_CHANGED: 'event:highlightChanged',

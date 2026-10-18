@@ -363,6 +363,7 @@ export interface Config {
   seekStepSec?: number
   nativePlayer?: NativePlayerInfo | null
   githubStarPromptShown?: boolean
+  autoUpdateEnabled?: boolean
 }
 
 export interface AppSettings {

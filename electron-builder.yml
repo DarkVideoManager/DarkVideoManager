@@ -1,5 +1,12 @@
 appId: com.darkvm.app
 productName: DarkVideoManager
+publish:
+  provider: github
+  owner: DarkVideoManager
+  repo: DarkVideoManager
+  private: false
+  releaseType: release
+electronUpdaterCompatibility: '>=2.16'
 copyright: Copyright © 2026 DarkVideoManager Contributors
 
 directories:
