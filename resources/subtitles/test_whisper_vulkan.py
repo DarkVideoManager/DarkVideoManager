@@ -233,6 +233,12 @@ class VulkanTests(unittest.TestCase):
             path.write_bytes(content)
             return vulkan.parse_result(path, duration)
 
+    def native_model_path_bytes(self, result, model_path, encoding="cp949"):
+        # Match b5454's byte-wise escaping, including Windows path separators.
+        # Model arguments use the Windows code page; cue text is still UTF-8.
+        escaped_path = model_path.encode(encoding).replace(b"\\", b"\\\\").replace(b'"', b'\\"')
+        return json.dumps(result, ensure_ascii=False).encode("utf-8").replace(b"MODEL_PATH", escaped_path)
+
     def assert_native_result_rejected(self, content, duration=2):
         stderr = io.StringIO()
         with redirect_stderr(stderr), self.assertRaisesRegex(RuntimeError, "올바르지") as caught:
@@ -269,15 +275,80 @@ class VulkanTests(unittest.TestCase):
             {"offsets": {"from": 125, "to": 875}, "text": "こんにちは。"},
         ])
         result["params"] = {"model": "MODEL_PATH", "language": "auto"}
-        # More than the transcript damage budget: path bytes are not speech.
-        path = ("C:/Users/사용자/" + "모델/" * 20 + "ggml-base.bin").encode("cp949")
-        payload = json.dumps(result, ensure_ascii=False).encode("utf-8").replace(b"MODEL_PATH", path)
-        self.assertEqual(self.parse_native_bytes(payload), ([
-            {"start": .125, "end": .875, "text": "こんにちは。"},
-        ], "ja"))
-        result["result"]["language"] = "BAD_BYTES"
-        payload = json.dumps(result).encode().replace(b"MODEL_PATH", path).replace(b"BAD_BYTES", b"j\xff")
-        self.assert_native_result_rejected(payload)
+        for model in ("base", "medium"):
+            for encoding in ("cp949", "utf-8"):
+                # Cover both #76's short path and paths exceeding the speech damage budget.
+                for folders in ("", "모델\\" * 20):
+                    with self.subTest(model=model, encoding=encoding, long_path=bool(folders)):
+                        model_path = f"C:\\Users\\사용자\\{folders}ggml-{model}.bin"
+                        self.assertEqual(self.parse_native_bytes(
+                            self.native_model_path_bytes(result, model_path, encoding)), ([
+                                {"start": .125, "end": .875, "text": "こんにちは。"},
+                            ], "ja"))
+
+    def test_native_model_path_recovery_still_rejects_damaged_transcript_and_metadata(self):
+        result = self.native_result(params={"model": "MODEL_PATH", "language": "auto"})
+        payload = self.native_model_path_bytes(result, "C:\\Users\\사용자\\ggml-base.bin")
+        corruptions = {
+            "language": payload.replace(b'"ja"', b'"j\xff"'),
+            "time": payload.replace(b'1250', b'12\xff50'),
+            "text": payload.replace(b'private_placeholder_dialogue', b'a\xff'),
+            "duplicate_key": payload.replace(b'"text":', b'"text": "discarded", "text":'),
+            "truncated": payload[:-1],
+        }
+        for name, content in corruptions.items():
+            with self.subTest(corruption=name):
+                self.assert_native_result_rejected(content)
+
+    @patch.object(generate, "emit")
+    def test_issue76_native_model_path_keeps_checkpoint_and_translation_resume(self, emit):
+        for model in ("base", "medium"):
+            with self.subTest(model=model), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                self.audio(output / "audio.wav")
+                args = self.args(output, model=model, language="auto", translate_ko=True)
+                text = "こんにちは。ありがとう。"
+                result = self.native_result([
+                    {"offsets": {"from": 125, "to": 875}, "text": text},
+                ], params={"model": "MODEL_PATH", "language": "auto", "translate": False})
+                model_path = f"C:\\Users\\사용자\\AppData\\Local\\DarkVideoManager\\models\\ggml-{model}.bin"
+
+                def native_output(executable, model, vad, audio, destination, language, options, report):
+                    self.assertIsNone(language)
+                    report(50, "Vulkan0")
+                    destination.with_suffix(".json").write_bytes(self.native_model_path_bytes(result, model_path))
+                    return "Vulkan0"
+
+                # Keep the real native parser, chunk callback, checkpoint and SRT writers.
+                with patch.object(vulkan, "check_available", return_value=Path("whisper-cli.exe")), \
+                     patch.object(vulkan, "ensure_model", return_value=Path("cached-model")), \
+                     patch.object(vulkan, "run_cli", side_effect=native_output), \
+                     patch.object(generate, "load_dependencies", side_effect=AssertionError("CPU loaded")), \
+                     patch.object(generate, "translate_cues", side_effect=AssertionError("native must not translate")):
+                    generate.run(args)
+                state = json.loads((output / "checkpoint.json").read_text(encoding="utf-8"))
+                self.assertTrue(state["transcription_complete"])
+                self.assertEqual((state["language"], state["gpu_backend"]), ("ja", "Vulkan0"))
+                self.assertEqual(state["cues"], [{"start": .125, "end": .875, "text": text}])
+                original = (output / "original.srt").read_bytes()
+                self.assertIn(text, original.decode("utf-8"))
+
+                def translate(cues, language, completed, on_cue, translator_factory):
+                    self.assertEqual(language, "ja")
+                    self.assertEqual(completed, [])
+                    self.assertEqual(cues, [generate.Cue(.125, .875, text)])
+                    cue = generate.Cue(.125, .875, "안녕하세요. 감사합니다.")
+                    on_cue(cue)
+                    return [cue]
+
+                args.resume, args.transcribe_only = True, False
+                with patch.object(vulkan, "run_cli", side_effect=AssertionError("ASR must not rerun")), \
+                     patch.object(generate, "load_dependencies", side_effect=AssertionError("CPU loaded")), \
+                     patch.object(generate, "translate_cues", side_effect=translate):
+                    generate.run(args)
+                self.assertEqual((output / "original.srt").read_bytes(), original)
+                self.assertIn("안녕하세요. 감사합니다.", (output / "ko.srt").read_text(encoding="utf-8"))
+                self.assertEqual(emit.call_args.kwargs["translated"], "ko.srt")
 
     def test_cli_json_accepts_native_raw_text_whitespace_and_keeps_utf8(self):
         result = self.native_result([
