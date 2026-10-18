@@ -79,6 +79,12 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     throw new Error('network must not be used')
   })
   const calls = [
+    () => api.updates.get(),
+    () => api.updates.check(),
+    () => api.updates.download(),
+    () => api.updates.install(),
+    () => api.updates.setAutomatic(true),
+    () => api.updates.openRelease(),
     () => api.temporaryPlayback.openDroppedFiles([]),
     () => api.temporaryPlayback.close('dd270470-14f8-45ed-af6e-f3b2da7c86d3'),
     () => api.library.selectFiles(),
@@ -109,10 +115,18 @@ test('desktop-only actions fail explicitly without network, secrets or saved-dat
     assert.equal(result.ok, false)
     assert.match(result.error, /브라우저 데모.*지원하지.*Windows/)
   }
-  const unsubscribe = api.on.nativePlayerSpeed(() => { throw new Error('browser must not emit native speed events') })
+  const unsubscribe = api.on.nativePlayerSpeed(() => {
+    throw new Error('browser must not emit native speed events')
+  })
   assert.equal(typeof unsubscribe, 'function')
   unsubscribe()
   unsubscribe()
+  const stopUpdates = api.on.appUpdateChanged(() => {
+    throw new Error('browser must not emit desktop update events')
+  })
+  assert.equal(typeof stopUpdates, 'function')
+  stopUpdates()
+  stopUpdates()
   assert.equal(globalThis.fetch.mock.callCount(), 0)
   assert.equal(storage.value, null)
   assert.deepEqual(await api.thumbnails.listJobs(libraryId), { ok: true, value: [] })
