@@ -177,7 +177,8 @@
               <span>샘플 영상으로 재생, 하이라이트 저장, 자막 탐색 기능 테스트</span>
             </div>
             <a href="/demo/" class="demo-expand" target="_blank" rel="noopener"
-              >큰 화면으로 열기 ↗</a
+              ><span class="desktop-demo-label">큰 화면으로 열기 ↗</span
+              ><span class="touch-demo-label">데모만 열기 ↗</span></a
             >
           </div>
           <div class="demo-quick-actions" aria-label="체험 바로가기">
@@ -203,6 +204,12 @@
             </div>
             <button type="button" data-open-mode="long-video">
               WASD로 직접 조작하기 <span aria-hidden="true">→</span>
+            </button>
+          </div>
+          <div class="demo-touch-invite">
+            <p>영상과 버튼을 눌러 조작할 수 있습니다.</p>
+            <button type="button" data-open-mode="long-video">
+              샘플 영상 재생 <span aria-hidden="true">→</span>
             </button>
           </div>
           <iframe
@@ -234,33 +241,44 @@
         aria-labelledby="updates-title"
       >
         <div class="spec-heading">
-          <span class="spec-index">0.3.2 / 업데이트</span>
-          <h2 id="updates-title">원하는 구간을 반복하고 라이브러리를 자유롭게</h2>
+          <span class="spec-index">0.3.3 / 업데이트</span>
+          <h2 id="updates-title">영상에 집중하고 여러 자막을 함께</h2>
           <p>
-            Windows 앱 0.3.2의 주요 변경사항입니다.
-            <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.2"
+            Windows 앱 0.3.3의 주요 변경사항입니다.
+            <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.3"
               >릴리스 안내</a
             >에서 다운로드와 전체 변경사항을 확인하세요.
           </p>
         </div>
         <div class="spec-grid">
           <article class="spec-card">
-            <h3>영상 정보와 라이브러리</h3>
+            <h3>전체화면 3단계 전환</h3>
             <p>
-              재생 전에 FPS·해상도·코덱을 확인합니다. 드라이브나 여러 폴더를 하나의 라이브러리로
-              등록하고, 상단 선택 목록에서 앱을 다시 켜지 않고 다른 라이브러리로 전환합니다.
+              영상만 보기, 하이라이트 위치만 표시, 일반 화면을 순서대로 전환합니다. Alt+Enter로
+              전환하고 Esc로 바로 해제하며, 영상의 재생 위치와 일시정지 상태를 유지합니다.
             </p>
           </article>
           <article class="spec-card">
-            <h3>재생과 자막 작업</h3>
+            <h3>자막 병렬 실행과 모바일 웹</h3>
             <p>
-              인앱 플레이어에서 A-B 구간을 지정해 반복하고 0.25–4배속과 함께 사용합니다. 영상 옆에
-              있던 언어별 SRT와 나중에 추가·삭제한 자막을 다시 인식하며, 정보·하이라이트·자막 생성
-              탭을 나누어 필요한 도구를 엽니다.
+              기본 2개 영상의 AI 자막을 함께 생성하며 동시 실행 수를 1~4개로 조절합니다. 모바일
+              홈페이지와 브라우저 데모에서는 터치 메뉴와 영상 목록 이동, 화면 내 재생을
+              개선했습니다.
             </p>
           </article>
         </div>
       </section>
+      <aside class="github-support container" aria-label="GitHub Star 안내">
+        <p>프로그램이 유용했다면 GitHub에서 Star를 눌러 주세요.</p>
+        <a
+          class="button github-star-link"
+          href="https://github.com/DarkVideoManager/DarkVideoManager"
+          target="_blank"
+          rel="noopener noreferrer"
+          ><svg aria-hidden="true"><use href="#i-star" /></svg>GitHub에서 Star 누르기
+          <span aria-hidden="true">↗</span></a
+        >
+      </aside>
       <section
         class="features container section-space spec-section feature-briefs"
         id="features"
@@ -639,8 +657,8 @@
               새 Windows 환경의 설치형 설치·제거와 WSL 설치·재시작, 모든 GPU·언어·모델, 한국어 번역
               품질을 모두 검증한 것은 아닙니다. 자세한 결과와 제한은
               <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.2/VERIFICATION.md"
-                >0.3.2 검증 기록</a
+                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.3/VERIFICATION.md"
+                >0.3.3 검증 기록</a
               >에서 확인할 수 있습니다.
             </p>
           </article>
@@ -702,7 +720,7 @@
           <details>
             <summary>백신이 차단하거나 경고하면 어떻게 하나요?<span>+</span></summary>
             <p>
-              0.3.2 실행 파일은 미서명입니다. V3 차단 제보는 현재 파일·해시·탐지명 등 재현 자료가
+              0.3.3 실행 파일은 미서명입니다. V3 차단 제보는 현재 파일·해시·탐지명 등 재현 자료가
               충분하지 않아 원인이나 해소 여부를 확인하지 못했습니다. 보호 기능을 끄기보다 공식
               파일의 해시와 탐지 메시지를 확인하고
               <a

@@ -1581,6 +1581,8 @@ export function createDemoAdapter(
           '브라우저 체험에는 API 키가 필요하지 않으며 입력한 키를 저장·전송하지 않습니다. 실제 클라우드 번역은 Windows 앱에서 설정해 주세요.',
         ),
       listQueue: async () => (storageError ? err(storageError) : ok(state.jobs.map(publicJob))),
+      getConcurrency: async () => ok(1),
+      setConcurrency: async () => err(UNSUPPORTED),
       pauseJob: async (jobId: string) => jobAction(jobId, 'pause'),
       resumeJob: async (jobId: string) => jobAction(jobId, 'resume'),
       removeJob: async (jobId: string) => jobAction(jobId, 'remove'),

@@ -4,7 +4,10 @@ function navigateDemo(mode) {
   pendingMode = mode
   frame.contentWindow?.postMessage({ type: 'dvm-demo-navigation', mode }, location.origin)
   frame.focus({ preventScroll: true })
-  document.querySelector('#experience').scrollIntoView({
+  const target = matchMedia('(max-width: 960px), (pointer: coarse)').matches
+    ? frame
+    : document.querySelector('#experience')
+  target.scrollIntoView({
     behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
     block: 'start',
   })

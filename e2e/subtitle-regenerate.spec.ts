@@ -257,6 +257,8 @@ test('queues regeneration behind another video and preserves files when waiting 
 }) => {
   const panel = await prepareExistingSubtitles(page)
   const blockingJobId = await page.evaluate(async () => {
+    const concurrency = await window.api.subtitles.setConcurrency(1)
+    if (!concurrency.ok) throw new Error(concurrency.error)
     const result = await window.api.videos.get('mock-library', 'mock-video-1')
     if (!result.ok || !result.value) throw new Error('Missing video fixture')
     const video = result.value

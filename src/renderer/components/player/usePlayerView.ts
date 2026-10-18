@@ -1,5 +1,7 @@
 import * as React from 'react'
 
+type FullscreenMode = 'windowed' | 'video' | 'highlights'
+
 export function usePlayerView(
   containerRef: React.RefObject<HTMLDivElement | null>,
   videoRef: React.RefObject<HTMLVideoElement | null>,
@@ -8,7 +10,13 @@ export function usePlayerView(
   onError: (error: string | null) => void,
   onFullscreenChange?: (active: boolean, explicit: boolean) => void,
 ) {
-  const [isFullscreen, setIsFullscreen] = React.useState(false)
+  const [fullscreenMode, setFullscreenMode] = React.useState<FullscreenMode>('windowed')
+  const fullscreenModeRef = React.useRef<FullscreenMode>('windowed')
+  const isFullscreen = fullscreenMode !== 'windowed'
+  const updateFullscreenMode = React.useCallback((mode: FullscreenMode) => {
+    fullscreenModeRef.current = mode
+    setFullscreenMode(mode)
+  }, [])
   const [zoom, setZoom] = React.useState(1)
   const [pan, setPan] = React.useState({ x: 0, y: 0 })
   const [showInfo, setShowInfo] = React.useState(false)
@@ -50,15 +58,21 @@ export function usePlayerView(
   React.useEffect(() => {
     const sync = () => {
       const active = document.fullscreenElement === containerRef.current
-      setIsFullscreen(active)
+      updateFullscreenMode(
+        active
+          ? fullscreenModeRef.current === 'windowed'
+            ? 'video'
+            : fullscreenModeRef.current
+          : 'windowed',
+      )
       onFullscreenChange?.(active, explicitExit.current)
       explicitExit.current = false
       setPan({ x: 0, y: 0 })
     }
     document.addEventListener('fullscreenchange', sync)
-    setIsFullscreen(document.fullscreenElement === containerRef.current)
+    updateFullscreenMode(document.fullscreenElement === containerRef.current ? 'video' : 'windowed')
     return () => document.removeEventListener('fullscreenchange', sync)
-  }, [containerRef, onFullscreenChange])
+  }, [containerRef, onFullscreenChange, updateFullscreenMode])
   React.useEffect(() => {
     const stage = videoRef.current?.parentElement
     if (!stage) return
@@ -71,18 +85,20 @@ export function usePlayerView(
     onError(null)
     try {
       if (document.fullscreenElement === containerRef.current) {
-        await exitFullscreen()
+        if (fullscreenModeRef.current !== 'highlights') updateFullscreenMode('highlights')
+        else await exitFullscreen()
       } else {
         if (!containerRef.current?.requestFullscreen)
           throw new Error('전체화면을 지원하지 않습니다.')
         await containerRef.current.requestFullscreen()
+        containerRef.current?.focus({ preventScroll: true })
       }
     } catch (error) {
       onError(
         `전체화면을 전환하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
-  }, [containerRef, enabled, onError, exitFullscreen])
+  }, [containerRef, enabled, onError, exitFullscreen, updateFullscreenMode])
   const changeZoom = React.useCallback(
     (delta: number) => {
       if (!enabled) return
@@ -104,7 +120,7 @@ export function usePlayerView(
       ) {
         if (!event.repeat) void toggleFullscreen()
       } else if (!event.ctrlKey && !event.altKey && !event.metaKey) {
-        if (event.key.toLowerCase() === 'i') {
+        if (event.key.toLowerCase() === 'i' && !isFullscreen) {
           if (!event.repeat) setShowInfo((value) => !value)
         } else if (enabled && ['+', '='].includes(event.key)) changeZoom(0.25)
         else if (enabled && event.key === '-') changeZoom(-0.25)
@@ -154,6 +170,7 @@ export function usePlayerView(
   }
   return {
     isFullscreen,
+    fullscreenMode,
     zoom,
     showInfo,
     setShowInfo,
