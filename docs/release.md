@@ -40,9 +40,12 @@ npm run export:source
 
 ## 3. 패키지 검증
 
+자동 업데이트가 포함된 배포에서는 `latest.yml`과 설치형 EXE의 `.blockmap`을 실행 파일과 함께 게시합니다. `build:win`의 업데이트 정보 검사를 통과한 원본을 사용하며 두 파일도 SHA256SUMS.txt에 포함합니다. [자동 업데이트와 배포 파일 안내](auto-updates.md)를 참고하세요.
+
 ```powershell
 node scripts/smoke-electron.cjs dist-electron/win-unpacked/DarkVideoManager.exe
 node scripts/smoke-subtitle-navigation.cjs dist-electron/win-unpacked/DarkVideoManager.exe
+node scripts/smoke-app-updates.cjs dist-electron/win-unpacked/DarkVideoManager.exe
 ```
 
 이 검사는 임시 미디어와 별도 앱 데이터 폴더를 사용합니다. 추가로 별도 Windows 계정 또는 깨끗한 가상 머신에서 설치·첫 실행·가져오기·재생·하이라이트·썸네일·자막 탐색을 확인하세요. GPU 자막은 지원 드라이버가 있는 실제 장치에서 확인해야 합니다. 로컬 테스트나 GitHub CI 통과를 모든 장치의 호환성 확인으로 기록하지 마세요.

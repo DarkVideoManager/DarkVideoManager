@@ -2,6 +2,8 @@
 
 ## Application and dependencies
 
+The updater and packaging tools resolve `lazy-val` to the [project-owned compatibility module](../vendor/lazy-value-compat/README.md). Its implementation and full project MIT license are included in the source and installed package. The upstream 1.0.5 archive omits its original license text; the override preserves strict notice checks without inventing an upstream copyright notice. The lockfile and root npm configuration make this local dependency a regular installed directory for standalone packaging.
+
 The original DarkVideoManager application and icon use the repository's MIT license. Ownership confirmation is recorded in [PROVENANCE.md](PROVENANCE.md). Dependencies retain their own licenses. [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) is the entry point to the exact-version notices included in each executable distribution.
 
 After dependency installation and after rebuilding any native runtime, run:

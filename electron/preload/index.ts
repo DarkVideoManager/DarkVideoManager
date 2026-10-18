@@ -34,6 +34,7 @@ import type {
   CacheCleanupResult,
 } from '../../src/shared/types'
 import type { Result } from '../../src/shared/result'
+import type { AppUpdateState } from '../../src/shared/appUpdate'
 import type {
   StashSettings,
   StashSettingsPatch,
@@ -58,6 +59,18 @@ import type {
 } from '../../src/shared/discovery'
 
 const api = {
+  updates: {
+    get: (): Promise<Result<AppUpdateState, string>> => ipcRenderer.invoke(IPC.APP_UPDATE.GET),
+    check: (): Promise<Result<AppUpdateState, string>> => ipcRenderer.invoke(IPC.APP_UPDATE.CHECK),
+    download: (): Promise<Result<AppUpdateState, string>> =>
+      ipcRenderer.invoke(IPC.APP_UPDATE.DOWNLOAD),
+    install: (): Promise<Result<AppUpdateState, string>> =>
+      ipcRenderer.invoke(IPC.APP_UPDATE.INSTALL),
+    setAutomatic: (value: boolean): Promise<Result<AppUpdateState, string>> =>
+      ipcRenderer.invoke(IPC.APP_UPDATE.SET_AUTOMATIC, value),
+    openRelease: (): Promise<Result<null, string>> =>
+      ipcRenderer.invoke(IPC.APP_UPDATE.OPEN_RELEASE),
+  },
   temporaryPlayback: {
     openDroppedFiles: async (
       files: File[],
@@ -388,6 +401,11 @@ const api = {
       ipcRenderer.invoke(IPC.STATS.GET, libraryId, days),
   },
   on: {
+    appUpdateChanged: (cb: (state: AppUpdateState) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, state: AppUpdateState) => cb(state)
+      ipcRenderer.on(IPC.EVENTS.APP_UPDATE_CHANGED, listener)
+      return () => ipcRenderer.removeListener(IPC.EVENTS.APP_UPDATE_CHANGED, listener)
+    },
     importProgress: (cb: (progress: ImportProgress) => void): (() => void) => {
       const listener = (_: Electron.IpcRendererEvent, p: ImportProgress) => cb(p)
       ipcRenderer.on(IPC.EVENTS.IMPORT_PROGRESS, listener)
@@ -427,7 +445,11 @@ const api = {
 }
 
 // Desktop-only capabilities may be omitted by browser demos and preview adapters.
-export type WindowApi = Omit<typeof api, 'app'> & {
+export type WindowApi = Omit<typeof api, 'app' | 'updates' | 'on'> & {
+  updates?: typeof api.updates
+  on: Omit<typeof api.on, 'appUpdateChanged'> & {
+    appUpdateChanged?: typeof api.on.appUpdateChanged
+  }
   app: Omit<typeof api.app, 'githubStar'> & { githubStar?: typeof api.app.githubStar }
 }
 

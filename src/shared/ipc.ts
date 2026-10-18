@@ -2,6 +2,7 @@ import { PlaybackRateZ } from './playbackRate'
 import { z } from 'zod'
 import { SeekStepSecZ } from './playerSettings'
 import { SubtitleConcurrencyZ } from './subtitleQueue'
+import { AppUpdateStateZ } from './appUpdate'
 
 import { PrivacySettingsZ } from './privacy'
 import { DiscoveryQueryZ, DiscoveryPreferencesZ } from './discovery'
@@ -153,6 +154,12 @@ export const HighlightCreateZ = z
 export const HighlightPatchZ = HighlightCreateZ.partial().strict()
 
 export const IPC_SCHEMAS = {
+  [IPC.APP_UPDATE.GET]: EmptyArgsZ,
+  [IPC.APP_UPDATE.CHECK]: EmptyArgsZ,
+  [IPC.APP_UPDATE.DOWNLOAD]: EmptyArgsZ,
+  [IPC.APP_UPDATE.INSTALL]: EmptyArgsZ,
+  [IPC.APP_UPDATE.SET_AUTOMATIC]: z.tuple([z.boolean()]),
+  [IPC.APP_UPDATE.OPEN_RELEASE]: EmptyArgsZ,
   [IPC.TEMPORARY_PLAYBACK.OPEN]: z.tuple([FilePathZ.max(32767)]),
   [IPC.TEMPORARY_PLAYBACK.CLOSE]: z.tuple([z.string().uuid()]),
   [IPC.PRIVACY.GET]: EmptyArgsZ,
@@ -281,6 +288,7 @@ export const IPC_SCHEMAS = {
 } as const
 
 export const IPC_EVENT_SCHEMAS = {
+  [IPC.EVENTS.APP_UPDATE_CHANGED]: AppUpdateStateZ,
   [IPC.EVENTS.IMPORT_PROGRESS]: ImportProgressZ,
   [IPC.EVENTS.THUMBNAIL_READY]: VideoEventZ,
   [IPC.EVENTS.HIGHLIGHT_CHANGED]: VideoEventZ,

@@ -12,6 +12,7 @@ import { registerThumbnailHandlers } from './thumbnails'
 import { registerVideoHandlers } from './videos'
 import { registerMetadataImportHandlers } from './metadataImport'
 import { registerAppHandlers } from './app'
+import { registerAppUpdateHandlers } from './appUpdate'
 import { registerDataImportHandlers } from './dataImport'
 import { registerSubtitleGenerationHandlers } from './subtitleGeneration'
 import { registerDiscoveryHandlers } from './discovery'
@@ -89,6 +90,7 @@ export function registerAllHandlers(): void {
   registerTemporaryPlaybackHandlers()
   registerDiscoveryHandlers()
   registerAppHandlers()
+  registerAppUpdateHandlers()
   registerDataImportHandlers()
   registerLibraryHandlers()
   registerVideoHandlers()
