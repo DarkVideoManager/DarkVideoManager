@@ -22,6 +22,22 @@ import {
 } from './result'
 
 describe('IPC contracts', () => {
+  it('accepts update actions without accepting a feed URL, path, version or arbitrary settings', () => {
+    for (const channel of [
+      IPC.APP_UPDATE.GET,
+      IPC.APP_UPDATE.CHECK,
+      IPC.APP_UPDATE.DOWNLOAD,
+      IPC.APP_UPDATE.INSTALL,
+      IPC.APP_UPDATE.OPEN_RELEASE,
+    ]) {
+      expect(IPC_SCHEMAS[channel].safeParse([]).success).toBe(true)
+      for (const value of ['https://example.com/feed', 'C:/installer.exe', { version: '9.0.0' }]) {
+        expect(IPC_SCHEMAS[channel].safeParse([value]).success).toBe(false)
+      }
+    }
+    expect(IPC_SCHEMAS[IPC.APP_UPDATE.SET_AUTOMATIC].safeParse([false]).success).toBe(true)
+    expect(IPC_SCHEMAS[IPC.APP_UPDATE.SET_AUTOMATIC].safeParse(['false']).success).toBe(false)
+  })
   it('keeps single folder creation compatible and bounds multi-folder operations', () => {
     const create = IPC_SCHEMAS[IPC.LIBRARY.CREATE]
     expect(create.safeParse(['Videos', 'D:/']).success).toBe(true)
@@ -150,7 +166,7 @@ describe('IPC contracts', () => {
 
   it('registers every invoke channel with a positional schema', () => {
     expect(INVOKE_CHANNELS.length).toBeGreaterThanOrEqual(39)
-    expect(EVENT_CHANNELS).toHaveLength(6)
+    expect(EVENT_CHANNELS).toHaveLength(7)
     const { EVENTS, ...invokeGroups } = IPC
     expect(new Set(INVOKE_CHANNELS)).toEqual(
       new Set(Object.values(invokeGroups).flatMap(Object.values)),

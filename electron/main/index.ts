@@ -16,6 +16,11 @@ import { createLogger } from './infra/logger'
 import { trimPlaybackCache } from './services/CacheService'
 import { BackgroundService } from './services/BackgroundService'
 import {
+  initializeAppUpdates,
+  stopAppUpdateChecks,
+  finishAppUpdateInstall,
+} from './services/AppUpdateRuntime'
+import {
   hasPendingSubtitleSetup,
   onSubtitleSetupChanged,
   shutdownSubtitleSetup,
@@ -127,6 +132,7 @@ app.whenReady().then(async () => {
   stopConversionQueueListener = onPlaybackConversionQueueChanged(() => background.update())
   stopSetupListener = onSubtitleSetupChanged(() => background.update())
   createWindow()
+  initializeAppUpdates()
   void trimPlaybackCache().catch((error) =>
     createLogger('startup').warn({ err: error }, '시작 시 재생 캐시 정리 실패'),
   )
@@ -143,20 +149,24 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   if (shutdownRequested) return
   shutdownRequested = true
+  stopAppUpdateChecks()
   background.beginShutdown()
   void (async () => {
+    let safeToInstallUpdate = true
     try {
       // The subtitle worker must save its checkpoint before generic library work is aborted.
       try {
         await shutdownSubtitleQueue()
       } catch (error) {
         // A failed checkpoint write must not leave players or database handles running.
+        safeToInstallUpdate = false
         createLogger('shutdown').error({ err: error }, '종료 중 자막 대기열 저장 실패')
       }
       try {
         // Persist the paused conversion queue and stop its worker before draining proxies.
         await shutdownPlaybackConversionQueue()
       } catch (error) {
+        safeToInstallUpdate = false
         createLogger('shutdown').error({ err: error }, '종료 중 영상 변환 대기열 저장 실패')
       }
       const drains = await Promise.allSettled([
@@ -166,6 +176,7 @@ app.on('before-quit', (event) => {
       ])
       for (const result of drains) {
         if (result.status === 'rejected') {
+          safeToInstallUpdate = false
           createLogger('shutdown').error({ err: result.reason }, '종료 중 작업 정리 실패')
         }
       }
@@ -173,10 +184,12 @@ app.on('before-quit', (event) => {
         try {
           close()
         } catch (error) {
+          safeToInstallUpdate = false
           createLogger('shutdown').error({ err: error }, '종료 중 리소스 정리 실패')
         }
       }
     } catch (error) {
+      safeToInstallUpdate = false
       createLogger('shutdown').error({ err: error }, '종료 중 작업 정리 실패')
     } finally {
       stopQueueListener?.()
@@ -184,6 +197,7 @@ app.on('before-quit', (event) => {
       stopSetupListener?.()
       background.dispose()
       shutdownReady = true
+      finishAppUpdateInstall(safeToInstallUpdate)
       app.quit()
     }
   })()

@@ -1,6 +1,6 @@
 {
   "name": "dark-video-manager",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "Windows 로컬 동영상 라이브러리 매니저",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "dev": "chcp 65001 && electron-vite dev",
     "dev:web": "vite dev --config vite.web.config.ts",
     "build": "electron-vite build",
-    "build:win": "npm run build && npm run licenses:check && electron-builder --win --publish never",
+    "build:win": "npm run build && npm run licenses:check && electron-builder --win --publish never && node scripts/stage-update-assets.cjs && node scripts/smoke-app-updates.cjs dist-electron/win-unpacked/DarkVideoManager.exe",
     "build:unpacked": "npm run build && npm run licenses:generate && electron-builder --win --dir --publish never",
     "licenses:generate": "node scripts/generate-third-party-notices.cjs",
     "licenses:check": "node scripts/generate-third-party-notices.cjs --check-release",
@@ -38,7 +38,7 @@
     "test": "node scripts/run-tests.cjs",
     "test:tooling": "node --test \"scripts/*.test.cjs\"",
     "test:e2e": "playwright test",
-    "test:electron": "node scripts/smoke-electron.cjs",
+    "test:electron": "node scripts/smoke-electron.cjs && node scripts/smoke-app-updates.cjs",
     "test:native": "node scripts/smoke-native.cjs",
     "benchmark:search": "node scripts/benchmark-search.cjs",
     "prepare": "husky"
@@ -48,8 +48,10 @@
     "@tanstack/react-virtual": "^3.14.15",
     "better-sqlite3": "13.0.3",
     "chardet": "^2.2.0",
+    "electron-updater": "6.8.10",
     "fluent-ffmpeg": "^2.1.3",
     "iconv-lite": "^0.7.3",
+    "lazy-val": "file:vendor/lazy-value-compat",
     "pino": "^10.4.0",
     "plyr": "^3.8.5",
     "react-router-dom": "7.18.4",
@@ -57,12 +59,16 @@
     "zod": "^4.6.6",
     "zustand": "^5.0.15"
   },
+  "overrides": {
+    "lazy-val": "$lazy-val"
+  },
   "devDependencies": {
     "@commitlint/cli": "^19.3.0",
     "@commitlint/config-conventional": "^19.2.2",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@playwright/test": "^1.45.3",
+    "@tailwindcss/postcss": "4.3.3",
     "@tanstack/react-query-devtools": "^5.104.2",
     "@types/better-sqlite3": "^7.6.10",
     "@types/chardet": "^0.8.3",
@@ -72,7 +78,6 @@
     "@types/react-dom": "^19.3.0",
     "@typescript-eslint/eslint-plugin": "8.71.2",
     "@typescript-eslint/parser": "8.71.2",
-    "@tailwindcss/postcss": "4.3.3",
     "@vitejs/plugin-react": "5.2.0",
     "autoprefixer": "^10.6.1",
     "electron": "44.7.0",
