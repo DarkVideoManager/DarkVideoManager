@@ -151,6 +151,8 @@ describe('preload bridge', () => {
         translateToKorean: true,
       }),
       api.subtitles.listQueue(),
+      api.subtitles.getConcurrency(),
+      api.subtitles.setConcurrency(3),
       api.subtitles.pauseJob('dd270470-14f8-45ed-af6e-f3b2da7c86d3'),
       api.subtitles.resumeJob('dd270470-14f8-45ed-af6e-f3b2da7c86d3'),
       api.subtitles.removeJob('dd270470-14f8-45ed-af6e-f3b2da7c86d3'),

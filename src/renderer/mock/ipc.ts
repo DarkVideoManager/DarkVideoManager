@@ -1,5 +1,6 @@
 import type { WindowApi } from '../../../electron/preload'
 import { DEFAULT_SEEK_STEP_SEC, SeekStepSecZ } from '../../shared/playerSettings'
+import { DEFAULT_SUBTITLE_CONCURRENCY, SubtitleConcurrencyZ } from '../../shared/subtitleQueue'
 
 import { DEFAULT_PRIVACY_SETTINGS, PrivacySettingsZ } from '../../shared/privacy'
 import { discoverVideos, type DiscoveryPreferences } from '../../shared/discovery'
@@ -155,6 +156,7 @@ const subtitleJobs = new Map<string, MockSubtitleState>()
 const conversionJobs = new Map<string, PlaybackConversionJob>()
 const subtitleTerminalPhases = new Set(['completed', 'cancelled', 'failed'])
 let subtitleGenerationNumber = 0
+let subtitleConcurrency = DEFAULT_SUBTITLE_CONCURRENCY
 const mockTranslationSettings = {
   enabled: false,
   hasApiKey: false,
@@ -194,9 +196,17 @@ function latestSubtitleJob(libraryId: string, videoId: string): MockSubtitleStat
 }
 
 function scheduleMockSubtitles(): void {
-  if ([...subtitleJobs.values()].some((state) => state.timer !== undefined)) return
-  const state = [...subtitleJobs.values()].find((item) => item.job.phase === 'queued')
-  if (!state) return
+  while (
+    [...subtitleJobs.values()].filter((state) => state.timer !== undefined).length <
+    subtitleConcurrency
+  ) {
+    const state = [...subtitleJobs.values()].find((item) => item.job.phase === 'queued')
+    if (!state) return
+    startMockSubtitle(state)
+  }
+}
+
+function startMockSubtitle(state: MockSubtitleState): void {
   if (state.subtitleIdsToDelete) {
     const tracks = subtitlesByVideo.get(state.video.id) ?? []
     const selected = new Set(state.subtitleIdsToDelete)
@@ -966,6 +976,14 @@ export const mockApi: WindowApi = {
       return ok(enqueueMockSubtitleJob(libraryId, video, options, subtitleIds))
     },
     listQueue: async () => ok([...subtitleJobs.values()].map((state) => ({ ...state.job }))),
+    getConcurrency: async () => ok(subtitleConcurrency),
+    setConcurrency: async (limit) => {
+      const parsed = SubtitleConcurrencyZ.safeParse(limit)
+      if (!parsed.success) return err('동시 실행 수는 1~4 사이의 정수로 선택하세요.')
+      subtitleConcurrency = parsed.data
+      scheduleMockSubtitles()
+      return ok(subtitleConcurrency)
+    },
     pauseJob: async (jobId) => {
       const state = subtitleJobs.get(jobId)
       if (!state || subtitleTerminalPhases.has(state.job.phase)) return ok(false)

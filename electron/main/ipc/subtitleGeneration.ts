@@ -18,6 +18,8 @@ import {
   startSubtitleGeneration,
   regenerateSubtitles,
   listSubtitleQueue,
+  getSubtitleConcurrency,
+  setSubtitleConcurrency,
   pauseSubtitleJob,
   resumeSubtitleJob,
   removeSubtitleJob,
@@ -35,6 +37,10 @@ export function registerSubtitleGenerationHandlers(): void {
     ok(updateCloudTranslationSettings(patch)),
   )
   registerIpcHandler(IPC.SUBTITLES.LIST_QUEUE, () => ok(listSubtitleQueue()))
+  registerIpcHandler(IPC.SUBTITLES.GET_CONCURRENCY, () => ok(getSubtitleConcurrency()))
+  registerIpcHandler(IPC.SUBTITLES.SET_CONCURRENCY, (_event, limit) =>
+    ok(setSubtitleConcurrency(limit)),
+  )
   registerIpcHandler(IPC.SUBTITLES.PAUSE_JOB, async (_event, jobId) =>
     ok(await pauseSubtitleJob(jobId)),
   )
