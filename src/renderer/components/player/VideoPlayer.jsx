@@ -15,7 +15,7 @@ import { usePlaybackConversionQueue } from '../../api/usePlaybackConversionQueue
 import { ConversionQueueItem } from './PlaybackConversionQueue'
 import SubtitleNavigator from './SubtitleNavigator'
 import { usePlayerView } from './usePlayerView'
-import { PlaybackInfo, PlayerViewControls } from './PlayerViewControls'
+import { FullscreenViewToggle, PlaybackInfo, PlayerViewControls } from './PlayerViewControls'
 import { DEFAULT_SEEK_STEP_SEC } from '@shared/playerSettings'
 function VideoPlayer({
   video,
@@ -1288,50 +1288,58 @@ function VideoPlayer({
     <div
       ref={containerRef}
       tabIndex={-1}
-      className={'flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-black outline-hidden'}
+      data-fullscreen-view={view.fullscreenMode}
+      className={
+        'relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-black outline-hidden'
+      }
     >
-      <PlayerViewControls
-        view={view}
-        enabled={viewEnabled}
-        isMaximized={isMaximized}
-        onToggleMaximized={onToggleMaximized}
-        seekStepSec={seekStepSec}
-        settingsError={settingsError}
-      />
-      <PlaybackRateControl
-        rate={playbackRate}
-        onChange={changePlaybackRate}
-        pending={speedPending || openInNativePlayer.isPending}
-        disabled={!useInAppPlayback && activeNativePlayer !== 'mpv'}
-        hint={
-          useInAppPlayback
-            ? '인앱 0.25–4× · 음성·자막 함께 적용'
-            : !activeNativePlayer
-              ? '외부 플레이어를 연 뒤 배속을 조절하세요. 인앱·mpv는 앱에서 0.25–4×를 지원합니다.'
-              : activeNativePlayer === 'mpv'
-                ? 'mpv 앱 조절 0.25–4× · mpv에서 변경한 값도 표시'
-                : activeNativePlayer === 'vlc'
-                  ? 'VLC의 재생 → 속도 메뉴에서 조절하세요. 앱에서는 변경·조회할 수 없습니다.'
-                  : 'FFplay 배속 변경은 앱에서 지원하지 않습니다. 인앱 또는 mpv를 사용하세요.'
-        }
-      />
-      <AbRepeatControl
-        start={repeat.start}
-        end={repeat.end}
-        enabled={repeat.enabled}
-        available={Boolean(
-          useInAppPlayback &&
-          playbackSource &&
-          videoRef.current?.readyState >= 1 &&
-          !openInNativePlayer.isPending &&
-          !mediaPlaybackError,
-        )}
-        external={!useInAppPlayback}
-        error={repeat.error}
-        onMark={markRepeatPoint}
-        onToggle={toggleRepeat}
-        onClear={clearRepeat}
-      />
+      {view.isFullscreen && <FullscreenViewToggle view={view} containerRef={containerRef} />}
+      {!view.isFullscreen && (
+        <>
+          <PlayerViewControls
+            view={view}
+            enabled={viewEnabled}
+            isMaximized={isMaximized}
+            onToggleMaximized={onToggleMaximized}
+            seekStepSec={seekStepSec}
+            settingsError={settingsError}
+          />
+          <PlaybackRateControl
+            rate={playbackRate}
+            onChange={changePlaybackRate}
+            pending={speedPending || openInNativePlayer.isPending}
+            disabled={!useInAppPlayback && activeNativePlayer !== 'mpv'}
+            hint={
+              useInAppPlayback
+                ? '인앱 0.25–4× · 음성·자막 함께 적용'
+                : !activeNativePlayer
+                  ? '외부 플레이어를 연 뒤 배속을 조절하세요. 인앱·mpv는 앱에서 0.25–4×를 지원합니다.'
+                  : activeNativePlayer === 'mpv'
+                    ? 'mpv 앱 조절 0.25–4× · mpv에서 변경한 값도 표시'
+                    : activeNativePlayer === 'vlc'
+                      ? 'VLC의 재생 → 속도 메뉴에서 조절하세요. 앱에서는 변경·조회할 수 없습니다.'
+                      : 'FFplay 배속 변경은 앱에서 지원하지 않습니다. 인앱 또는 mpv를 사용하세요.'
+            }
+          />
+          <AbRepeatControl
+            start={repeat.start}
+            end={repeat.end}
+            enabled={repeat.enabled}
+            available={Boolean(
+              useInAppPlayback &&
+              playbackSource &&
+              videoRef.current?.readyState >= 1 &&
+              !openInNativePlayer.isPending &&
+              !mediaPlaybackError,
+            )}
+            external={!useInAppPlayback}
+            error={repeat.error}
+            onMark={markRepeatPoint}
+            onToggle={toggleRepeat}
+            onClear={clearRepeat}
+          />
+        </>
+      )}
       {subtitleNavigationTarget &&
         createPortal(
           <SubtitleNavigator
@@ -1348,7 +1356,10 @@ function VideoPlayer({
           subtitleNavigationTarget,
         )}
       {/* Keep intrinsic media dimensions from expanding either flex axis. */}
-      <div className={'relative min-h-0 min-w-0 flex-1 overflow-hidden'}>
+      <div
+        className={'relative min-h-0 min-w-0 flex-1 overflow-hidden'}
+        style={view.isFullscreen ? { flex: '1 1 0%', height: 'auto' } : undefined}
+      >
         <video
           ref={videoRef}
           className={'absolute inset-0 h-full w-full object-contain'}
@@ -1399,7 +1410,7 @@ function VideoPlayer({
           }}
           key={video.id}
         />
-        {view.showInfo && (
+        {!view.isFullscreen && view.showInfo && (
           <PlaybackInfo
             video={video}
             decodedSize={decodedSize}
@@ -1409,7 +1420,7 @@ function VideoPlayer({
         )}
         {isSubtitleEnabled && activeSubtitleText && (
           <div
-            className={`pointer-events-none absolute inset-x-0 z-20 flex justify-center px-8 ${orderedSubtitles.length > 1 ? 'bottom-32' : 'bottom-24'}`}
+            className={`pointer-events-none absolute inset-x-0 z-20 flex justify-center px-8 ${view.isFullscreen ? (view.fullscreenMode === 'highlights' ? 'bottom-12' : 'bottom-6') : orderedSubtitles.length > 1 ? 'bottom-32' : 'bottom-24'}`}
           >
             <div
               className={
@@ -1422,16 +1433,18 @@ function VideoPlayer({
             </div>
           </div>
         )}
-        <button
-          disabled={openInNativePlayer.isPending}
-          onClick={() => navigate(-1)}
-          className={
-            'absolute right-3 top-3 z-20 rounded bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80'
-          }
-        >
-          {'닫기'}
-        </button>
-        {nativePlayerInfo && (
+        {!view.isFullscreen && (
+          <button
+            disabled={openInNativePlayer.isPending}
+            onClick={() => navigate(-1)}
+            className={
+              'absolute right-3 top-3 z-20 rounded bg-black/60 px-3 py-1.5 text-xs text-white hover:bg-black/80'
+            }
+          >
+            {'닫기'}
+          </button>
+        )}
+        {!view.isFullscreen && nativePlayerInfo && (
           <button
             onClick={requestNativePlayback}
             disabled={openInNativePlayer.isPending}
@@ -1444,7 +1457,7 @@ function VideoPlayer({
               : `${formatPlayerName(nativePlayerInfo)}로 열기`}
           </button>
         )}
-        {statusMessage && (
+        {!view.isFullscreen && statusMessage && (
           <div
             className={
               'absolute bottom-16 left-3 rounded bg-black/70 px-3 py-1.5 text-xs text-white'
@@ -1502,7 +1515,7 @@ function VideoPlayer({
             </p>
           </div>
         )}
-        {useInAppPlayback && (
+        {useInAppPlayback && !view.isFullscreen && (
           <div
             className={
               'absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/75 px-4 py-3 text-white'
@@ -1677,10 +1690,26 @@ function VideoPlayer({
           </div>
         )}
       </div>
-      {durationSec > 0 && (
-        <div className={'h-8 shrink-0 border-t border-zinc-700 bg-zinc-900 px-4'}>
-          <div className={'grid h-full grid-cols-[6.75rem_3rem_minmax(0,1fr)_3rem] gap-3'}>
-            <div className={'relative col-start-3 h-full'}>
+      {durationSec > 0 && (!view.isFullscreen || view.fullscreenMode === 'highlights') && (
+        <div
+          role="group"
+          aria-label="하이라이트 위치"
+          className={
+            view.isFullscreen
+              ? 'absolute inset-x-0 bottom-0 z-20 h-8 border-t border-white/10 bg-black/40'
+              : 'h-8 shrink-0 border-t border-zinc-700 bg-zinc-900 px-4'
+          }
+        >
+          <div
+            className={
+              view.isFullscreen
+                ? 'h-full'
+                : 'grid h-full grid-cols-[6.75rem_3rem_minmax(0,1fr)_3rem] gap-3'
+            }
+          >
+            <div
+              className={view.isFullscreen ? 'relative mx-3 h-full' : 'relative col-start-3 h-full'}
+            >
               {orderedHighlights.map((highlight) => (
                 <HighlightMarker
                   highlight={highlight}
@@ -1694,7 +1723,7 @@ function VideoPlayer({
           </div>
         </div>
       )}
-      {orderedHighlights.length > 0 && (
+      {!view.isFullscreen && orderedHighlights.length > 0 && (
         <div
           className={
             'max-h-40 shrink-0 overflow-y-auto border-t border-zinc-700 bg-zinc-900 px-3 py-2'
