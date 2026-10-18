@@ -98,6 +98,7 @@ async function main() {
     }
     const engine = await invoke('subtitles', 'getEngineInfo')
     assert.equal(engine.available, true, engine.message)
+    assert.equal(await invoke('subtitles', 'setConcurrency', 1), 1)
     const library = await invoke('library', 'create', 'Subtitle regeneration smoke', media)
     await invoke('library', 'open', library.id)
     assert.equal((await invoke('library', 'importFolder', library.id, media)).added, 2)
