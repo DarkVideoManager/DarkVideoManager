@@ -245,6 +245,14 @@ Ollama와 번역 모델은 **자막 환경 자동 설치**에서 준비할 수 �
 - 자막 생성 중 해당 라이브러리의 가져오기·삭제 등 충돌하는 작업은 완료 또는 취소 후 가능합니다.
 - 외부 플레이어에서 이미 재생 중이라면 새 자막을 읽으려면 영상을 다시 열어야 할 수 있습니다.
 
+### GPU 결과의 문자 인코딩 오류 후 다시 시도
+
+0.3.2에서 **GPU 음성 인식 결과가 올바르지 않습니다. 자막 본문 이외 필드의 문자 인코딩 오류**가 발생하면, Windows 사용자·모델 경로에 포함된 한글이 원인일 수 있습니다. 음성 인식 결과의 자막 본문은 UTF-8이지만, 엔진이 결과에 함께 기록한 모델 경로는 Windows 문자 인코딩을 사용할 수 있습니다. 같은 저장 경로를 사용하는 경우 모델만 바꿔도 오류가 반복될 수 있습니다.
+
+이 경로 처리 수정은 [0.3.3 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.3)에 포함돼 있습니다. 0.3.3 이상으로 업데이트한 뒤 자막 생성 큐의 **재개 · 다시 시도**를 누르면 저장된 구간부터 이어갈 수 있습니다. 기존 라이브러리와 모델 캐시는 그대로 사용할 수 있습니다.
+
+수정은 자막 해석에 쓰지 않는 모델 경로에만 적용합니다. 언어·시간 정보나 자막 본문이 실제로 손상된 경우에는 검사를 유지하고 작업을 중단합니다. 업데이트 후에도 같은 오류가 반복되면 [이슈 #76](https://github.com/DarkVideoManager/DarkVideoManager/issues/76)에 앱 버전·선택한 모델·영상 언어·한국어 번역 설정과 오류 문구를 남겨주세요.
+
 ### 진행 정보 저장 오류 후 다시 시도
 
 WSL에서 `checkpoint.json`을 갱신할 때 `[Errno 21] Is a directory` 오류가 발생하면, 저장 대상이 일반 파일인지 확인한 뒤 앱에 포함된 Windows Python으로 파일 교체를 다시 시도합니다. 진행 정보와 작업 중인 SRT는 새 내용을 임시 파일에 모두 기록한 후 교체하며, 기존 파일을 먼저 지우거나 직접 덮어쓰지 않습니다.
@@ -261,6 +269,7 @@ WSL에서 `checkpoint.json`을 갱신할 때 `[Errno 21] Is a directory` 오류�
 npm run typecheck
 npm test
 py -3 -X utf8 -m unittest discover -s resources/subtitles -p "test_atomic_output.py"
+py -3 -X utf8 -m unittest discover -s resources/subtitles -p "test_whisper_vulkan.py"
 npm run test:e2e -- e2e/subtitles.spec.ts e2e/subtitle-queue.spec.ts e2e/subtitle-regenerate.spec.ts e2e/library-subtitle-progress.spec.ts
 ```
 
