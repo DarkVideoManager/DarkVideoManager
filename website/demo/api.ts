@@ -1215,6 +1215,14 @@ export function createDemoAdapter(
   })
 
   const api = {
+    updates: {
+      get: unsupported,
+      check: unsupported,
+      download: unsupported,
+      install: unsupported,
+      setAutomatic: unsupported,
+      openRelease: unsupported,
+    },
     temporaryPlayback: { openDroppedFiles: unsupported, close: unsupported },
     privacy: {
       get: async () =>
@@ -1655,6 +1663,9 @@ export function createDemoAdapter(
           : err('통계 조회 조건이 올바르지 않습니다.'),
     },
     on: {
+      appUpdateChanged:
+        (_listener: Parameters<NonNullable<WindowApi['on']['appUpdateChanged']>>[0]) => () =>
+          undefined,
       importProgress: (_listener: Parameters<WindowApi['on']['importProgress']>[0]) => () =>
         undefined,
       thumbnailReady: (listener: (event: VideoEvent) => void) => listen(thumbnails, listener),

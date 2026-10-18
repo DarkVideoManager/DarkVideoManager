@@ -6,22 +6,21 @@ A local-first video library manager for Windows, built with Electron, React and 
 
 [브라우저 데모](https://dark-video-manager.vercel.app/) · [기능 요청](https://github.com/DarkVideoManager/DarkVideoManager/issues)
 
-## v0.3.3 업데이트
+## v0.3.4 업데이트
 
-**Windows 10/11 x64**: [설치형 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.3/DarkVideoManager-Setup-0.3.3-x64.exe) · [포터블 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.3/DarkVideoManager-Portable-0.3.3-x64.exe) · [릴리스와 변경 내역](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.3)
+**Windows 10/11 x64**: [설치형 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.4/DarkVideoManager-Setup-0.3.4-x64.exe) · [포터블 다운로드](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.4/DarkVideoManager-Portable-0.3.4-x64.exe) · [릴리스와 변경 내역](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.4)
 
-- **전체화면 3단계**: 영상만 보기 → 하이라이트 위치만 표시 → 일반 화면으로 전환합니다. `Alt+Enter`로 순환하고 `Esc`로 바로 해제합니다.
-- **자막 병렬 실행**: 기본 2개 영상을 함께 처리하며 자막 생성 탭에서 동시 실행 수를 1~4개로 조절합니다. 작업별 일시정지·재개·삭제와 종료 후 복원을 유지합니다. [자막 안내](docs/subtitles.md)
-- **모바일 웹**: 홈페이지와 브라우저 데모의 터치 메뉴, 영상 목록 이동, 화면 내 재생을 개선했습니다.
-- **Windows 경로 인식**: 사용자·모델 경로의 한글 인코딩 때문에 GPU 자막 결과를 읽지 못하는 문제를 수정했습니다.
+- **자동 업데이트**: 설치형은 정식 릴리스를 확인·다운로드하고, 사용자가 재시작을 선택하면 작업을 저장한 뒤 업데이트합니다. 설정에서 자동 확인을 끄거나 직접 확인·재시도할 수 있습니다. 포터블은 새 버전 다운로드를 안내합니다. [업데이트 안내](docs/auto-updates.md)
+- **라이브러리 화면**: **새 라이브러리** 버튼의 글자가 좁은 창에서 줄바꿈되는 문제를 수정했습니다.
+- **GPU 자막 안정성 검사**: 0.3.3의 한글 모델 경로 인코딩 수정에 회귀 검사를 보강하고 원어 자막 저장·번역 재개를 확인했습니다. [자막 안내](docs/subtitles.md)
 
-이번 업데이트의 PR별 검토는 [0.3.3 검토 기록](docs/releases/0.3.3-review.md), 실제 배포 파일의 검사 결과·해시·검증하지 못한 환경은 [0.3.3 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.3/VERIFICATION.md)에서 확인하세요.
+이번 업데이트의 PR별 검토는 [0.3.4 검토 기록](docs/releases/0.3.4-review.md), 실제 배포 파일의 검사 결과·해시·검증하지 못한 환경은 [0.3.4 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.4/VERIFICATION.md)에서 확인하세요. 전체화면 3단계와 자막 병렬 실행을 포함한 이전 변경은 [변경 이력](CHANGELOG.md)에 있습니다.
 
 이전 v0.3.0에서는 **Radeon RX 9060 XT / Vulkan / base 모델**로 약 12초 영어 합성 영상의 원어 자막 생성을 확인했습니다. 이는 이번 버전의 모든 GPU·번역·장시간 영상 검증을 대신하지 않습니다. 이전 결과는 [v0.3.0 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md)에 보존되어 있습니다.
 
 ## 주요 기능
 
-다음 버전에서는 설치형 앱의 [자동 업데이트](docs/auto-updates.md)를 제공합니다. 현재 공개된 0.3.3에는 이 기능이 없으며 최초 한 번은 새 설치형 파일로 업데이트해야 합니다.
+0.3.4부터 설치형 앱의 [자동 업데이트](docs/auto-updates.md)를 제공합니다. 0.3.3 이하에는 이 기능이 없으므로 0.3.4 이상의 설치형 파일을 한 번 직접 설치해야 합니다.
 
 - 폴더 가져오기와 검색·정렬, 라이브러리별 SQLite 데이터베이스
 - 썸네일 생성과 직접 캡처, [상세 정보에서 대표 썸네일 선택](docs/thumbnails.md), 하이라이트 저장·시간 이동
@@ -41,11 +40,11 @@ AI 작업 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 
 
 ## 사용자 설치
 
-지원 환경은 **Windows 10/11 x64**입니다. 위 v0.3.3 다운로드에서 `Setup`은 설치 안내를 따라 설치하고, `Portable`은 설치 없이 실행합니다. 이후 버전은 [공식 최신 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 확인할 수 있습니다.
+지원 환경은 **Windows 10/11 x64**입니다. 위 v0.3.4 다운로드에서 `Setup`은 설치 안내를 따라 설치하고, `Portable`은 설치 없이 실행합니다. 이후 버전은 [공식 최신 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 확인할 수 있습니다.
 
 업데이트 전에는 트레이에서도 앱을 완전히 종료하세요. 릴리스의 **Source code** 및 소스 압축 파일은 개발용 코드이며 설치 파일이 아닙니다. 코드에서 직접 실행하려면 아래 소스 빌드 방법을 따릅니다.
 
-v0.3.3 파일의 SHA-256과 검증 범위는 [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.3/SHA256SUMS.txt)와 [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.3/VERIFICATION.md)에서 확인합니다. 다른 버전에는 해당 릴리스의 자료를 사용하세요. **설치형·포터블은 코드 서명이 없습니다(`NotSigned`).** V3 등 보안 프로그램이 실행을 차단하면 [다운로드 검증·차단 제보 안내](docs/download-verification.md)에 따라 파일 출처, 해시와 탐지 기록을 확인해 주세요. 깨끗한 Windows에서 설치 마법사를 실행하는 검사는 수행하지 않았습니다.
+v0.3.4 파일의 SHA-256과 검증 범위는 [SHA256SUMS.txt](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.4/SHA256SUMS.txt)와 [VERIFICATION.md](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.4/VERIFICATION.md)에서 확인합니다. 다른 버전에는 해당 릴리스의 자료를 사용하세요. **설치형·포터블은 코드 서명이 없습니다(`NotSigned`).** V3 등 보안 프로그램이 실행을 차단하면 [다운로드 검증·차단 제보 안내](docs/download-verification.md)에 따라 파일 출처, 해시와 탐지 기록을 확인해 주세요. 깨끗한 Windows에서 설치 마법사를 실행하는 검사는 수행하지 않았습니다.
 
 일반 영상 관리·재생·하이라이트에는 API 키가 필요하지 않습니다. 재생 가능 여부는 코덱에 따라 다르며, mpv·VLC·FFplay를 별도 설치해 외부 플레이어로 사용할 수 있습니다.
 
