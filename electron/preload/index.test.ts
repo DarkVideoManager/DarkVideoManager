@@ -49,6 +49,12 @@ describe('preload bridge', () => {
   it('exposes all deployed operations with arguments accepted by the main process contracts', async () => {
     bridge.invoke.mockClear()
     await Promise.all([
+      api.updates!.get(),
+      api.updates!.check(),
+      api.updates!.download(),
+      api.updates!.install(),
+      api.updates!.setAutomatic(false),
+      api.updates!.openRelease(),
       api.temporaryPlayback.openDroppedFiles([{} as File]),
       api.temporaryPlayback.close('dd270470-14f8-45ed-af6e-f3b2da7c86d3'),
       api.privacy.get(),
@@ -197,6 +203,7 @@ describe('preload bridge', () => {
   it('forwards event payloads without exposing Electron events and unsubscribes the exact listeners', () => {
     const callback = vi.fn()
     const unsubscribers = [
+      api.on.appUpdateChanged!(callback),
       api.on.importProgress(callback),
       api.on.thumbnailReady(callback),
       api.on.highlightChanged(callback),

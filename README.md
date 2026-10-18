@@ -21,6 +21,8 @@ A local-first video library manager for Windows, built with Electron, React and 
 
 ## 주요 기능
 
+다음 버전에서는 설치형 앱의 [자동 업데이트](docs/auto-updates.md)를 제공합니다. 현재 공개된 0.3.3에는 이 기능이 없으며 최초 한 번은 새 설치형 파일로 업데이트해야 합니다.
+
 - 폴더 가져오기와 검색·정렬, 라이브러리별 SQLite 데이터베이스
 - 썸네일 생성과 직접 캡처, [상세 정보에서 대표 썸네일 선택](docs/thumbnails.md), 하이라이트 저장·시간 이동
 - 영상 카드·상세 화면·가져오기 창에서 썸네일 진행 상태 확인·개별 중단, 상세 화면에서 재시도
