@@ -17,7 +17,7 @@
         url.origin === 'https://github.com' &&
         !url.username &&
         !url.password &&
-        url.pathname.startsWith(`/DarkVideoManager/DarkVideoManager/releases/${prefix}/`) &&
+        url.pathname.startsWith(`/doodoocompany/DarkVideoManager/releases/${prefix}/`) &&
         !url.search &&
         !url.hash
       )
