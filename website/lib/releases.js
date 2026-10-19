@@ -1,4 +1,4 @@
-const REPOSITORY = 'DarkVideoManager/DarkVideoManager'
+const REPOSITORY = 'doodoocompany/DarkVideoManager'
 const API = `https://api.github.com/repos/${REPOSITORY}`
 const RELEASES = `https://github.com/${REPOSITORY}/releases`
 const PAGE_SIZE = 100

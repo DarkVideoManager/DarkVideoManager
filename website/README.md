@@ -4,15 +4,17 @@
 
 공개 주소: https://dark-video-manager.vercel.app/
 
-## 0.3.2 안내 기준
+## 0.3.4 안내 기준
 
-홈페이지의 기능·지원 안내는 [Windows 앱 0.3.2](https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.2)를 기준으로 합니다. 기존 언어별 SRT의 인식과 재검색, 인앱 A-B 반복과 저배속, 재생 전 FPS·영상 정보, 상세 탭 분리, 여러 폴더·드라이브 등록과 재시작 없는 라이브러리 전환을 소개합니다. 다운로드 버튼과 집계는 특정 버전에 고정하지 않고 최신 정식 릴리스를 자동 조회합니다.
+홈페이지의 기능·지원 안내는 [Windows 앱 0.3.4](https://github.com/doodoocompany/DarkVideoManager/releases/tag/v0.3.4)를 기준으로 합니다. 자동 업데이트, 전체화면 3단계 전환, 자막 동시 실행 수 1~4개, 새 라이브러리 버튼 수정과 자막 인코딩 안정성 검사 보강을 소개합니다. 기존 언어별 SRT의 인식과 재검색, 인앱 A-B 반복과 저배속, 재생 전 영상 정보와 여러 폴더·드라이브 등록도 안내합니다. 0.3.3 이하는 0.3.4 이상의 설치형을 한 번 직접 설치해야 자동 업데이트를 사용할 수 있습니다. 다운로드 버튼과 집계는 특정 버전에 고정하지 않고 최신 정식 릴리스를 자동 조회합니다.
+
+첫 화면 상단에는 공식 저장소의 GitHub Star를 요청하는 문구와 링크를 표시합니다. 링크는 저장소를 새 탭에서 열며, 홈페이지에서 사용자를 대신해 Star를 누르지 않습니다. 앱 업데이트의 GitHub 통신도 개인정보·인터넷 사용 안내에 구분합니다.
 
 Stash는 사용자가 서버를 설정하고 사용을 켠 뒤 직접 조회할 때만 통신합니다. 조회 결과를 확인·수정한 뒤 제목·메모·태그 중 선택한 필드만 적용하며, 인물은 선택적으로 태그에 추가합니다. 임의 사이트 자동 수집이나 영상 업로드 기능으로 소개하지 않습니다. 새 음성 인식 작업은 Vulkan GPU를 사용하며 GPU 사용 실패 시 CPU로 자동 전환하지 않습니다. 로컬 번역과 Google 번역의 대체 동작은 음성 인식의 CPU 전환과 구분합니다.
 
 현재 배포 대상은 Windows 10/11 x64의 로컬 영상입니다. 다른 운영체제·ARM·모바일·스트리밍·전용 NAS 연동 및 VSR·SVP는 구현 또는 검증된 기능으로 안내하지 않습니다. 지원 범위는 [플랫폼·재생 안내](../docs/platform-and-playback-scope.md)를 따릅니다.
 
-0.3.0의 [공개 검증 기록](https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.0/VERIFICATION.md)은 공식 단위 검사 594개, 브라우저 동작 검사 164개, Windows 호스트에서의 포터블 시작·종료와 패키지 구성 확인, Radeon RX 9060 XT의 Vulkan GPU·base 모델을 사용한 짧은 영어 합성 음성의 원어 자막 생성을 구분해 기록합니다. 새 Windows 환경의 설치형 설치·제거, WSL 설치·재시작, 모든 GPU·언어·모델 및 한국어 번역 품질을 이번 버전에서 검증했다고 쓰지 않습니다. 실행 파일은 미서명이며, V3 차단 제보는 재현 자료가 부족해 해소를 확인하지 못했습니다. 다운로드·해시 확인과 제보 방법은 [다운로드 검증 안내](../docs/download-verification.md)로 연결합니다.
+0.3.4의 [공개 검증 기록](https://github.com/doodoocompany/DarkVideoManager/releases/download/v0.3.4/VERIFICATION.md)은 단위·통합 검사 691개, 브라우저 동작 검사 205개, 배포 파일 대조와 포터블 시작·종료, 실제 업데이터의 다운로드·손상 파일 거부·다운그레이드 거부, 한글 모델 경로에서의 Vulkan GPU·base 모델 병렬 자막 생성을 구분해 기록합니다. 새 Windows 환경의 설치형 설치·제거, 실제 설치 교체·재시작, WSL 설치·재시작, 모든 GPU·언어·모델 및 한국어 번역 품질을 검증했다고 쓰지 않습니다. 실행 파일은 미서명이며, V3 차단 제보는 재현 자료가 부족해 해소를 확인하지 못했습니다. 다운로드·해시 확인과 제보 방법은 [다운로드 검증 안내](../docs/download-verification.md)로 연결합니다.
 
 ## 로컬 실행
 
@@ -34,9 +36,11 @@ Q/E는 이전·다음 하이라이트, Z/C는 선택한 자막의 이전·다음
 
 먼저 `npm run build:demo`를 실행하고 Vercel에 **website 폴더만** 배포합니다. `public`은 정적 파일이며, `api/releases.js`와 `lib/releases.js`는 다운로드 정보를 읽는 Vercel Node.js 함수입니다. 배포에는 `package.json`, `vercel.json`도 포함합니다. 저장소 전체나 Electron 빌드/검증 폴더는 업로드하지 않습니다. `.env*`는 배포 및 Git에서 제외합니다.
 
-소스 저장소: https://github.com/DarkVideoManager/DarkVideoManager
+소스 저장소: https://github.com/doodoocompany/DarkVideoManager
 
-Windows 설치 파일과 포터블 파일은 [최신 정식 릴리스](https://github.com/DarkVideoManager/DarkVideoManager/releases/latest)에서 배포합니다. 소개 페이지는 `/api/releases`를 통해 최신 버전의 설치형·포터블 링크와 각각의 다운로드 횟수를 자동으로 표시합니다. 누적 횟수는 모든 공개 정식 릴리스에 첨부된 `DarkVideoManager-Setup-{version}-x64.exe`와 `DarkVideoManager-Portable-{version}-x64.exe`만 합산합니다. 미리 보기 릴리스와 소스·문서 다운로드는 제외합니다.
+Windows 설치 파일과 포터블 파일은 [최신 정식 릴리스](https://github.com/doodoocompany/DarkVideoManager/releases/latest)에서 배포합니다. 소개 페이지는 `/api/releases`를 통해 최신 버전의 설치형·포터블 링크와 각각의 다운로드 횟수를 자동으로 표시합니다. 누적 횟수는 모든 공개 정식 릴리스에 첨부된 `DarkVideoManager-Setup-{version}-x64.exe`와 `DarkVideoManager-Portable-{version}-x64.exe`만 합산합니다. 미리 보기 릴리스와 소스·문서 다운로드는 제외합니다.
+
+공식 저장소가 `doodoocompany/DarkVideoManager`로 이동했으므로 서버 조회와 화면의 다운로드·문서·Star 링크도 이 주소를 사용합니다. 릴리스 조회는 임의 리다이렉트를 따라가지 않으며, 반환하는 파일도 공식 저장소·해당 버전의 정확한 실행 파일인지 계속 확인합니다.
 
 GitHub의 `download_count`는 사용자 수나 설치 완료 수가 아닙니다. 반복 다운로드와 배포 검증 요청이 포함될 수 있습니다. 서버와 CDN은 정상 응답을 10분 캐시하며, 화면은 열려 있는 동안 10분 간격으로 다시 조회합니다. CDN은 갱신 중 만료된 응답을 최대 1시간 더 제공할 수 있으며, 화면에 실제 집계 시각을 표시합니다. 조회 실패 시 기존 수치를 0으로 바꾸지 않으며, JavaScript를 사용할 수 없거나 최초 조회가 실패해도 GitHub 최신 릴리스 링크를 제공합니다. API 토큰, 방문자 추적 또는 추가 데이터베이스는 사용하지 않습니다.
 
