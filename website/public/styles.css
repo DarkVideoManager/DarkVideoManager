@@ -2638,10 +2638,13 @@ details > p {
 }
 .github-star-link {
   min-height: 44px;
+  gap: 12px;
+  padding-inline: 12px;
   border: 1px solid #75613b;
   background: #30291c;
   color: #f1d99b;
   font-size: 13px;
+  white-space: nowrap;
 }
 .github-star-link:hover {
   border-color: #b89c5b;
