@@ -3,8 +3,8 @@ import test from 'node:test'
 import { createReleaseService } from '../lib/releases.js'
 import { createReleasesHandler } from '../api/releases.js'
 
-const API = 'https://api.github.com/repos/DarkVideoManager/DarkVideoManager'
-const WEB = 'https://github.com/DarkVideoManager/DarkVideoManager/releases'
+const API = 'https://api.github.com/repos/doodoocompany/DarkVideoManager'
+const WEB = 'https://github.com/doodoocompany/DarkVideoManager/releases'
 const NOW = Date.parse('2026-10-15T00:00:00Z')
 
 function release(id, version = `0.2.${id}`, patch = {}) {

@@ -84,6 +84,17 @@
       </div>
     </header>
     <main id="main">
+      <aside class="github-support container" aria-label="GitHub Star 안내">
+        <p>DarkVideoManager가 유용하다면 GitHub에서 Star를 눌러 응원해 주세요.</p>
+        <a
+          class="button github-star-link"
+          href="https://github.com/doodoocompany/DarkVideoManager"
+          target="_blank"
+          rel="noopener noreferrer"
+          ><svg aria-hidden="true"><use href="#i-star" /></svg>GitHub에서 Star 누르기
+          <span aria-hidden="true">↗</span></a
+        >
+      </aside>
       <section class="download-intro container" aria-label="앱 받기와 데모 구분">
         <div class="download-intro-copy">
           <p class="spec-index">WINDOWS 10/11 · X64</p>
@@ -119,7 +130,7 @@
               <a
                 class="button primary"
                 data-download="setup"
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                href="https://github.com/doodoocompany/DarkVideoManager/releases/latest"
                 >설치 파일 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
               ></a>
               <span class="download-count" data-download-count="setup"></span>
@@ -132,7 +143,7 @@
               <a
                 class="button secondary"
                 data-download="portable"
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                href="https://github.com/doodoocompany/DarkVideoManager/releases/latest"
                 >포터블 찾기 <svg aria-hidden="true"><use href="#i-arrow" /></svg
               ></a>
               <span class="download-count" data-download-count="portable"></span>
@@ -151,14 +162,14 @@
             설치형과 포터블 실행 파일에는 코드 서명이 없습니다. 공식 릴리스의 SHA-256과 비교하는
             방법은
             <a
-              href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/download-verification.md"
+              href="https://github.com/doodoocompany/DarkVideoManager/blob/main/docs/download-verification.md"
               >다운로드 확인 안내</a
             >를 참고하세요.
           </p>
           <p>
             <a
               data-release-link
-              href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+              href="https://github.com/doodoocompany/DarkVideoManager/releases/latest"
               >릴리스 안내 및 소스</a
             >에서 파일 목록과 검증 내용을 확인할 수 있습니다.
           </p>
@@ -242,10 +253,10 @@
       >
         <div class="spec-heading">
           <span class="spec-index">0.3.4 / 업데이트</span>
-          <h2 id="updates-title">새 버전을 앱에서 편하게</h2>
+          <h2 id="updates-title">업데이트부터 재생까지 더 편하게</h2>
           <p>
-            Windows 앱 0.3.4의 주요 변경사항입니다.
-            <a href="https://github.com/DarkVideoManager/DarkVideoManager/releases/tag/v0.3.4"
+            Windows 앱 0.3.4에 포함된 주요 개선사항입니다.
+            <a href="https://github.com/doodoocompany/DarkVideoManager/releases/tag/v0.3.4"
               >릴리스 안내</a
             >에서 다운로드와 전체 변경사항을 확인하세요.
           </p>
@@ -260,25 +271,29 @@
             </p>
           </article>
           <article class="spec-card">
+            <h3>전체화면 3단계 전환</h3>
+            <p>
+              영상만 보기, 하이라이트 위치만 표시, 일반 화면을 순서대로 전환합니다.
+              <kbd>Alt</kbd>+<kbd>Enter</kbd>로 전환하고 <kbd>Esc</kbd>로 바로 해제합니다. 재생
+              위치와 일시정지 상태는 유지됩니다.
+            </p>
+          </article>
+          <article class="spec-card">
+            <h3>여러 영상의 자막을 동시에</h3>
+            <p>
+              기본 2개 영상의 AI 자막을 함께 생성하며, 자막 생성 탭에서 동시 실행 수를 1~4개로
+              조절합니다. 작업별 일시정지·재개·삭제와 앱 종료 후 진행 내용 복원을 지원합니다.
+            </p>
+          </article>
+          <article class="spec-card">
             <h3>라이브러리 화면과 자막 안정성</h3>
             <p>
-              좁은 창에서 새 라이브러리 버튼의 글자가 줄바꿈되는 문제를 수정했습니다. 한글 모델 경로
-              인코딩 문제의 회귀 검사와 원어 자막 저장·번역 재개 검사를 보강했습니다.
+              좁은 창에서 새 라이브러리 버튼의 글자가 줄바꿈되는 문제를 수정했습니다. 한글 모델
+              경로의 자막 오류 수정을 유지하고, 원어 자막 저장과 번역 재개 검사를 보강했습니다.
             </p>
           </article>
         </div>
       </section>
-      <aside class="github-support container" aria-label="GitHub Star 안내">
-        <p>프로그램이 유용했다면 GitHub에서 Star를 눌러 주세요.</p>
-        <a
-          class="button github-star-link"
-          href="https://github.com/DarkVideoManager/DarkVideoManager"
-          target="_blank"
-          rel="noopener noreferrer"
-          ><svg aria-hidden="true"><use href="#i-star" /></svg>GitHub에서 Star 누르기
-          <span aria-hidden="true">↗</span></a
-        >
-      </aside>
       <section
         class="features container section-space spec-section feature-briefs"
         id="features"
@@ -326,8 +341,9 @@
                 훑어보고 장면을 선택할 수도 있습니다.
               </li>
               <li>
-                앱 안의 플레이어에서 전체화면, 최대 4배 확대와 화면 이동, 해상도·비트레이트 정보를
-                제공합니다.
+                전체화면은 영상만 보기 → 하이라이트 위치 표시 → 일반 화면으로 전환합니다.
+                <kbd>Alt</kbd>+<kbd>Enter</kbd>로 순환하고 <kbd>Esc</kbd>로 해제합니다. 최대 4배
+                확대와 화면 이동, 해상도·비트레이트 정보도 제공합니다.
               </li>
               <li>
                 인앱 A-B 구간 반복과 0.25–4배속을 함께 사용합니다. FPS는 재생 전 정보 탭에서
@@ -366,11 +382,15 @@
               Cloud API 키를 등록하고 사용을 켜서 이용할 수 있습니다.
             </p>
             <p>
+              여러 영상의 자막을 기본 2개씩 동시에 생성합니다. 동시 실행 수는 1~4개로 조절할 수
+              있으며, 각 작업을 따로 일시정지하거나 재개할 수 있습니다.
+            </p>
+            <p>
               새 음성 인식 작업은 내 PC의 Vulkan GPU를 사용합니다. GPU를 사용할 수 없으면 CPU로 자동
               전환하지 않고 원인을 안내합니다. 작업 화면에서 실제 처리 장치를 확인할 수 있습니다.
               준비 방법은
               <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/subtitles.md"
+                href="https://github.com/doodoocompany/DarkVideoManager/blob/main/docs/subtitles.md"
                 >자막 사용 안내</a
               >를 참고하세요.
             </p>
@@ -389,7 +409,7 @@
               기본값은 꺼짐이며 조회 버튼을 눌러야 통신합니다. 임의의 사이트를 자동 수집하거나
               영상을 업로드하지 않습니다.
               <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/METADATA_IMPORT.md"
+                href="https://github.com/doodoocompany/DarkVideoManager/blob/main/docs/METADATA_IMPORT.md"
                 >연결과 가져오기 안내</a
               >
             </p>
@@ -407,11 +427,29 @@
             <h2 id="privacy-title">파일 저장과 인터넷 사용</h2>
             <p>
               회원가입 없이 사용할 수 있습니다. 영상과 시청 기록을 운영자에게 보내지 않으며, 사용
-              내역이나 오류 보고도 자동으로 보내지 않습니다. 도구·모델 다운로드와 직접 켠 Google
-              번역, Stash 조회, 선택한 외부 웹페이지 열기는 네트워크를 사용합니다.
+              내역이나 오류 보고도 자동으로 보내지 않습니다. 앱 업데이트 확인·다운로드, 도구·모델
+              다운로드와 직접 켠 Google 번역, Stash 조회, 선택한 외부 웹페이지 열기는 네트워크를
+              사용합니다.
             </p>
           </div>
           <div class="data-flow-list">
+            <article class="data-flow-row">
+              <h3>앱 업데이트</h3>
+              <dl>
+                <div>
+                  <dt>사용 시점</dt>
+                  <dd>자동 확인이 켜져 있거나 설정에서 새 버전을 직접 확인할 때</dd>
+                </div>
+                <div>
+                  <dt>다운로드</dt>
+                  <dd>
+                    공식 GitHub에서 새 버전을 확인하고 설치형 파일을 내려받습니다. 영상·자막·시청
+                    기록을 보내지 않습니다. 자동 확인은 설정에서 끌 수 있으며, 포터블은 새 버전
+                    다운로드를 안내합니다.
+                  </dd>
+                </div>
+              </dl>
+            </article>
             <article class="data-flow-row">
               <h3>영상 관리·재생</h3>
               <dl>
@@ -657,7 +695,7 @@
               새 Windows 환경의 설치형 설치·제거와 WSL 설치·재시작, 모든 GPU·언어·모델, 한국어 번역
               품질을 모두 검증한 것은 아닙니다. 자세한 결과와 제한은
               <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/download/v0.3.4/VERIFICATION.md"
+                href="https://github.com/doodoocompany/DarkVideoManager/releases/download/v0.3.4/VERIFICATION.md"
                 >0.3.4 검증 기록</a
               >에서 확인할 수 있습니다.
             </p>
@@ -675,17 +713,18 @@
           <details>
             <summary>인터넷 없이도 사용할 수 있나요?<span>+</span></summary>
             <p>
-              일반 영상 관리·재생·하이라이트는 로컬에서 사용합니다. AI 도구와 모델을 처음 준비할
-              때는 인터넷이 필요합니다. 모델 준비 후 원어 자막 생성과 준비된 Ollama를 이용한 로컬
-              번역은 로컬에서 처리합니다. Google Cloud 번역, 외부 Stash 서버 조회, 선택한 웹페이지
-              열기에는 네트워크가 필요합니다.
+              일반 영상 관리·재생·하이라이트는 로컬에서 사용합니다. 앱 업데이트 확인·다운로드와 AI
+              도구·모델을 처음 준비할 때는 인터넷이 필요합니다. 모델 준비 후 원어 자막 생성과 준비된
+              Ollama를 이용한 로컬 번역은 로컬에서 처리합니다. Google Cloud 번역, 외부 Stash 서버
+              조회, 선택한 웹페이지 열기에도 네트워크가 필요합니다.
             </p>
           </details>
           <details>
             <summary>AI 자막을 생성하는 동안 다른 작업도 할 수 있나요?<span>+</span></summary>
             <p>
-              네. 자막 생성 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 자막 작업은 대기열에서
-              관리하며 일시정지와 재개를 지원합니다.
+              네. 자막 생성 중에도 하이라이트와 썸네일을 저장할 수 있습니다. 여러 영상의 자막을 기본
+              2개씩 동시에 생성하며, 동시 실행 수를 1~4개로 조절할 수 있습니다. 각 작업은 대기열에서
+              따로 일시정지하거나 재개할 수 있습니다.
             </p>
           </details>
           <details id="privacy-details">
@@ -696,8 +735,7 @@
               전송되며 비용이 발생할 수 있습니다. Stash 조회는 직접 설정한 서버에 확인한 검색어와
               인증 정보를 전송하며 영상은 업로드하지 않습니다. 앱 데이터는 암호화 보관함이 아니며,
               OneDrive 등 동기화 폴더는 해당 서비스 설정을 따릅니다.
-              <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/PRIVACY.md"
+              <a href="https://github.com/doodoocompany/DarkVideoManager/blob/main/docs/PRIVACY.md"
                 >개인정보와 통신 안내</a
               >에서 기능별 내용을 확인하세요.
             </p>
@@ -706,12 +744,12 @@
             <summary>오픈소스로 공개되나요?<span>+</span></summary>
             <p>
               자체 코드와 아이콘은
-              <a href="https://github.com/DarkVideoManager/DarkVideoManager"
+              <a href="https://github.com/doodoocompany/DarkVideoManager"
                 >GitHub에서 MIT 라이선스로 공개합니다</a
               >. 설치 파일과 대응 소스는
               <a
                 data-release-link
-                href="https://github.com/DarkVideoManager/DarkVideoManager/releases/latest"
+                href="https://github.com/doodoocompany/DarkVideoManager/releases/latest"
                 >GitHub Releases</a
               >에서 받을 수 있습니다. 포함된 외부 구성 요소는 각각의 라이선스를 따르며, FFmpeg·x264
               등에는 별도의 GPL 조건이 적용됩니다.
@@ -724,7 +762,7 @@
               충분하지 않아 원인이나 해소 여부를 확인하지 못했습니다. 보호 기능을 끄기보다 공식
               파일의 해시와 탐지 메시지를 확인하고
               <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/download-verification.md"
+                href="https://github.com/doodoocompany/DarkVideoManager/blob/main/docs/download-verification.md"
                 >검증·제보 안내</a
               >를 따라 주세요. 미서명 여부만으로 탐지 원인을 단정할 수는 없습니다.
             </p>
@@ -736,7 +774,7 @@
               ARM·모바일, 스트리밍 URL과 전용 NAS 연동은 구현되지 않았습니다. VSR·SVP 전용 설정과
               호환성도 제공·검증하지 않습니다. 관련 내용은
               <a
-                href="https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/platform-and-playback-scope.md"
+                href="https://github.com/doodoocompany/DarkVideoManager/blob/main/docs/platform-and-playback-scope.md"
                 >지원 범위와 검토 항목</a
               >에 정리되어 있으며 구현 일정이나 지원 약속을 뜻하지 않습니다.
             </p>

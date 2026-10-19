@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const releases = 'https://github.com/DarkVideoManager/DarkVideoManager/releases'
+const releases = 'https://github.com/doodoocompany/DarkVideoManager/releases'
 const summary = {
   version: '0.3.0',
   releaseUrl: `${releases}/tag/v0.3.0`,
@@ -46,7 +46,7 @@ for (const viewport of [
       page.getByRole('link', { name: '다운로드 확인 안내', exact: true }),
     ).toHaveAttribute(
       'href',
-      'https://github.com/DarkVideoManager/DarkVideoManager/blob/main/docs/download-verification.md',
+      'https://github.com/doodoocompany/DarkVideoManager/blob/main/docs/download-verification.md',
     )
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
